@@ -90,7 +90,7 @@
   .nav-item .icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
 
   /* ── MAIN ───────────────────────────────────────────── */
-  .main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
+  .main { flex: 1; overflow-y: auto; min-width: 0; }
 
   /* ── TOPBAR ─────────────────────────────────────────── */
   .topbar {
@@ -114,7 +114,7 @@
   .search-box input::placeholder { color: var(--text3); }
 
   /* ── PAGE CONTENT ───────────────────────────────────── */
-  .page { padding: 16px; flex: 1; }
+  .page { padding: 16px; padding-bottom: 40px; }
 
   /* ── BOTTOM NAV (móvil) ─────────────────────────────── */
   .bottom-nav {
@@ -169,7 +169,8 @@
     .bottom-nav { display: flex; }
 
     /* Padding inferior para no quedar bajo la bottom nav */
-    .main { padding-bottom: 72px; }
+    .main { padding-bottom: 0; }
+    .page { padding-bottom: 120px; }
 
     /* Topbar compacta */
     .topbar { padding: 10px 14px; flex-wrap: nowrap; }
