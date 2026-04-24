@@ -3708,6 +3708,25 @@ function renderAjustes() {
         <button class="btn btn-danger" onclick="resetearApp()">✕ Borrar todos los datos</button>
       </div>
       <p style="font-size:12px;color:var(--text2);margin-top:12px">Los datos se guardan automáticamente en este navegador. Exporta un backup JSON regularmente. El Excel de notas no incluye datos personales, solo nombre, apellidos y notas.</p>
+      ${(() => {
+        const json = JSON.stringify(APP);
+        const bytes = new TextEncoder().encode(json).length;
+        const kb = (bytes / 1024).toFixed(1);
+        const mb = (bytes / 1024 / 1024).toFixed(3);
+        const pct = (bytes / (15 * 1024 * 1024) * 100).toFixed(4);
+        const nAlumnos = APP.alumnos.length;
+        const nGrupos  = APP.grupos.length;
+        const driveOk  = !!_driveToken;
+        const driveEl  = driveOk
+          ? `<span style="color:var(--green);font-weight:600">✅ Conectado y sincronizando</span>`
+          : `<span style="color:var(--text3)">☁️ Sin conectar — <button class="btn btn-secondary btn-sm" onclick="driveConectar()" style="margin-left:4px">Conectar Drive</button></span>`;
+        return `<div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:10px;font-size:12px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:2px">📊 Estado de los datos</div>
+          <div style="display:flex;gap:6px;align-items:center"><span style="color:var(--text2);min-width:130px">Tamaño del JSON:</span><strong>${kb} KB</strong><span style="color:var(--text3)">(${mb} MB · ${pct}% de los 15 GB gratuitos de Drive)</span></div>
+          <div style="display:flex;gap:6px;align-items:center"><span style="color:var(--text2);min-width:130px">Contenido:</span><span>${nGrupos} grupo${nGrupos!==1?'s':''} · ${nAlumnos} alumno${nAlumnos!==1?'s':''}</span></div>
+          <div style="display:flex;gap:6px;align-items:center"><span style="color:var(--text2);min-width:130px">Google Drive:</span>${driveEl}</div>
+        </div>`;
+      })()}
     </div>
     <div class="card" style="padding:20px">
       <h3 style="font-size:14px;font-weight:600;margin-bottom:10px">Acerca de ProfeApp</h3>
