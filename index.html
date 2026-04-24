@@ -3666,6 +3666,33 @@ function renderAjustes() {
   <div class="topbar"><h2>Ajustes</h2></div>
   <div class="page">
     <div class="card" style="padding:20px;margin-bottom:16px">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🎨 Tema visual</h3>
+      ${(() => {
+        const temaActual = APP.config?.tema || 'claro';
+        const grupos = {};
+        Object.entries(TEMAS).forEach(([id, t]) => {
+          if (!grupos[t.grupo]) grupos[t.grupo] = [];
+          grupos[t.grupo].push({ id, ...t });
+        });
+        return Object.entries(grupos).map(([grupo, temas]) => `
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">${grupo}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${temas.map(t => {
+                const sel = temaActual === t.id;
+                const bg  = t.vars['--accent'];
+                const sur = t.vars['--surface'];
+                const txt = t.vars['--text'];
+                return `<button onclick="aplicarTema('${t.id}')"
+                  style="padding:8px 14px;border-radius:20px;font-size:12px;font-weight:${sel?700:500};cursor:pointer;border:2px solid ${sel?bg:'var(--border2)'};background:${sel?bg:sur};color:${sel?'#fff':'var(--text)'};transition:all 0.15s;box-shadow:${sel?'0 2px 8px rgba(0,0,0,0.2)':'none'}">
+                  ${t.nombre}
+                </button>`;
+              }).join('')}
+            </div>
+          </div>`).join('');
+      })()}
+    </div>
+    <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <h3 style="font-size:14px;font-weight:600">Redondeo de notas</h3>
         <label class="toggle-row" onclick="toggleRedondeoGlobal()">
@@ -5438,7 +5465,10 @@ function calRenderFormEvento(fechaDefault, ev) {
     </div>
     ${horaFields}
     <div class="form-group" style="margin-top:10px">
-      <label>Descripción (opcional)</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label style="margin:0">Descripción (opcional)</label>
+        ${btnDictar('cal-ev-desc')}
+      </div>
       <textarea id="cal-ev-desc" rows="2" style="width:100%">${ev?.descripcion || ''}</textarea>
     </div>`;
 }
@@ -6075,8 +6105,17 @@ function abrirNotaSesion(ni, bi, si) {
     </div>
     <!-- Nota de clase -->
     <div class="form-group">
-      <label>Tu nota de clase (qué pasó, hasta dónde llegaste, ajustes para el año que viene…)</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label style="margin:0">Tu nota de clase (qué pasó, hasta dónde llegaste, ajustes para el año que viene…)</label>
+        <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px">
+          ${btnDictar('nota-sesion-real')}
+          <button type="button" onclick="grabarAudioSesion(this)"
+            style="padding:4px 12px;font-size:12px;font-weight:600;border:1.5px solid var(--purple);background:var(--purple-bg);color:var(--purple);border-radius:20px;cursor:pointer;transition:all 0.15s"
+            title="Grabar nota de voz">🎙 Grabar audio</button>
+        </div>
+      </div>
       <textarea id="nota-sesion-real" rows="5" style="width:100%" placeholder="Ej: No dio tiempo al último ejercicio. Pasar la mitad al siguiente día. El grupo A llegó hasta pág. 38.">${s.notaReal || ''}</textarea>
+      <div id="audio-sesion-wrap" style="margin-top:8px">${s.audioNota ? `<audio controls src="${s.audioNota}" style="width:100%;height:36px"></audio><button onclick="borrarAudioSesion()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px">✕ Eliminar grabación</button>` : ''}</div>
     </div>`;
   document.getElementById('modal-nota-prog').classList.remove('hidden');
 }
@@ -6087,11 +6126,32 @@ function setEstadoSesionProg(est, btn) {
   });
   if (btn) { btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary'); }
 }
+function grabarAudioSesion(btnEl) {
+  grabarAudio((base64) => {
+    window._audioSesionTemp = base64;
+    const wrap = document.getElementById('audio-sesion-wrap');
+    if (wrap) wrap.innerHTML = `<audio controls src="${base64}" style="width:100%;height:36px"></audio>
+      <button onclick="borrarAudioSesion()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px">✕ Eliminar grabación</button>`;
+  }, btnEl);
+}
+
+function borrarAudioSesion() {
+  window._audioSesionTemp = null;
+  const wrap = document.getElementById('audio-sesion-wrap');
+  if (wrap) wrap.innerHTML = '';
+}
+
 function guardarNotaSesionProg() {
   const { ni, bi, si } = _sesProgEdit;
   const s = APP.programacion.niveles[ni].bloques[bi].sesiones[si];
   if (window._estadoSesionProg) s.estado = window._estadoSesionProg;
   s.notaReal = document.getElementById('nota-sesion-real')?.value || '';
+  // Guardar audio si se grabó uno nuevo
+  if (window._audioSesionTemp !== undefined) {
+    if (window._audioSesionTemp) s.audioNota = window._audioSesionTemp;
+    else delete s.audioNota;
+    window._audioSesionTemp = undefined;
+  }
   guardarDatos();
   document.getElementById('modal-nota-prog').classList.add('hidden');
   window._estadoSesionProg = null;
@@ -8056,6 +8116,264 @@ function cuadernoExportar() {
 }
 
 // =====================
+// MÓDULO DE VOZ
+// =====================
+
+// ── Dictado de texto (SpeechRecognition) ─────────────────────
+let _srInstance = null;
+let _srActivo   = false;
+
+function dictarTexto(targetId, btnEl) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert('Tu navegador no soporta reconocimiento de voz. Usa Chrome o Edge.');
+    return;
+  }
+  if (_srActivo) {
+    _srInstance?.stop();
+    return;
+  }
+  const sr = new SR();
+  _srInstance = sr;
+  sr.lang = 'es-ES';
+  sr.continuous = true;
+  sr.interimResults = true;
+
+  const target = document.getElementById(targetId);
+  const baseText = target?.value || '';
+  let interim = '';
+
+  sr.onstart = () => {
+    _srActivo = true;
+    if (btnEl) {
+      btnEl.style.background = 'var(--red)';
+      btnEl.style.color = '#fff';
+      btnEl.textContent = '⏹ Detener';
+      btnEl.title = 'Pulsa para detener el dictado';
+    }
+  };
+
+  sr.onresult = (e) => {
+    let final = '', interimNew = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      else interimNew += e.results[i][0].transcript;
+    }
+    interim = interimNew;
+    if (target) target.value = baseText + (baseText && final ? ' ' : '') + final + (interimNew ? ' [' + interimNew + ']' : '');
+  };
+
+  sr.onfinal = sr.onend = () => {
+    _srActivo = false;
+    _srInstance = null;
+    if (target) target.value = target.value.replace(/\s*\[[^\]]*\]$/, '').trim();
+    if (btnEl) {
+      btnEl.style.background = '';
+      btnEl.style.color = '';
+      btnEl.textContent = '🎤 Dictar';
+      btnEl.title = 'Dictar texto por voz';
+    }
+  };
+
+  sr.onerror = (e) => {
+    _srActivo = false;
+    _srInstance = null;
+    if (btnEl) { btnEl.style.background=''; btnEl.style.color=''; btnEl.textContent='🎤 Dictar'; }
+    if (e.error !== 'no-speech') alert('Error de reconocimiento de voz: ' + e.error);
+  };
+
+  sr.start();
+}
+
+function btnDictar(targetId) {
+  return `<button type="button" onclick="dictarTexto('${targetId}',this)"
+    style="padding:4px 12px;font-size:12px;font-weight:600;border:1.5px solid var(--accent);background:var(--accent-bg);color:var(--accent);border-radius:20px;cursor:pointer;transition:all 0.15s"
+    title="Dictar texto por voz">🎤 Dictar</button>`;
+}
+
+// ── Grabación de audio (MediaRecorder) ────────────────────────
+let _mediaRecorder  = null;
+let _audioChunks    = [];
+let _grabando       = false;
+
+function grabarAudio(onGuardar, btnEl) {
+  if (_grabando) {
+    _mediaRecorder?.stop();
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    alert('Tu navegador no soporta grabación de audio.');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    _audioChunks = [];
+    _mediaRecorder = new MediaRecorder(stream);
+    _grabando = true;
+
+    if (btnEl) {
+      btnEl.style.background = 'var(--red)';
+      btnEl.style.color = '#fff';
+      btnEl.textContent = '⏹ Detener';
+    }
+
+    _mediaRecorder.ondataavailable = e => { if (e.data.size > 0) _audioChunks.push(e.data); };
+
+    _mediaRecorder.onstop = () => {
+      _grabando = false;
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(_audioChunks, { type: 'audio/webm' });
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (btnEl) { btnEl.style.background=''; btnEl.style.color=''; btnEl.textContent='🎙 Grabar audio'; }
+        onGuardar(reader.result); // devuelve base64
+      };
+      reader.readAsDataURL(blob);
+    };
+
+    _mediaRecorder.start();
+  }).catch(() => {
+    _grabando = false;
+    alert('No se pudo acceder al micrófono. Comprueba los permisos del navegador.');
+  });
+}
+
+// =====================
+// SISTEMA DE TEMAS
+// =====================
+const TEMAS = {
+  // ── Genéricos ─────────────────────────────────────────────
+  claro: {
+    nombre:'☀️ Claro', grupo:'Genéricos',
+    vars:{ '--bg':'#f4f2ee','--surface':'#ffffff','--surface2':'#f9f8f6','--border':'#e2ddd6','--border2':'#cec9c0','--text':'#1a1917','--text2':'#6b6760','--text3':'#a09c97','--accent':'#2d5be3','--accent-bg':'#eef1fd','--green':'#1a7a4a','--green-bg':'#e8f5ee','--red':'#c0392b','--red-bg':'#fdecea','--amber':'#b45309','--amber-bg':'#fef3cd','--purple':'#6d28d9','--purple-bg':'#f3eeff','--font':'inherit' }
+  },
+  oscuro: {
+    nombre:'🌙 Oscuro', grupo:'Genéricos',
+    vars:{ '--bg':'#0f1117','--surface':'#1a1d27','--surface2':'#22263a','--border':'#2e3348','--border2':'#3d4460','--text':'#e8eaf6','--text2':'#9fa8c9','--text3':'#5c6480','--accent':'#7c9ef8','--accent-bg':'#1e2a4a','--green':'#4caf7d','--green-bg':'#0d2a1e','--red':'#f07070','--red-bg':'#2a1010','--amber':'#f0c060','--amber-bg':'#2a1e08','--purple':'#b39dff','--purple-bg':'#1e1540','--font':'inherit' }
+  },
+  gris: {
+    nombre:'🩶 Gris neutro', grupo:'Genéricos',
+    vars:{ '--bg':'#f0f0f0','--surface':'#ffffff','--surface2':'#f5f5f5','--border':'#ddd','--border2':'#ccc','--text':'#1a1a1a','--text2':'#555','--text3':'#999','--accent':'#444','--accent-bg':'#e8e8e8','--green':'#2d7a4a','--green-bg':'#e0f0e8','--red':'#b03030','--red-bg':'#fdecea','--amber':'#8a5c00','--amber-bg':'#fef3cd','--purple':'#5a3a9a','--purple-bg':'#ede8ff','--font':'inherit' }
+  },
+  naturaleza: {
+    nombre:'🌿 Naturaleza', grupo:'Genéricos',
+    vars:{ '--bg':'#f0f4ec','--surface':'#ffffff','--surface2':'#f5f8f2','--border':'#d4e0c8','--border2':'#b8ccaa','--text':'#1a2e10','--text2':'#4a6a34','--text3':'#8aaa74','--accent':'#3a7d30','--accent-bg':'#e4f0de','--green':'#2d6e22','--green-bg':'#dff0d8','--red':'#c0392b','--red-bg':'#fdecea','--amber':'#8a6a00','--amber-bg':'#fef8cd','--purple':'#6d28d9','--purple-bg':'#f3eeff','--font':'inherit' }
+  },
+  morado: {
+    nombre:'🟣 Morado', grupo:'Genéricos',
+    vars:{ '--bg':'#f5f0ff','--surface':'#ffffff','--surface2':'#faf7ff','--border':'#ddd0f8','--border2':'#c4b0f0','--text':'#1a0a3a','--text2':'#5a4080','--text3':'#9a80c0','--accent':'#7c3aed','--accent-bg':'#ede8ff','--green':'#2d7a4a','--green-bg':'#e0f0e8','--red':'#c0392b','--red-bg':'#fdecea','--amber':'#b45309','--amber-bg':'#fef3cd','--purple':'#5a1a9a','--purple-bg':'#e8d8ff','--font':'inherit' }
+  },
+  // ── Educativos ────────────────────────────────────────────
+  ciencias: {
+    nombre:'📐 Ciencias', grupo:'Educativos',
+    vars:{ '--bg':'#f0f4fa','--surface':'#ffffff','--surface2':'#e8eef8','--border':'#c0d0e8','--border2':'#a0b8d8','--text':'#0a1a3a','--text2':'#2a4a7a','--text3':'#6080a8','--accent':'#0050c8','--accent-bg':'#dce8ff','--green':'#006840','--green-bg':'#d8f0e8','--red':'#a82020','--red-bg':'#ffe0e0','--amber':'#884a00','--amber-bg':'#ffecd8','--purple':'#5020a0','--purple-bg':'#ece0ff','--font':"'DM Mono', monospace" }
+  },
+  artes: {
+    nombre:'🎨 Artes', grupo:'Educativos',
+    vars:{ '--bg':'#fdf6ee','--surface':'#fffdf8','--surface2':'#faf0e0','--border':'#e8d8c0','--border2':'#d8c0a0','--text':'#2a1a08','--text2':'#6a4a28','--text3':'#a88060','--accent':'#c85000','--accent-bg':'#ffe8d8','--green':'#386820','--green-bg':'#e0f0d0','--red':'#a82020','--red-bg':'#ffe8e0','--amber':'#905a00','--amber-bg':'#fff0c0','--purple':'#602080','--purple-bg':'#f0e0ff','--font':"'Georgia', serif" }
+  },
+  letras: {
+    nombre:'📚 Letras', grupo:'Educativos',
+    vars:{ '--bg':'#f8f4ec','--surface':'#fffdf6','--surface2':'#f4eedd','--border':'#e0d4b8','--border2':'#ccba98','--text':'#2a1e08','--text2':'#6a5830','--text3':'#a89060','--accent':'#7a4a00','--accent-bg':'#f8e8c8','--green':'#306820','--green-bg':'#dff0d0','--red':'#a02020','--red-bg':'#ffe0d8','--amber':'#886000','--amber-bg':'#fff8c0','--purple':'#5a2878','--purple-bg':'#f0e0ff','--font':"'Georgia', serif" }
+  },
+  laboratorio: {
+    nombre:'⚗️ Laboratorio', grupo:'Educativos',
+    vars:{ '--bg':'#0a1a0a','--surface':'#0f2010','--surface2':'#162816','--border':'#204820','--border2':'#306030','--text':'#a0ffa0','--text2':'#70d870','--text3':'#408040','--accent':'#00e060','--accent-bg':'#0a3010','--green':'#00c840','--green-bg':'#083818','--red':'#ff4040','--red-bg':'#300808','--amber':'#e0c000','--amber-bg':'#302800','--purple':'#c080ff','--purple-bg':'#200840','--font':"'DM Mono', monospace" }
+  },
+  deportes: {
+    nombre:'🏃 Deportes', grupo:'Educativos',
+    vars:{ '--bg':'#fff8f0','--surface':'#ffffff','--surface2':'#fff0e0','--border':'#ffd8b0','--border2':'#ffbe80','--text':'#1a0800','--text2':'#7a3800','--text3':'#c07030','--accent':'#e85000','--accent-bg':'#ffe8d0','--green':'#206800','--green-bg':'#d8f0c0','--red':'#c02020','--red-bg':'#ffe0d8','--amber':'#a06000','--amber-bg':'#fff8c0','--purple':'#6020a0','--purple-bg':'#f0e0ff','--font':'inherit' }
+  },
+  // ── Estaciones ────────────────────────────────────────────
+  otono: {
+    nombre:'🍂 Otoño', grupo:'Estaciones',
+    vars:{ '--bg':'#faf0e0','--surface':'#fffdf8','--surface2':'#f8e8d0','--border':'#e8cca0','--border2':'#d8b880','--text':'#2a1200','--text2':'#6a3800','--text3':'#a87040','--accent':'#c05800','--accent-bg':'#ffe0c0','--green':'#506020','--green-bg':'#e8f0c0','--red':'#a83020','--red-bg':'#ffe0d0','--amber':'#906000','--amber-bg':'#fff8c0','--purple':'#5a2858','--purple-bg':'#f0d8f0','--font':'inherit' }
+  },
+  invierno: {
+    nombre:'❄️ Invierno', grupo:'Estaciones',
+    vars:{ '--bg':'#f0f6ff','--surface':'#ffffff','--surface2':'#e8f2ff','--border':'#c8deff','--border2':'#a8c8f8','--text':'#0a1828','--text2':'#2a4868','--text3':'#6888a8','--accent':'#0068d8','--accent-bg':'#d8eeff','--green':'#006848','--green-bg':'#d0f0e8','--red':'#a82828','--red-bg':'#ffe0e0','--amber':'#786000','--amber-bg':'#fff8d0','--purple':'#4828a8','--purple-bg':'#e8d8ff','--font':'inherit' }
+  },
+  primavera: {
+    nombre:'🌸 Primavera', grupo:'Estaciones',
+    vars:{ '--bg':'#fff0f8','--surface':'#ffffff','--surface2':'#ffe8f4','--border':'#f8c8e0','--border2':'#f0a8c8','--text':'#280a18','--text2':'#780848','--text3':'#c06898','--accent':'#d02878','--accent-bg':'#ffe0f0','--green':'#287840','--green-bg':'#d8f8e0','--red':'#b02030','--red-bg':'#ffe0e0','--amber':'#886800','--amber-bg':'#fff8c0','--purple':'#7828b8','--purple-bg':'#f0d8ff','--font':'inherit' }
+  },
+  // ── Anime ─────────────────────────────────────────────────
+  llamas: {
+    nombre:'🔥 Llamas', grupo:'Anime',
+    vars:{ '--bg':'#1a0800','--surface':'#2a1000','--surface2':'#3a1800','--border':'#6a2800','--border2':'#8a3800','--text':'#ffe8d0','--text2':'#ffb880','--text3':'#c07040','--accent':'#ff6820','--accent-bg':'#4a1800','--green':'#40c860','--green-bg':'#103820','--red':'#ff3020','--red-bg':'#3a0800','--amber':'#ffa820','--amber-bg':'#3a2000','--purple':'#c840f8','--purple-bg':'#280840','--font':'inherit' }
+  },
+  ninja: {
+    nombre:'⚡ Ninja', grupo:'Anime',
+    vars:{ '--bg':'#1a1000','--surface':'#221800','--surface2':'#2a2000','--border':'#4a3800','--border2':'#6a5000','--text':'#fff8e0','--text2':'#ffd860','--text3':'#a08830','--accent':'#ff8800','--accent-bg':'#3a2000','--green':'#40b860','--green-bg':'#0a2818','--red':'#f04020','--red-bg':'#2a0808','--amber':'#e0a000','--amber-bg':'#302000','--purple':'#a060f0','--purple-bg':'#180830','--font':'inherit' }
+  },
+  titan: {
+    nombre:'🌊 Titán', grupo:'Anime',
+    vars:{ '--bg':'#1a1208','--surface':'#241a0e','--surface2':'#2e2218','--border':'#4a3820','--border2':'#6a5030','--text':'#f0e8d8','--text2':'#c0a870','--text3':'#806840','--accent':'#c08030','--accent-bg':'#382210','--green':'#488840','--green-bg':'#102018','--red':'#c03020','--red-bg':'#280808','--amber':'#a07020','--amber-bg':'#281808','--purple':'#7848c0','--purple-bg':'#180830','--font':"'Georgia', serif" }
+  },
+  guerrero: {
+    nombre:'🐲 Guerrero', grupo:'Anime',
+    vars:{ '--bg':'#f8f0d8','--surface':'#ffffff','--surface2':'#f4e8c8','--border':'#e0c880','--border2':'#c8a840','--text':'#1a0808','--text2':'#6a2800','--text3':'#a06820','--accent':'#e04800','--accent-bg':'#ffe0c0','--green':'#206820','--green-bg':'#d8f0d0','--red':'#c02008','--red-bg':'#ffe0d0','--amber':'#906000','--amber-bg':'#fff8c0','--purple':'#1828c0','--purple-bg':'#d8d8ff','--font':'inherit' }
+  },
+  naturalezaPoke: {
+    nombre:'🌿 Naturaleza Poké', grupo:'Anime',
+    vars:{ '--bg':'#f0fff0','--surface':'#ffffff','--surface2':'#e8ffe8','--border':'#a8e0a8','--border2':'#80c880','--text':'#081808','--text2':'#286828','--text3':'#60a860','--accent':'#e82020','--accent-bg':'#ffe0e0','--green':'#206820','--green-bg':'#d8f8d8','--red':'#c02020','--red-bg':'#ffe0e0','--amber':'#806000','--amber-bg':'#fff8c0','--purple':'#6020c0','--purple-bg':'#f0e0ff','--font':'inherit' }
+  },
+  // ── Videojuegos ───────────────────────────────────────────
+  cristal: {
+    nombre:'💎 Cristal', grupo:'Videojuegos',
+    vars:{ '--bg':'#080818','--surface':'#100c28','--surface2':'#181038','--border':'#302060','--border2':'#402880','--text':'#e8e0ff','--text2':'#a898e0','--text3':'#5848a0','--accent':'#8060ff','--accent-bg':'#200840','--green':'#40d878','--green-bg':'#082818','--red':'#f06060','--red-bg':'#280808','--amber':'#e0c020','--amber-bg':'#281800','--purple':'#c080ff','--purple-bg':'#180838','--font':"'Georgia', serif" }
+  },
+  reino: {
+    nombre:'🌙 Reino', grupo:'Videojuegos',
+    vars:{ '--bg':'#08080f','--surface':'#10101e','--surface2':'#18182e','--border':'#28284a','--border2':'#383860','--text':'#ffeeb0','--text2':'#c0a848','--text3':'#806820','--accent':'#e0a800','--accent-bg':'#281c00','--green':'#40b860','--green-bg':'#082018','--red':'#f04848','--red-bg':'#200808','--amber':'#e0a000','--amber-bg':'#201800','--purple':'#8840f0','--purple-bg':'#180838','--font':"'Georgia', serif" }
+  },
+  sigilo: {
+    nombre:'⚙️ Sigilo', grupo:'Videojuegos',
+    vars:{ '--bg':'#0a0f08','--surface':'#121810','--surface2':'#1a2018','--border':'#283828','--border2':'#385038','--text':'#c8d8b8','--text2':'#7a9870','--text3':'#486040','--accent':'#60a840','--accent-bg':'#102008','--green':'#40b850','--green-bg':'#082010','--red':'#d04838','--red-bg':'#200808','--amber':'#a09020','--amber-bg':'#201808','--purple':'#8060d0','--purple-bg':'#100820','--font':"'DM Mono', monospace" }
+  },
+  // ── Disney ────────────────────────────────────────────────
+  magia: {
+    nombre:'✨ Magia', grupo:'Disney',
+    vars:{ '--bg':'#08103a','--surface':'#101848','--surface2':'#181f58','--border':'#282870','--border2':'#383898','--text':'#fff8e0','--text2':'#e0d098','--text3':'#888048','--accent':'#f8c820','--accent-bg':'#282000','--green':'#40c870','--green-bg':'#082818','--red':'#f05060','--red-bg':'#280810','--amber':'#f0a020','--amber-bg':'#281800','--purple':'#c060f0','--purple-bg':'#180838','--font':"'Georgia', serif" }
+  },
+  // ── Fútbol ────────────────────────────────────────────────
+  hierba: {
+    nombre:'⚽ Hierba', grupo:'Fútbol',
+    vars:{ '--bg':'#f0f8f0','--surface':'#ffffff','--surface2':'#e4f4e4','--border':'#b8ddb8','--border2':'#90c890','--text':'#081808','--text2':'#206020','--text3':'#609860','--accent':'#1a7a1a','--accent-bg':'#d8f0d8','--green':'#157815','--green-bg':'#d0f0d0','--red':'#c02020','--red-bg':'#ffe0e0','--amber':'#886000','--amber-bg':'#fff8c0','--purple':'#6020a0','--purple-bg':'#f0e0ff','--font':'inherit' }
+  },
+};
+
+function aplicarTema(id) {
+  const tema = TEMAS[id];
+  if (!tema) return;
+  const root = document.documentElement;
+  Object.entries(tema.vars).forEach(([k,v]) => {
+    if (k === '--font') {
+      document.body.style.fontFamily = v === 'inherit' ? '' : v;
+    } else {
+      root.style.setProperty(k, v);
+    }
+  });
+  APP.config.tema = id;
+  guardarDatos();
+  // Re-render para que los colores calculados (notas, grupos) también se actualicen
+  renderPage();
+}
+
+function inicializarTema() {
+  const id = APP.config?.tema || 'claro';
+  const tema = TEMAS[id];
+  if (!tema) return;
+  const root = document.documentElement;
+  Object.entries(tema.vars).forEach(([k,v]) => {
+    if (k === '--font') {
+      document.body.style.fontFamily = v === 'inherit' ? '' : v;
+    } else {
+      root.style.setProperty(k, v);
+    }
+  });
+}
+
+// =====================
 // GOOGLE DRIVE SYNC
 // =====================
 const DRIVE_CLIENT_ID = '132802016070-vsoa0ae73b2nqq8bhvutb89l1g1ec0dk.apps.googleusercontent.com';
@@ -8238,6 +8556,7 @@ function driveGuardar() {
 // INIT
 // =====================
 cargarDatos();
+inicializarTema();
 renderPage('inicio');
 driveSetStatus('off');
 
