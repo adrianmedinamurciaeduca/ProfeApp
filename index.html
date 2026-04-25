@@ -46,7 +46,7 @@
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
-    font-size: 14px;
+    font-size: inherit;
     line-height: 1.5;
   }
 
@@ -90,7 +90,7 @@
   .nav-item .icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
 
   /* ── MAIN ───────────────────────────────────────────── */
-  .main { flex: 1; overflow-y: auto; min-width: 0; }
+  .main { flex: 1; overflow-y: auto; overflow-x: auto; min-width: 0; }
 
   /* ── TOPBAR ─────────────────────────────────────────── */
   .topbar {
@@ -827,7 +827,7 @@
 <!-- Overlay para cerrar sidebar en móvil -->
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="cerrarSidebar()"></div>
 
-<div class="app-shell">
+<div class="app-shell" id="app-shell">
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
@@ -841,6 +841,11 @@
       </div>
     </div>
     <nav class="sidebar-nav">
+      <div style="padding:8px 10px 0">
+        <button onclick="abrirBusqueda()" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text2);font-family:inherit;font-size:12px;cursor:pointer;text-align:left">
+          <span>🔍</span><span style="flex:1">Buscar...</span><span style="font-size:10px;opacity:0.6">Ctrl+K</span>
+        </button>
+      </div>
       <div class="nav-section">Principal</div>
       <div class="nav-item active" onclick="navTo('inicio')">
         <span class="icon">🏠</span><span>Inicio</span>
@@ -906,11 +911,31 @@
 </nav>
 
 <!-- MODAL FICHA ALUMNO -->
+<!-- BÚSQUEDA GLOBAL -->
+<div class="modal-overlay hidden" id="busqueda-overlay" onclick="event.target===this&&cerrarBusqueda()" style="align-items:flex-start;padding-top:60px">
+  <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
+    <div class="modal-header" style="padding:12px 16px">
+      <div style="display:flex;align-items:center;gap:10px;width:100%">
+        <span style="font-size:18px">🔍</span>
+        <input id="busqueda-input" type="text" placeholder="Buscar alumno, grupo, evento, sesión..."
+          style="flex:1;border:none;background:transparent;font-family:inherit;font-size:14px;outline:none;color:var(--text)"
+          oninput="ejecutarBusqueda(this.value)"
+          onkeydown="if(event.key==='Escape')cerrarBusqueda()">
+        <button class="btn btn-ghost btn-icon" onclick="cerrarBusqueda()">✕</button>
+      </div>
+    </div>
+    <div id="busqueda-resultados" style="max-height:60vh;overflow-y:auto">
+      <div style="padding:20px;text-align:center;color:var(--text3)">Escribe para buscar...</div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="modal-ficha" onclick="cerrarModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="modal-titulo">Ficha del alumno</h3>
       <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="generarInformeAlumno(alumnoActualId)">📄 Informe</button>
         <button class="btn btn-danger btn-sm" id="btn-eliminar-alumno" onclick="eliminarAlumnoActual()">✕ Eliminar</button>
         <button class="btn btn-ghost btn-icon" onclick="cerrarModalFicha()">✕</button>
       </div>
@@ -975,12 +1000,12 @@
 
 <!-- MODAL PLANO DE CLASE -->
 <div class="modal-overlay hidden" id="modal-plano-grupo" onclick="event.target===this&&cerrarPlanoGrupo()">
-  <div class="modal" style="max-width:820px;width:95vw" onclick="event.stopPropagation()">
+  <div class="modal" style="max-width:99vw;width:99vw" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="plano-grupo-titulo">🗺 Plano de clase</h3>
       <button class="btn btn-ghost btn-icon" onclick="cerrarPlanoGrupo()">✕</button>
     </div>
-    <div class="modal-body" id="plano-grupo-body" style="max-height:75vh;overflow-y:auto"></div>
+    <div class="modal-body" id="plano-grupo-body"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="exportarPlanoJPEG()">🖼 Exportar imagen</button>
       <button class="btn btn-primary" onclick="cerrarPlanoGrupo()">Cerrar</button>
@@ -1218,8 +1243,14 @@ function guardarDatos() {
 function cargarDatos() {
   try {
     const d = localStorage.getItem('profeapp_data');
-    if (d) APP = JSON.parse(d);
-  } catch(e){}
+    if (d) {
+      APP = JSON.parse(d);
+      if (!APP.config) APP.config = {};
+      if (!APP.rubricasGuardadas) APP.rubricasGuardadas = [];
+      if (!APP.archivo) APP.archivo = [];
+      if (APP.config.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
+    }
+  } catch(e) { console.warn('Error cargando datos:', e); }
 }
 function exportarDatos() {
   document.getElementById('modal-exportar').classList.remove('hidden');
@@ -1342,17 +1373,33 @@ function getEstructuraGrupo(grupoId, trim) {
 }
 
 // Para calcular: fusiona estructura del grupo con valores del alumno
-// Valores guardados como alumno.notas[trim][iIdx][jIdx]
+// Si existe nota de recuperación, la usa en lugar de la original
 function getInstrumentosConValores(alumno, trim) {
   const estructura = getEstructuraGrupo(alumno.grupoId, trim);
   const valoresTrim = alumno.notas?.[trim] || {};
   return estructura.map((inst, iIdx) => ({
     ...inst,
-    items: inst.items.map((item, jIdx) => ({
-      ...item,
-      valor: (valoresTrim[iIdx] !== undefined && valoresTrim[iIdx][jIdx] !== undefined)
-        ? valoresTrim[iIdx][jIdx] : ''
-    }))
+    items: inst.items.map((item, jIdx) => {
+      const valorOriginal = valoresTrim[iIdx]?.[jIdx] ?? '';
+      // Rúbrica guardada en las notas del alumno
+      const rubricaGuardada = valoresTrim[iIdx]?.rubrica?.[jIdx];
+      const notaRubrica = rubricaGuardada ? calcNotaRubrica(rubricaGuardada) : null;
+      // Recuperación: tiene prioridad en el cálculo
+      const recVal = valoresTrim[iIdx]?.rec?.[jIdx];
+      const recRubrica = valoresTrim[iIdx]?.recRubrica?.[jIdx];
+      const recNotaRubrica = recRubrica ? calcNotaRubrica(recRubrica) : null;
+      const valorRec = recNotaRubrica !== null ? recNotaRubrica
+        : (recVal !== undefined && recVal !== '' && recVal !== null ? recVal : null);
+      // Valor para cálculo: recuperación > original (con rúbrica o directo)
+      const valorCalculo = valorRec !== null ? valorRec
+        : notaRubrica !== null ? notaRubrica
+        : valorOriginal;
+      return {
+        ...item,
+        valor: valorCalculo,
+        rubrica: rubricaGuardada || item.rubrica,
+      };
+    })
   }));
 }
 
@@ -1675,6 +1722,7 @@ function verGrupo(gid) {
 let filtroTexto = '';
 let filtroGrupo = 'todos';
 let incluirArchivados = false;
+let vistaAlumnos = 'lista'; // 'lista' | 'miniaturas' | 'plano'
 
 function renderAlumnos() {
   const alFiltrados = APP.alumnos.filter(a => {
@@ -1722,6 +1770,12 @@ function renderAlumnos() {
         <span>${incluirArchivados?'●':'○'}</span> Archivados
       </span>
     </label>
+    <!-- Selector de vista -->
+    <div style="display:flex;border:1.5px solid var(--border2);border-radius:8px;overflow:hidden;flex-shrink:0">
+      ${[['lista','☰','Lista'],['miniaturas','⊞','Miniaturas'],['plano','🗺','Plano']].map(([v,ico,lbl])=>`
+      <button onclick="cambiarVistaAlumnos('${v}')" title="${lbl}"
+        style="padding:5px 10px;border:none;cursor:pointer;font-size:14px;background:${vistaAlumnos===v?'var(--accent)':'var(--surface)'};color:${vistaAlumnos===v?'#fff':'var(--text2)'};transition:all 0.15s">${ico}</button>`).join('')}
+    </div>
     <button class="btn btn-primary btn-sm" onclick="abrirModalNuevo()">+ Alumno</button>
     <button class="btn btn-secondary btn-sm" onclick="abrirModalNuevoGrupo()">+ Nueva clase</button>
   </div>
@@ -1738,7 +1792,7 @@ function renderAlumnos() {
       gruposExpandidos[g.id] = exp;
       return `
       <div class="card" style="margin-bottom:16px">
-        <div class="grupo-header" onclick="toggleGrupo('${g.id}')">
+        <div class="grupo-header" data-grupo-id="${g.id}" onclick="toggleGrupo('${g.id}')">
           <div class="grupo-badge">
             ${(()=>{const col=getColorGrupo(g.id);return col?`<span style="width:12px;height:12px;border-radius:3px;background:${col.bg};border:2px solid ${col.border};display:inline-block;flex-shrink:0"></span>`:''})()}
             <span>${g.nombre}</span>
@@ -1746,30 +1800,51 @@ function renderAlumnos() {
             ${g.asignatura ? `<span style="font-size:12px;color:var(--text2);font-weight:400">${g.asignatura}</span>` : ''}
             ${g.esTutor ? `<span style="background:var(--accent-bg);color:var(--accent);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">★ Tutor</span>` : ''}
           </div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
-            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();abrirModalNuevo('${g.id}')">+ Alumno</button>
-            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirEstructuraGrupo('${g.id}')">⚙ Notas</button>
+          <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
+            <!-- Siempre visibles -->
+            <button onclick="event.stopPropagation();abrirModalNuevo('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0b8e8;background:#e8f0fc;color:#1a4a9a;font-size:12px;font-weight:600;cursor:pointer">+ Alumno</button>
+            <button onclick="event.stopPropagation();abrirEstructuraGrupo('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #2d5be3;background:#2d5be3;color:#fff;font-size:12px;font-weight:600;cursor:pointer">⚙ Notas</button>
             ${window.innerWidth > 700 ? `
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirModalReordenar('${g.id}')">↕ Reordenar</button>
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirCuaderno('${g.id}')">📓 Cuaderno</button>
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirPlanoGrupo('${g.id}')">🗺 Plano</button>
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirEditarColorGrupo('${g.id}')">🎨 Color</button>
-            <button class="btn btn-ghost btn-sm ${g.esTutor?'btn-primary':''}" onclick="event.stopPropagation();toggleTutor('${g.id}')">${g.esTutor?'★':'☆'} Tutor</button>
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();duplicarGrupo('${g.id}')">Duplicar</button>
-            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();iniciarArchivar('${g.id}')">🗄 Archivar</button>
-            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();eliminarGrupo('${g.id}')">✕</button>
+            <button onclick="event.stopPropagation();abrirModalReordenar('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0c8a0;background:#e8f5e8;color:#1a6a1a;font-size:12px;font-weight:600;cursor:pointer">↕ Reordenar</button>
+            <button onclick="event.stopPropagation();abrirCuaderno('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #c0a8e0;background:#f0e8fc;color:#5a1a9a;font-size:12px;font-weight:600;cursor:pointer">📓 Cuaderno</button>
+            <button onclick="event.stopPropagation();abrirPlanoGrupo('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0c0d8;background:#e0f0f8;color:#0a4a6a;font-size:12px;font-weight:600;cursor:pointer">🗺 Plano</button>
+            <button onclick="event.stopPropagation();abrirEditarColorGrupo('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #e0b880;background:#fdf0d8;color:#7a4a00;font-size:12px;font-weight:600;cursor:pointer">🎨 Color</button>
+            <button onclick="event.stopPropagation();toggleTutor('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid ${g.esTutor?'#e8a020':'#d0c8a0'};background:${g.esTutor?'#fff8e0':'#f8f4e0'};color:${g.esTutor?'#8a5000':'#6a5800'};font-size:12px;font-weight:600;cursor:pointer">${g.esTutor?'★':'☆'} Tutor</button>
+            <button onclick="event.stopPropagation();duplicarGrupo('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #b8c8d8;background:#eef4f8;color:#2a4a6a;font-size:12px;font-weight:600;cursor:pointer">Duplicar</button>
+            <button onclick="event.stopPropagation();iniciarArchivar('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #c8b8a0;background:#f4ede0;color:#6a4a20;font-size:12px;font-weight:600;cursor:pointer">🗄 Archivar</button>
+            <button onclick="event.stopPropagation();eliminarGrupo('${g.id}')"
+              style="padding:4px 11px;border-radius:7px;border:1.5px solid #e0a0a0;background:#fce8e8;color:#9a1a1a;font-size:12px;font-weight:600;cursor:pointer">✕ Eliminar</button>
             ` : `
             <div class="grupo-menu-wrap" onclick="event.stopPropagation()">
-              <button class="btn btn-ghost btn-sm" onclick="toggleGrupoMenu('${g.id}')" style="font-size:16px;padding:4px 10px;letter-spacing:2px;line-height:1">···</button>
+              <button onclick="toggleGrupoMenu('${g.id}')"
+                style="padding:4px 12px;border-radius:7px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:16px;font-weight:700;cursor:pointer;letter-spacing:2px;line-height:1">···</button>
               <div class="grupo-menu" id="grupo-menu-${g.id}">
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirModalReordenar('${g.id}')">↕ Reordenar lista</button>
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirCuaderno('${g.id}')">📓 Cuaderno</button>
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirPlanoGrupo('${g.id}')">🗺 Plano de clase</button>
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirEditarColorGrupo('${g.id}')">🎨 Color</button>
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();toggleTutor('${g.id}')">${g.esTutor?'★ Quitar tutoría':'☆ Marcar como tutoría'}</button>
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();duplicarGrupo('${g.id}')">Duplicar grupo</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirModalNuevo('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#2d5be3;display:inline-block"></span> + Alumno</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirModalReordenar('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#2a7a2a;display:inline-block"></span> ↕ Reordenar lista</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirCuaderno('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#7a2ab0;display:inline-block"></span> 📓 Cuaderno</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirPlanoGrupo('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#0a6a8a;display:inline-block"></span> 🗺 Plano de clase</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirEditarColorGrupo('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#c07800;display:inline-block"></span> 🎨 Color</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();toggleTutor('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#c09000;display:inline-block"></span> ${g.esTutor?'★ Quitar tutoría':'☆ Marcar como tutoría'}</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();duplicarGrupo('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#4a6a8a;display:inline-block"></span> Duplicar grupo</button>
                 <div class="grupo-menu-sep"></div>
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();iniciarArchivar('${g.id}')">🗄 Archivar</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();iniciarArchivar('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#8a6040;display:inline-block"></span> 🗄 Archivar</button>
                 <button class="grupo-menu-item danger" onclick="cerrarGrupoMenus();eliminarGrupo('${g.id}')">✕ Eliminar grupo</button>
               </div>
             </div>
@@ -1778,66 +1853,158 @@ function renderAlumnos() {
           </div>
         </div>
         <div id="grupo-body-${g.id}" ${exp?'':'class="hidden"'}>
-          ${als.length === 0 ? `<div class="empty-state" style="padding:28px"><div class="es-icon">👤</div><h4>Sin alumnos en este grupo</h4></div>` : `
-          <div class="table-wrap"><table class="alumnos-table">
-            <thead><tr>
-              <th>Alumno</th>
-              <th>Email</th>
-              <th>${g.evalBloqueada?.T1?'🔒 ':''}1ª Eval.</th><th>${g.evalBloqueada?.T2?'🔒 ':''}2ª Eval.</th><th>${g.evalBloqueada?.T3?'🔒 ':''}3ª Eval.</th>
-              <th>Nota final</th>
-              <th>Incidencias</th>
-              <th></th>
-            </tr></thead>
-            <tbody>
-              ${als.map(a => {
-                const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
-                const nt1 = calcNotaTrimestre(a,'T1'); const nt2 = calcNotaTrimestre(a,'T2'); const nt3 = calcNotaTrimestre(a,'T3');
-                const nf = calcNotaFinal(a);
-                const nr = redondear(nf, umbral);
-                return `<tr onclick="abrirFicha('${a.id}')">
-                  <td>
-                    <div style="display:flex;align-items:center;gap:10px">
-                      <div class="alumno-avatar">
-                        ${a.foto ? `<img src="${a.foto}" alt="">` : iniciales(a)}
-                      </div>
-                      <div>
-                        <div style="display:flex;align-items:center;gap:6px">
-                          ${(()=>{const col=getColorGrupo(a.grupoId);return col?`<span style="width:9px;height:9px;border-radius:50%;background:${col.bg};border:1.5px solid ${col.border};flex-shrink:0"></span>`:''})()}
-                          <span style="font-weight:500">${a.apellidos||''}, ${a.nombre||''}</span>
-                        </div>
-                        ${a.acnee ? '<span class="acnee-tag">ACNEE</span>' : ''}
-                        ${a.pap ? '<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span>' : ''}
-                        ${a.pep ? '<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>' : ''}
-                      </div>
-                    </div>
-                  </td>
-                  <td style="color:var(--text2)">${a.email||'—'}</td>
-                  <td><span class="nota-pill ${notaColor(redondear(nt1,umbral))}">${fmtNota(nt1)}</span></td>
-                  <td><span class="nota-pill ${notaColor(redondear(nt2,umbral))}">${fmtNota(nt2)}</span></td>
-                  <td><span class="nota-pill ${notaColor(redondear(nt3,umbral))}">${fmtNota(nt3)}</span></td>
-                  <td>
-                    <div style="display:flex;align-items:center;gap:6px">
-                      <span class="nota-pill ${notaColor(nr)}">${nr!==null?nr:'—'}</span>
-                      ${nf!==null?`<span style="font-size:11px;color:var(--text3)">(${fmtNota(nf)})</span>`:''}
-                    </div>
-                  </td>
-                  <td>
-                    ${['retrasos','partesLeves','partesGraves','expulsiones'].map((k,i)=>{
-                      const colors=['#2d5be3','#92400e','#c2410c','#b91c1c'];
-                      const bgs=['#eef1fd','#fef3cd','#ffedd5','#fdecea'];
-                      const v=a[k]||0;
-                      return v>0?`<span style="background:${bgs[i]};color:${colors[i]};border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;margin-right:2px">${v}</span>`:'';
-                    }).join('')||'<span style="color:var(--text3)">—</span>'}
-                  </td>
-                  <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirFicha('${a.id}')">Ver ficha →</button></td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table></div>`}
+          ${als.length === 0
+            ? `<div class="empty-state" style="padding:28px"><div class="es-icon">👤</div><h4>Sin alumnos en este grupo</h4></div>`
+            : vistaAlumnos === 'miniaturas' ? renderVistaMiniaturas(g, als)
+            : vistaAlumnos === 'plano'      ? renderVistaPlano(g, als)
+            : renderVistaLista(g, als)
+          }
         </div>
       </div>`;
     }).join('')}
   </div>`;
+}
+
+function cambiarVistaAlumnos(v) {
+  if (v === 'plano') {
+    // Comprobar si hay grupos sin plano
+    const sinPlano = APP.grupos.filter(g => !g.plano || !g.plano.celdas?.flat().some(Boolean));
+    if (sinPlano.length) {
+      const nombres = sinPlano.map(g => g.nombre).join(', ');
+      if (!confirm(`Los siguientes grupos no tienen plano configurado:\n${nombres}\n\nEstos grupos se mostrarán en vista miniaturas. ¿Continuar?`)) return;
+    }
+  }
+  vistaAlumnos = v;
+  APP.config.vistaAlumnos = v;
+  guardarDatos();
+  renderPage();
+}
+
+function renderVistaLista(g, als) {
+  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
+  return `<div class="table-wrap"><table class="alumnos-table">
+    <thead><tr>
+      <th>Alumno</th><th>Email</th>
+      <th>${g.evalBloqueada?.T1?'🔒 ':''}1ª Eval.</th>
+      <th>${g.evalBloqueada?.T2?'🔒 ':''}2ª Eval.</th>
+      <th>${g.evalBloqueada?.T3?'🔒 ':''}3ª Eval.</th>
+      <th>Nota final</th><th>Incidencias</th><th></th>
+    </tr></thead>
+    <tbody>
+    ${als.map(a => {
+      const nt1=calcNotaTrimestre(a,'T1'),nt2=calcNotaTrimestre(a,'T2'),nt3=calcNotaTrimestre(a,'T3');
+      const nf=calcNotaFinal(a), nr=redondear(nf,umbral);
+      const col=getColorGrupo(a.grupoId);
+      return `<tr onclick="abrirFicha('${a.id}')">
+        <td><div style="display:flex;align-items:center;gap:10px">
+          <div class="alumno-avatar">${a.foto?`<img src="${a.foto}" alt="">`:iniciales(a)}</div>
+          <div>
+            <div style="display:flex;align-items:center;gap:6px">
+              ${col?`<span style="width:9px;height:9px;border-radius:50%;background:${col.bg};border:1.5px solid ${col.border};flex-shrink:0"></span>`:''}
+              <span style="font-weight:500">${a.apellidos||''}, ${a.nombre||''}</span>
+            </div>
+            ${a.acnee?'<span class="acnee-tag">ACNEE</span>':''}
+            ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span>':''}
+            ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
+          </div>
+        </div></td>
+        <td style="color:var(--text2)">${a.email||'—'}</td>
+        <td><span class="nota-pill ${notaColor(redondear(nt1,umbral))}">${fmtNota(nt1)}</span></td>
+        <td><span class="nota-pill ${notaColor(redondear(nt2,umbral))}">${fmtNota(nt2)}</span></td>
+        <td><span class="nota-pill ${notaColor(redondear(nt3,umbral))}">${fmtNota(nt3)}</span></td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <span class="nota-pill ${notaColor(nr)}">${nr!==null?nr:'—'}</span>
+          ${nf!==null?`<span style="font-size:11px;color:var(--text3)">(${fmtNota(nf)})</span>`:''}
+        </div></td>
+        <td>${['retrasos','partesLeves','partesGraves','expulsiones'].map((k,i)=>{
+          const colors=['#2d5be3','#92400e','#c2410c','#b91c1c'];
+          const bgs=['#eef1fd','#fef3cd','#ffedd5','#fdecea'];
+          const v=a[k]||0;
+          return v>0?`<span style="background:${bgs[i]};color:${colors[i]};border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;margin-right:2px">${v}</span>`:'';
+        }).join('')||'<span style="color:var(--text3)">—</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirFicha('${a.id}')">Ver →</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function renderVistaMiniaturas(g, als) {
+  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
+  const col = getColorGrupo(g.id);
+  return `<div style="display:flex;flex-wrap:wrap;gap:10px;padding:14px">
+    ${als.map(a => {
+      const nf = calcNotaFinal(a);
+      const nr = redondear(nf, umbral);
+      const bg  = col ? col.bg  : 'var(--accent-bg)';
+      const brd = col ? col.border : 'var(--accent)';
+      return `<div onclick="abrirFicha('${a.id}')" style="width:100px;border:2px solid ${brd};border-radius:10px;background:${bg};cursor:pointer;overflow:hidden;transition:transform 0.1s;text-align:center;padding:10px 6px 8px"
+        onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform=''">
+        <div style="width:52px;height:52px;border-radius:50%;margin:0 auto 6px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:${brd}">
+          ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}
+        </div>
+        <div style="font-size:11px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${a.apellidos||''}</div>
+        <div style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.nombre||''}</div>
+        ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
+        ${a.acnee||a.pap||a.pep?`<div style="margin-top:3px;font-size:9px;color:var(--purple);font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP'].filter(Boolean).join(' ')}</div>`:''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderVistaPlano(g, als) {
+  const plano = g.plano;
+  if (!plano || !plano.celdas?.flat().some(Boolean)) {
+    // Sin plano: usar miniaturas como fallback
+    return `<div style="padding:10px 14px;background:var(--amber-bg);font-size:12px;color:var(--amber);border-bottom:1px solid var(--border)">
+      ⚠ Este grupo no tiene plano configurado. Configúralo en 🗺 Plano. Mostrando vista miniaturas.
+    </div>${renderVistaMiniaturas(g, als)}`;
+  }
+  const col = getColorGrupo(g.id);
+  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
+  if (!plano.pasillos) plano.pasillos = [];
+
+  let gridHTML = '<div style="padding:14px;overflow-x:auto"><div style="display:inline-block">';
+  for (let fi = 0; fi < plano.filas; fi++) {
+    gridHTML += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
+    for (let ci = 0; ci < plano.cols; ci++) {
+      const aid = (plano.celdas[fi]||[])[ci];
+      const a = aid ? als.find(x=>x.id===aid) : null;
+      const bg  = col ? col.bg  : 'var(--accent-bg)';
+      const brd = col ? col.border : 'var(--accent)';
+      if (a) {
+        const nf = calcNotaFinal(a);
+        const nr = redondear(nf, umbral);
+        gridHTML += `<div onclick="abrirFicha('${a.id}')" style="width:80px;min-height:88px;border:2px solid ${brd};border-radius:8px;background:${bg};cursor:pointer;text-align:center;padding:6px 4px;transition:transform 0.1s;flex-shrink:0"
+          onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform=''">
+          <div style="width:40px;height:40px;border-radius:50%;margin:0 auto 4px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${brd}">
+            ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}
+          </div>
+          <div style="font-size:9px;font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.apellidos||''}</div>
+          <div style="font-size:9px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.nombre||''}</div>
+          ${nr!==null?`<div style="margin-top:3px"><span class="nota-pill ${notaColor(nr)}" style="font-size:10px;padding:1px 5px">${nr}</span></div>`:''}
+        </div>`;
+      } else {
+        gridHTML += `<div style="width:80px;min-height:88px;border:2px dashed var(--border2);border-radius:8px;background:var(--surface2);flex-shrink:0"></div>`;
+      }
+      if (ci < plano.cols-1) {
+        gridHTML += plano.pasillos.includes(ci)
+          ? `<div style="width:18px;min-height:88px;background:repeating-linear-gradient(45deg,var(--border2),var(--border2) 2px,transparent 2px,transparent 8px);border-radius:3px;opacity:0.5;flex-shrink:0"></div>`
+          : `<div style="width:4px;flex-shrink:0"></div>`;
+      }
+    }
+    gridHTML += '</div>';
+  }
+  gridHTML += `<div style="text-align:center;margin-top:8px">
+    <div style="display:inline-block;background:var(--text);color:var(--surface);padding:4px 40px;border-radius:0 0 6px 6px;font-size:11px;font-weight:600;letter-spacing:0.5px">PIZARRA</div>
+  </div></div></div>`;
+
+  // Alumnos sin asignar en el plano
+  const asignados = new Set(plano.celdas.flat().filter(Boolean));
+  const sinAsignar = als.filter(a => !asignados.has(a.id));
+  if (sinAsignar.length) {
+    gridHTML += `<div style="padding:8px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">Sin asignar: ${sinAsignar.map(a=>`<span onclick="abrirFicha('${a.id}')" style="cursor:pointer;margin-right:6px;color:var(--text2)">${a.apellidos||''}, ${a.nombre||''}</span>`).join('')}</div>`;
+  }
+  return gridHTML;
 }
 
 function toggleGrupo(gid) {
@@ -2085,13 +2252,18 @@ function renderTabNotas(a) {
   // Obtener instrumentos: del alumno (si personalizado) o del grupo
   function getInstAlumno(trim) {
     if (a.estructuraPersonal?.[trim]) {
-      // Mezclar estructura personal (pesos/nombres) con valores del alumno
+      const valoresTrim = a.notas?.[trim] || {};
       return a.estructuraPersonal[trim].map((inst, iIdx) => ({
         ...inst,
-        items: inst.items.map((item, jIdx) => ({
-          ...item,
-          valor: a.notas?.[trim]?.[iIdx]?.[jIdx] ?? ''
-        }))
+        items: inst.items.map((item, jIdx) => {
+          const valorOriginal = valoresTrim[iIdx]?.[jIdx] ?? '';
+          const recVal = valoresTrim[iIdx]?.rec?.[jIdx];
+          const recRubrica = valoresTrim[iIdx]?.recRubrica?.[jIdx];
+          const recNotaRubrica = recRubrica ? calcNotaRubrica(recRubrica) : null;
+          const valorRec = recNotaRubrica !== null ? recNotaRubrica
+            : (recVal !== undefined && recVal !== '' && recVal !== null ? recVal : null);
+          return { ...item, valor: valorRec !== null ? valorRec : valorOriginal };
+        })
       }));
     }
     return getInstrumentosConValores(a, trim);
@@ -2169,18 +2341,32 @@ function renderTabNotas(a) {
 
       // Calcular nota desde rúbrica si existe
       const notaRubrica = item.rubrica ? calcNotaRubrica(item.rubrica) : null;
-      const valorMostrar = notaRubrica !== null ? notaRubrica : (item.valor!==undefined&&item.valor!==''?item.valor:'');
+      // Leer el valor original directamente de a.notas (fuente de verdad, sin procesar)
+      const valorBruto = a.notas?.[trimestreActual]?.[iIdx]?.[jIdx];
+      const valorOriginalMostrar = notaRubrica !== null ? notaRubrica
+        : (valorBruto !== undefined && valorBruto !== '' ? valorBruto : '');
       const tieneRubrica = !!item.rubrica;
       const inputBloq = evalBloq || tieneRubrica;
       const inputStyle = inputBloq ? 'pointer-events:none;opacity:0.65;background:var(--surface2)' : '';
 
+      // Recuperación — leer directamente de a.notas
+      const recVal    = a.notas?.[trimestreActual]?.[iIdx]?.rec?.[jIdx];
+      const recFecha  = a.notas?.[trimestreActual]?.[iIdx]?.recFecha?.[jIdx] || '';
+      const recRubrica = a.notas?.[trimestreActual]?.[iIdx]?.recRubrica?.[jIdx];
+      const recNotaRubrica = recRubrica ? calcNotaRubrica(recRubrica) : null;
+      // rec activa: tiene entrada en rec (aunque sea vacía = sub-fila visible) o tiene rúbrica
+      const recSubAbierta = (recVal !== undefined) || (recRubrica !== undefined);
+      const tieneRec = (recVal !== undefined && recVal !== '' && recVal !== null) || recNotaRubrica !== null;
+      const recMostrar = recNotaRubrica !== null ? recNotaRubrica : (tieneRec ? recVal : '');
+
+      // Fila principal
       itemsHtml += `<div class="nota-item" style="flex-wrap:wrap;gap:6px">
           <div class="nota-item-nombre" style="min-width:120px;flex:2">
             <input type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" style="border:none;background:transparent;font-family:inherit;font-size:13px;width:100%;outline:none;color:var(--text);${(tieneEstrPersonal&&!evalBloq)?'':'pointer-events:none;opacity:0.7'}" placeholder="Nombre..." ${(tieneEstrPersonal&&!evalBloq)?`onchange="cambiarNombreItemPersonal('${a.id}',${iIdx},${jIdx},this.value)"`:''}>
           </div>
           <div class="nota-item-peso">${pesoInput}<span style="font-size:11px;color:var(--text3)">%</span></div>
           <div class="nota-item-valor">
-            <input type="number" min="0" max="10" step="0.01" value="${valorMostrar}" placeholder="—" ${inputBloq?'readonly':''} style="${inputStyle}" onchange="cambiarValorNota(${iIdx},${jIdx},this.value)">
+            <input type="number" min="0" max="10" step="0.01" value="${valorOriginalMostrar}" placeholder="—" ${inputBloq?'readonly':''} style="${inputStyle}${tieneRec?';text-decoration:line-through;opacity:0.5':''}" onchange="cambiarValorNota(${iIdx},${jIdx},this.value)">
           </div>
           <button class="btn btn-sm" onclick="event.stopPropagation();${evalBloq?'':'abrirRubrica(\''+a.id+'\','+iIdx+','+jIdx+')'}"
             style="padding:3px 8px;font-size:11px;font-weight:600;${tieneRubrica?'background:var(--purple-bg);color:var(--purple);border-color:var(--purple)':'background:var(--bg);color:var(--text2);border:1px solid var(--border2)'};${evalBloq?'opacity:0.5;pointer-events:none;cursor:default':''}">
@@ -2189,8 +2375,34 @@ function renderTabNotas(a) {
           <div style="flex:0 0 auto">
             <input type="date" value="${fechaVal}" title="Fecha" style="padding:3px 6px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:11px;color:var(--text2);outline:none;width:130px;${evalBloq?'pointer-events:none;opacity:0.55':''}" ${evalBloq?'':'onchange="cambiarFechaNota('+iIdx+','+jIdx+',this.value)"'}>
           </div>
+          ${!evalBloq ? `<button class="btn btn-sm" onclick="toggleRecuperacion('${a.id}',${iIdx},${jIdx})"
+            style="padding:3px 8px;font-size:11px;font-weight:600;background:${tieneRec?'var(--amber-bg)':'var(--surface2)'};color:${tieneRec?'var(--amber)':'var(--text3)'};border:1px solid ${tieneRec?'var(--amber)':'var(--border2)'}">
+            🔄${tieneRec?' Recup. ✓':' Recuperación'}
+          </button>` : ''}
           ${(tieneEstrPersonal&&!evalBloq) ? `<button class="btn btn-delete" onclick="eliminarItemPersonal('${a.id}',${iIdx},${jIdx})" title="Eliminar">✕</button>` : ''}
         </div>`;
+
+      // Sub-fila de recuperación
+      if (recSubAbierta) {
+        const recInputBloq = recNotaRubrica !== null;
+        itemsHtml += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 12px;background:var(--amber-bg);border-left:3px solid var(--amber);border-radius:0 6px 6px 0;margin:-2px 0 4px 20px">
+          <span style="font-size:11px;font-weight:700;color:var(--amber);min-width:80px">🔄 Recuperación</span>
+          <div class="nota-item-valor">
+            <input type="number" min="0" max="10" step="0.01" value="${recMostrar}" placeholder="Nota rec."
+              ${recInputBloq?'readonly style="pointer-events:none;opacity:0.65;background:var(--surface2)"':''}
+              onchange="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value)">
+          </div>
+          <button class="btn btn-sm" onclick="abrirRubricaRecuperacion('${a.id}',${iIdx},${jIdx})"
+            style="padding:3px 8px;font-size:11px;font-weight:600;${recRubrica?'background:var(--purple-bg);color:var(--purple);border-color:var(--purple)':'background:var(--bg);color:var(--text2);border:1px solid var(--border2)'}">
+            📊${recRubrica?' Rúbrica ✓':' Rúbrica'}
+          </button>
+          <input type="date" value="${recFecha}" title="Fecha recuperación"
+            style="padding:3px 6px;border:1px solid var(--amber);border-radius:6px;font-family:inherit;font-size:11px;color:var(--text2);outline:none;width:130px"
+            onchange="cambiarFechaRecuperacion('${a.id}',${iIdx},${jIdx},this.value)">
+          <button class="btn btn-sm" onclick="eliminarRecuperacion('${a.id}',${iIdx},${jIdx})"
+            style="padding:3px 8px;font-size:11px;color:var(--red);border-color:var(--red);background:var(--red-bg)">✕ Quitar</button>
+        </div>`;
+      }
     });
 
     // Peso instrumento: editable solo si personalizado
@@ -2474,6 +2686,78 @@ function eliminarItemGrupo(iIdx, jIdx) {
 }
 
 // ── Operaciones sobre VALORES del alumno ─────────────────────
+// ── Funciones de Recuperación ─────────────────────────────────
+function _initRec(a, trim, iIdx) {
+  if (!a.notas) a.notas = {};
+  if (!a.notas[trim]) a.notas[trim] = {};
+  if (!a.notas[trim][iIdx]) a.notas[trim][iIdx] = {};
+  if (!a.notas[trim][iIdx].rec) a.notas[trim][iIdx].rec = {};
+  if (!a.notas[trim][iIdx].recFecha) a.notas[trim][iIdx].recFecha = {};
+}
+
+function toggleRecuperacion(aid, iIdx, jIdx) {
+  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+  _initRec(a, trimestreActual, iIdx);
+  const rec = a.notas[trimestreActual][iIdx].rec;
+  if (rec[jIdx] !== undefined) {
+    // Ya abierta — quitar (preguntar confirmación si tiene nota)
+    if (rec[jIdx] !== '' && rec[jIdx] !== null) {
+      eliminarRecuperacion(aid, iIdx, jIdx);
+    } else {
+      // Estaba vacía, cerrar sin guardar
+      delete rec[jIdx];
+      guardarDatos();
+      cambiarTabFicha('notas');
+    }
+  } else {
+    // Abrir sub-fila — poner entrada vacía
+    rec[jIdx] = '';
+    guardarDatos();
+    cambiarTabFicha('notas');
+  }
+}
+
+function cambiarNotaRecuperacion(aid, iIdx, jIdx, val) {
+  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+  _initRec(a, trimestreActual, iIdx);
+  a.notas[trimestreActual][iIdx].rec[jIdx] = val === '' ? '' : parseFloat(val);
+  guardarDatos();
+  cambiarTabFicha('notas');
+}
+
+function cambiarFechaRecuperacion(aid, iIdx, jIdx, val) {
+  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+  _initRec(a, trimestreActual, iIdx);
+  a.notas[trimestreActual][iIdx].recFecha[jIdx] = val;
+  guardarDatos();
+}
+
+function eliminarRecuperacion(aid, iIdx, jIdx) {
+  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+  if (a.notas?.[trimestreActual]?.[iIdx]?.rec) delete a.notas[trimestreActual][iIdx].rec[jIdx];
+  if (a.notas?.[trimestreActual]?.[iIdx]?.recFecha) delete a.notas[trimestreActual][iIdx].recFecha[jIdx];
+  if (a.notas?.[trimestreActual]?.[iIdx]?.recRubrica) delete a.notas[trimestreActual][iIdx].recRubrica[jIdx];
+  guardarDatos();
+  cambiarTabFicha('notas');
+}
+
+function abrirRubricaRecuperacion(aid, iIdx, jIdx) {
+  // Reutilizamos el sistema de rúbrica pero guardamos en recRubrica
+  _rubricaCtx = { aid, iIdx, jIdx, esRecuperacion: true };
+  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+  const rubricaExistente = a.notas?.[trimestreActual]?.[iIdx]?.recRubrica?.[jIdx];
+  document.getElementById('rubrica-titulo').textContent = 'Rúbrica — Recuperación';
+  const btnQuitar = document.getElementById('btn-quitar-rubrica');
+  if (btnQuitar) btnQuitar.style.display = rubricaExistente ? 'inline-flex' : 'none';
+  if (rubricaExistente) {
+    _rubricaData = JSON.parse(JSON.stringify(rubricaExistente));
+    renderRubricaBody();
+  } else {
+    renderRubricaSelector('Recuperación');
+  }
+  document.getElementById('modal-rubrica').classList.remove('hidden');
+}
+
 function cambiarValorNota(iIdx, jIdx, val) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   if (trimestreActual !== 'final' && isEvalBloqueada(a.grupoId, trimestreActual)) return;
@@ -3212,7 +3496,10 @@ function renderEstadisticas() {
   <div class="topbar">
     <button class="hamburger-btn" onclick="abrirSidebar()">☰</button>
     <h2>📊 Estadísticas</h2>
-    <button class="btn btn-secondary btn-sm" onclick="exportarInformeExcel()">📥 Excel</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="exportarNotasTrimestre()">📥 Notas por trimestre</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportarInformeExcel()">📥 Informe Excel</button>
+    </div>
   </div>
   <div class="page">
     <!-- Filtros -->
@@ -3253,6 +3540,68 @@ function renderEstadisticas() {
       ${barChart}
     </div>
 
+    <!-- Comparativa entre grupos -->
+    ${APP.grupos.length > 1 ? `
+    <div class="card" style="margin-bottom:20px;overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px">📊 Comparativa entre grupos</div>
+      <div style="padding:16px 18px;overflow-x:auto">
+        ${(() => {
+          const grupos = APP.grupos.map(g => {
+            const als = APP.alumnos.filter(a => a.grupoId === g.id);
+            const getNota = a => fTrim==='final' ? calcNotaFinal(a) : calcNotaTrimestre(a, fTrim);
+            const conNota = als.filter(a => getNota(a) !== null);
+            const notas = conNota.map(a => getNota(a));
+            const media = notas.length ? notas.reduce((s,n)=>s+n,0)/notas.length : null;
+            const aprobados = conNota.filter(a => { const n=getNota(a); return redOn?redondear(n,getUmbral(a))>=5:n>=5; }).length;
+            const pctAp = conNota.length ? Math.round(aprobados/conNota.length*100) : null;
+            return { g, als, media, aprobados, pctAp, total: als.length, conNota: conNota.length };
+          }).filter(x => x.conNota > 0);
+
+          if (!grupos.length) return '<p style="color:var(--text3);font-size:13px">Sin datos suficientes para comparar.</p>';
+
+          const maxMedia = Math.max(...grupos.map(x => x.media || 0));
+          const colores = ['var(--accent)','var(--green)','var(--red)','var(--amber)','var(--purple)'];
+
+          return `<div style="display:flex;flex-direction:column;gap:12px;min-width:300px">
+            ${grupos.map((x, i) => {
+              const col = getColorGrupo(x.g.id);
+              const barColor = col ? col.border : colores[i % colores.length];
+              const barW = maxMedia > 0 ? (x.media / 10 * 100).toFixed(1) : 0;
+              const apW  = x.pctAp || 0;
+              return `<div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                  <div style="font-size:13px;font-weight:600">${x.g.nombre} <span style="font-weight:400;color:var(--text2);font-size:11px">${x.g.asignatura||''}</span></div>
+                  <div style="display:flex;gap:10px;font-size:12px">
+                    <span style="color:var(--text2)">${x.conNota} eval.</span>
+                    <span style="color:var(--green);font-weight:600">${x.aprobados} ap. (${x.pctAp}%)</span>
+                    <span style="color:var(--accent);font-weight:700">${x.media?.toFixed(2)||'—'}</span>
+                  </div>
+                </div>
+                <!-- Barra de nota media -->
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+                  <span style="font-size:10px;color:var(--text3);width:60px">Nota media</span>
+                  <div style="flex:1;height:10px;background:var(--surface2);border-radius:5px;overflow:hidden">
+                    <div style="height:100%;width:${barW}%;background:${barColor};border-radius:5px;transition:width 0.4s"></div>
+                  </div>
+                </div>
+                <!-- Barra de % aprobados -->
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:10px;color:var(--text3);width:60px">Aprobados</span>
+                  <div style="flex:1;height:10px;background:var(--surface2);border-radius:5px;overflow:hidden">
+                    <div style="height:100%;width:${apW}%;background:var(--green);border-radius:5px;opacity:0.7;transition:width 0.4s"></div>
+                  </div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;gap:16px;margin-top:14px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">
+            <span>— Barra azul: nota media sobre 10</span>
+            <span>— Barra verde: % de aprobados</span>
+          </div>`;
+        })()}
+      </div>
+    </div>` : ''}
+
     <!-- Por grupo -->
     <div class="card" style="margin-bottom:20px">
       <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px">Desglose por grupo</div>
@@ -3291,6 +3640,124 @@ function renderEstadisticas() {
         }).join('')||'<div style="padding:16px 18px;color:var(--text3);font-size:13px">Sin incidencias registradas</div>'}
     </div>
   </div>`;
+}
+
+function exportarNotasTrimestre() {
+  if (!window.XLSX) {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = exportarNotasTrimestre;
+    s.onerror = () => alert('No se pudo cargar la librería Excel. Comprueba tu conexión.');
+    document.head.appendChild(s);
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const redOn = APP.config.redondeoActivo !== false;
+  const fecha = new Date().toISOString().slice(0,10);
+  const trimestres = [['T1','1ª Evaluación'],['T2','2ª Evaluación'],['T3','3ª Evaluación'],['final','Nota Final']];
+
+  // Helper: obtener valor y si es recuperación para un item
+  function getValorItem(a, trim, iIdx, jIdx) {
+    const v = a.notas?.[trim]?.[iIdx];
+    if (!v) return { valor: null, esRec: false };
+    // Comprobar recuperación
+    const recVal    = v.rec?.[jIdx];
+    const recRubrica = v.recRubrica?.[jIdx];
+    const recNotaRub = recRubrica ? calcNotaRubrica(recRubrica) : null;
+    if (recNotaRub !== null) return { valor: recNotaRub, esRec: true };
+    if (recVal !== undefined && recVal !== '' && recVal !== null) return { valor: parseFloat(recVal), esRec: true };
+    // Sin recuperación: valor original
+    const rubrica = v.rubrica?.[jIdx];
+    const notaRub = rubrica ? calcNotaRubrica(rubrica) : null;
+    if (notaRub !== null) return { valor: notaRub, esRec: false };
+    const orig = typeof v[jIdx] === 'number' || (typeof v[jIdx] === 'string' && v[jIdx] !== '') ? parseFloat(v[jIdx]) : null;
+    return { valor: orig, esRec: false };
+  }
+
+  // Estilos de celda
+  const stNormal = { font: { name: 'Arial', sz: 10 } };
+  const stRec    = { font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '7a3800' } }, fill: { patternType: 'solid', fgColor: { rgb: 'FFE0C0' } } };
+  const stHeader = { font: { name: 'Arial', sz: 10, bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'D0D8F0' } } };
+  const stGrupo  = { font: { name: 'Arial', sz: 11, bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'E8E8E8' } } };
+
+  // Helper para crear celda con estilo
+  function celda(valor, estilo) {
+    const t = typeof valor === 'number' ? 'n' : 's';
+    return { v: valor ?? '', t: valor === null || valor === undefined || valor === '' ? 's' : t, s: estilo };
+  }
+
+  trimestres.forEach(([trim, label]) => {
+    const ws = {};
+    let fila = 0;
+    let maxCol = 0;
+
+    APP.grupos.forEach(g => {
+      const alumnos = APP.alumnos.filter(a => a.grupoId === g.id)
+        .sort((a,b) => (a.apellidos||'').localeCompare(b.apellidos||''));
+      if (!alumnos.length) return;
+
+      // Fila cabecera grupo
+      const tituloGrupo = `${g.nombre}${g.asignatura?' — '+g.asignatura:''}`;
+      ws[XLSX.utils.encode_cell({r:fila,c:0})] = celda(tituloGrupo, stGrupo);
+      fila++;
+
+      if (trim === 'final') {
+        ['Apellidos','Nombre','Nota Real','Nota Redondeada'].forEach((h,c) => {
+          ws[XLSX.utils.encode_cell({r:fila,c})] = celda(h, stHeader);
+        });
+        maxCol = Math.max(maxCol, 3);
+        fila++;
+        alumnos.forEach(a => {
+          const nf = calcNotaFinal(a);
+          const nr = redOn && nf !== null ? redondear(nf, getUmbral(a)) : null;
+          ws[XLSX.utils.encode_cell({r:fila,c:0})] = celda(a.apellidos||'', stNormal);
+          ws[XLSX.utils.encode_cell({r:fila,c:1})] = celda(a.nombre||'', stNormal);
+          ws[XLSX.utils.encode_cell({r:fila,c:2})] = celda(nf !== null ? parseFloat(nf.toFixed(2)) : '', stNormal);
+          ws[XLSX.utils.encode_cell({r:fila,c:3})] = celda(nr !== null ? nr : '', stNormal);
+          fila++;
+        });
+      } else {
+        const estructura = g.estructura?.[trim] || [];
+        // Cabeceras columnas
+        const cabeceras = ['Apellidos','Nombre'];
+        estructura.forEach(inst => {
+          if (inst.items.length) inst.items.forEach(item => cabeceras.push(`${inst.nombre} — ${item.nombre} (${item.peso}%)`));
+          else cabeceras.push(`${inst.nombre} (${inst.peso}%)`);
+        });
+        cabeceras.push('Nota Trimestre','Nota Redondeada');
+        cabeceras.forEach((h,c) => { ws[XLSX.utils.encode_cell({r:fila,c})] = celda(h, stHeader); });
+        maxCol = Math.max(maxCol, cabeceras.length - 1);
+        fila++;
+
+        alumnos.forEach(a => {
+          let col = 0;
+          ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(a.apellidos||'', stNormal);
+          ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(a.nombre||'', stNormal);
+          estructura.forEach((inst, iIdx) => {
+            const indices = inst.items.length ? inst.items.map((_,j) => j) : [0];
+            indices.forEach(jIdx => {
+              const { valor, esRec } = getValorItem(a, trim, iIdx, jIdx);
+              ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(valor !== null ? valor : '', esRec ? stRec : stNormal);
+            });
+          });
+          const nt = calcNotaTrimestre(a, trim);
+          const nr = redOn && nt !== null ? redondear(nt, getUmbral(a)) : null;
+          ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(nt !== null ? parseFloat(nt.toFixed(2)) : '', stNormal);
+          ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(nr !== null ? nr : '', stNormal);
+          maxCol = Math.max(maxCol, col - 1);
+          fila++;
+        });
+      }
+      fila++; // separador entre grupos
+    });
+
+    if (fila > 0) {
+      ws['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:fila-1,c:maxCol}});
+      XLSX.utils.book_append_sheet(wb, ws, label.slice(0,31));
+    }
+  });
+
+  XLSX.writeFile(wb, `notas_por_trimestre_${fecha}.xlsx`);
 }
 
 function exportarInformeExcel() {
@@ -3687,7 +4154,9 @@ function renderAjustes() {
   <div class="topbar"><h2>Ajustes</h2></div>
   <div class="page">
     <div class="card" style="padding:20px;margin-bottom:16px">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🎨 Tema visual</h3>
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🔤 Tamaño de letra</h3>
+      <div id="font-size-card">${renderFontSizeCard()}</div>
+    </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${Object.entries(TEMAS).map(([id, t]) => {
           const sel = (APP.config?.tema || 'claro') === id;
@@ -3863,8 +4332,9 @@ function cerrarPlanoGrupo() {
 function renderPlanoGrupo(gid) {
   const g = APP.grupos.find(x => x.id === gid);
   if (!g) return '<div class="empty-state"><h4>Grupo no encontrado</h4></div>';
-  if (!g.plano) g.plano = { filas: 4, cols: 6, celdas: [] };
+  if (!g.plano) g.plano = { filas: 4, cols: 6, celdas: [], pasillos: [] };
   const plano = g.plano;
+  if (!plano.pasillos) plano.pasillos = [];
   const alumnos = APP.alumnos.filter(al => al.grupoId === gid)
     .sort((a, b) => (a.apellidos || '').localeCompare(b.apellidos || ''));
   if (!plano.celdas.length || plano.celdas.length !== plano.filas) {
@@ -3875,9 +4345,10 @@ function renderPlanoGrupo(gid) {
   const sinAsignar = alumnos.filter(al => !asignados.has(al.id));
   const col = getColorGrupo(gid);
   const cBase = 'width:82px;min-height:92px;border:2px dashed var(--border2);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:4px;text-align:center;flex-shrink:0;position:relative;transition:background 0.1s';
+
   let gridHTML = '';
   for (let fi = 0; fi < plano.filas; fi++) {
-    gridHTML += '<div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px">';
+    gridHTML += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">';
     for (let ci = 0; ci < plano.cols; ci++) {
       const aid = plano.celdas[fi][ci];
       const al = aid ? alumnos.find(x => x.id === aid) : null;
@@ -3902,9 +4373,43 @@ function renderPlanoGrupo(gid) {
           <span style="font-size:22px;color:var(--text3)">+</span>
         </div>`;
       }
+      // Pasillo después de esta columna (excepto la última)
+      if (ci < plano.cols - 1) {
+        const tienePasillo = plano.pasillos.includes(ci);
+        if (fi === 0) {
+          // Solo en la primera fila mostramos el botón toggle
+          gridHTML += `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">
+            ${tienePasillo
+              ? `<div style="width:24px;height:92px;background:repeating-linear-gradient(45deg,var(--border2),var(--border2) 2px,transparent 2px,transparent 8px);border-radius:4px;opacity:0.6"></div>`
+              : `<div style="width:8px;height:92px"></div>`}
+            <button onclick="planoTogglePasillo('${gid}',${ci})"
+              style="width:24px;font-size:9px;padding:2px 0;border-radius:4px;border:1px solid ${tienePasillo?'var(--accent)':'var(--border2)'};background:${tienePasillo?'var(--accent-bg)':'var(--surface2)'};color:${tienePasillo?'var(--accent)':'var(--text3)'};cursor:pointer;font-weight:700;flex-shrink:0"
+              title="${tienePasillo?'Quitar pasillo':'Añadir pasillo'}">${tienePasillo?'‖':'|'}</button>
+          </div>`;
+        } else {
+          // Resto de filas: solo el espacio visual
+          gridHTML += tienePasillo
+            ? `<div style="width:24px;height:92px;background:repeating-linear-gradient(45deg,var(--border2),var(--border2) 2px,transparent 2px,transparent 8px);border-radius:4px;opacity:0.6;flex-shrink:0"></div>`
+            : `<div style="width:8px;flex-shrink:0"></div>`;
+        }
+      }
     }
     gridHTML += '</div>';
   }
+
+  // Fila de botones de pasillo bajo el grid (más visible)
+  if (plano.cols > 1 && plano.filas > 0) {
+    gridHTML += '<div style="display:flex;gap:8px;align-items:center;margin-top:4px;padding-left:0">';
+    for (let ci = 0; ci < plano.cols; ci++) {
+      gridHTML += `<div style="width:82px;flex-shrink:0"></div>`;
+      if (ci < plano.cols - 1) {
+        const tienePasillo = plano.pasillos.includes(ci);
+        gridHTML += `<div style="width:${tienePasillo?24:8}px;flex-shrink:0;text-align:center;font-size:9px;color:${tienePasillo?'var(--accent)':'var(--text3)'};font-weight:600">${tienePasillo?'pasillo':''}</div>`;
+      }
+    }
+    gridHTML += '</div>';
+  }
+
   const sinHTML = sinAsignar.length ? `
     <div style="margin-top:14px">
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Sin asignar (${sinAsignar.length})</div>
@@ -3919,6 +4424,7 @@ function renderPlanoGrupo(gid) {
         </div>`).join('')}
       </div>
     </div>` : '';
+
   return `
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
       <span style="font-size:12px;color:var(--text2);font-weight:500">Filas:</span>
@@ -3926,11 +4432,12 @@ function renderPlanoGrupo(gid) {
         style="width:52px;padding:5px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:13px;text-align:center"
         onchange="planoGrupoSetDim('${gid}','filas',parseInt(this.value)||1)">
       <span style="font-size:12px;color:var(--text2);font-weight:500">Columnas:</span>
-      <input type="number" min="1" max="12" value="${plano.cols}"
+      <input type="number" min="1" max="16" value="${plano.cols}"
         style="width:52px;padding:5px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:13px;text-align:center"
         onchange="planoGrupoSetDim('${gid}','cols',parseInt(this.value)||1)">
       <button class="btn btn-secondary btn-sm" onclick="planoGrupoAuto('${gid}')">↻ Auto distribuir</button>
       <button class="btn btn-danger btn-sm" onclick="planoGrupoLimpiar('${gid}')">✕ Limpiar</button>
+      <span style="font-size:11px;color:var(--text3);margin-left:4px">· Pulsa <strong>|</strong> entre columnas para añadir pasillo</span>
     </div>
     <div style="overflow-x:auto;padding-bottom:8px"><div style="display:inline-block">${gridHTML}</div></div>
     <div style="text-align:center;margin-top:12px;margin-bottom:4px">
@@ -3947,6 +4454,16 @@ function renderPlanoGrupo(gid) {
           onclick="document.getElementById('plano-sel-modal').classList.add('hidden')">Cancelar</button>
       </div>
     </div>`;
+}
+
+function planoTogglePasillo(gid, ci) {
+  const g = APP.grupos.find(x => x.id === gid); if (!g || !g.plano) return;
+  if (!g.plano.pasillos) g.plano.pasillos = [];
+  const idx = g.plano.pasillos.indexOf(ci);
+  if (idx >= 0) g.plano.pasillos.splice(idx, 1);
+  else g.plano.pasillos.push(ci);
+  guardarDatos();
+  document.getElementById('plano-grupo-body').innerHTML = renderPlanoGrupo(gid);
 }
 
 let _planoGrupoSel = { gid: '', fi: -1, ci: -1 };
@@ -6570,29 +7087,6 @@ function calcNotaTrimestreConInst(alumno, trim, instrumentos) {
   return activos.reduce((s,i)=>s+calcNota(i.items)*(parseFloat(i.peso)||0),0)/totalPeso;
 }
 
-// ── getInstrumentosConValores actualizado para leer fechas y rúbricas ────
-const _origGetInst = getInstrumentosConValores;
-getInstrumentosConValores = function(alumno, trim) {
-  const estructura = getEstructuraGrupo(alumno.grupoId, trim);
-  const valoresTrim = alumno.notas?.[trim] || {};
-  const fechasTrim = alumno.fechasNotas?.[trim] || {};
-  return estructura.map((inst, iIdx) => ({
-    ...inst,
-    items: inst.items.map((item, jIdx) => {
-      const rubrica = valoresTrim[iIdx]?.rubrica?.[jIdx] || null;
-      const valorBase = (valoresTrim[iIdx] !== undefined && valoresTrim[iIdx][jIdx] !== undefined && typeof valoresTrim[iIdx][jIdx] !== 'object')
-        ? valoresTrim[iIdx][jIdx] : '';
-      const valor = rubrica ? (calcNotaRubrica(rubrica) ?? valorBase) : valorBase;
-      return {
-        ...item,
-        valor,
-        fecha: fechasTrim[iIdx]?.[jIdx] || '',
-        rubrica
-      };
-    })
-  }));
-};
-
 // ── Navegación siguiente/anterior alumno ──────────────────────
 function navAlumno(dir) {
   // Guardar notas actuales antes de navegar
@@ -7599,8 +8093,18 @@ function guardarRubrica() {
     return;
   }
   const nota = calcNotaRubrica(_rubricaData);
+  const esRec = _rubricaCtx.esRecuperacion;
 
-  if (a.estructuraPersonal?.[trimestreActual]) {
+  if (esRec) {
+    // Guardar rúbrica de recuperación
+    if (!a.notas) a.notas = {};
+    if (!a.notas[trimestreActual]) a.notas[trimestreActual] = {};
+    if (!a.notas[trimestreActual][iIdx]) a.notas[trimestreActual][iIdx] = {};
+    if (!a.notas[trimestreActual][iIdx].rec) a.notas[trimestreActual][iIdx].rec = {};
+    if (!a.notas[trimestreActual][iIdx].recRubrica) a.notas[trimestreActual][iIdx].recRubrica = {};
+    a.notas[trimestreActual][iIdx].rec[jIdx] = nota;
+    a.notas[trimestreActual][iIdx].recRubrica[jIdx] = JSON.parse(JSON.stringify(_rubricaData));
+  } else if (a.estructuraPersonal?.[trimestreActual]) {
     // Guardar rúbrica en estructura personal del alumno
     a.estructuraPersonal[trimestreActual][iIdx].items[jIdx].rubrica = JSON.parse(JSON.stringify(_rubricaData));
     // También guardar la nota calculada como valor del item
@@ -7613,7 +8117,6 @@ function guardarRubrica() {
     if (!a.notas) a.notas = {};
     if (!a.notas[trimestreActual]) a.notas[trimestreActual] = {};
     if (!a.notas[trimestreActual][iIdx]) a.notas[trimestreActual][iIdx] = {};
-    // Guardar rúbrica como sub-objeto dentro de las notas del alumno
     if (!a.notas[trimestreActual][iIdx].rubrica) a.notas[trimestreActual][iIdx].rubrica = {};
     a.notas[trimestreActual][iIdx].rubrica[jIdx] = JSON.parse(JSON.stringify(_rubricaData));
     a.notas[trimestreActual][iIdx][jIdx] = nota;
@@ -8285,6 +8788,61 @@ function aplicarTema(id) {
   renderPage();
 }
 
+function renderFontSizeCard() {
+  const actual = APP.config?.tamanoFuente || 14;
+  const opciones = [
+    [12,'Muy pequeño'],[13,'Pequeño'],[14,'Normal'],
+    [16,'Grande'],[18,'Muy grande'],[20,'Extra grande']
+  ];
+  const btns = opciones.map(([px, label]) => {
+    const sel = actual === px;
+    return '<button onclick="aplicarTamanoFuente(' + px + ');document.getElementById(\'font-size-card\').innerHTML=renderFontSizeCard()" '
+      + 'style="padding:8px 14px;border-radius:20px;font-size:' + px + 'px;font-weight:' + (sel?700:400) + ';cursor:pointer;'
+      + 'border:2px solid ' + (sel?'var(--accent)':'var(--border2)') + ';'
+      + 'background:' + (sel?'var(--accent-bg)':'var(--surface2)') + ';'
+      + 'color:' + (sel?'var(--accent)':'var(--text)') + ';transition:all 0.15s">'
+      + label + '</button>';
+  }).join('');
+  return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + btns + '</div>'
+    + '<div style="display:flex;align-items:center;gap:12px">'
+    + '<span style="font-size:11px;color:var(--text3)">A</span>'
+    + '<input type="range" min="11" max="22" step="1" value="' + actual + '" '
+    + 'oninput="previewFontSize(this.value)" '
+    + 'onchange="aplicarTamanoFuente(parseInt(this.value));document.getElementById(\'font-size-card\').innerHTML=renderFontSizeCard()" '
+    + 'style="flex:1;accent-color:var(--accent)">'
+    + '<span style="font-size:20px;color:var(--text3)">A</span>'
+    + '<span id="font-size-preview" style="font-size:12px;color:var(--text2);min-width:32px">' + actual + 'px</span>'
+    + '</div>'
+    + '<p style="font-size:12px;color:var(--text3);margin-top:8px">El tamaño afecta a toda la aplicación y se guarda automáticamente.</p>';
+}
+
+function previewFontSize(val) {
+  document.documentElement.style.fontSize = val + 'px';
+  document.body.style.fontSize = val + 'px';
+  const el = document.getElementById('font-size-preview');
+  if (el) el.textContent = val + 'px';
+}
+
+function aplicarTamanoFuente(px) {
+  // Cambiar font-size del :root hace que todos los rem escalen
+  // Además ajustamos body directamente para los em
+  document.documentElement.style.fontSize = px + 'px';
+  document.body.style.fontSize = px + 'px';
+  // Quitar zoom si había sido aplicado antes
+  const shell = document.getElementById('app-shell');
+  if (shell) shell.style.zoom = '';
+  APP.config.tamanoFuente = px;
+  guardarDatos();
+}
+
+function inicializarTamanoFuente() {
+  const px = APP.config?.tamanoFuente || 14;
+  document.documentElement.style.fontSize = px + 'px';
+  document.body.style.fontSize = px + 'px';
+  const shell = document.getElementById('app-shell');
+  if (shell) shell.style.zoom = '';
+}
+
 function inicializarTema() {
   const id = APP.config?.tema || 'claro';
   const tema = TEMAS[id];
@@ -8481,18 +9039,362 @@ function driveGuardar() {
 
 // ── INIT Drive ────────────────────────────────────────────────
 // =====================
+// INFORME DEL ALUMNO
+// =====================
+function generarInformeAlumno(aid) {
+  const a = APP.alumnos.find(x => x.id === aid); if (!a) return;
+  const g = APP.grupos.find(x => x.id === a.grupoId);
+  const fecha = new Date().toLocaleDateString('es-ES', {day:'2-digit',month:'long',year:'numeric'});
+  const umbral = getUmbral(a);
+  const redOn = APP.config.redondeoActivo !== false;
+
+  // Notas por trimestre
+  const trimestres = ['T1','T2','T3'];
+  const labTrim = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'};
+  let notasHTML = trimestres.map(t => {
+    const insts = getInstAlumnoConValores(a, t);
+    if (!insts || !insts.length) return '';
+    const notaTrim = calcNotaTrimestre(a, t);
+    const notaRed  = redOn && umbral ? redondear(notaTrim, umbral) : null;
+    const bloq     = isEvalBloqueada(a.grupoId, t);
+    let instHTML = insts.map(inst => {
+      if (!inst.items.length) return '';
+      let itemsHTML = inst.items.map(item => {
+        const val = item.valor !== undefined && item.valor !== '' ? parseFloat(item.valor).toFixed(2) : '—';
+        return `<tr>
+          <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px">${item.nombre || ''}</td>
+          <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;text-align:center">${item.peso}%</td>
+          <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;text-align:center;font-weight:600;color:${val!=='—'&&parseFloat(val)<5?'#c0392b':'#1a7a4a'}">${val}</td>
+          ${item.fecha?`<td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;color:#888">${item.fecha}</td>`:'<td style="padding:4px 10px;border:1px solid #ddd"></td>'}
+        </tr>`;
+      }).join('');
+      return `<tr style="background:#f5f5f5">
+        <td colspan="4" style="padding:5px 10px;border:1px solid #ddd;font-size:12px;font-weight:700">${inst.nombre} <span style="font-weight:400;color:#666">(${inst.peso}%)</span></td>
+      </tr>${itemsHTML}`;
+    }).join('');
+    return `<div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#2c2c2c;color:#fff;padding:8px 12px;border-radius:4px 4px 0 0">
+        <span style="font-weight:700;font-size:13px">${labTrim[t]}${bloq?' 🔒':''}</span>
+        <span style="font-size:13px;font-weight:700">${notaTrim!==null?notaTrim.toFixed(2):'—'}${notaRed!==null?' → '+notaRed:''}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:#f0f0f0">
+          <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px;text-align:left">Actividad</th>
+          <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px">Peso</th>
+          <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px">Nota</th>
+          <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px">Fecha</th>
+        </tr></thead>
+        <tbody>${instHTML}</tbody>
+      </table>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  const notaFinal = calcNotaFinal(a);
+  const notaFinalRed = redOn && umbral && notaFinal !== null ? redondear(notaFinal, umbral) : null;
+
+  // Observaciones
+  const obsHTML = (a.observaciones||[]).length
+    ? `<ul style="margin:0;padding-left:18px">${(a.observaciones||[]).map(o=>
+        `<li style="font-size:12px;margin-bottom:4px;color:#333">${o.texto||o} ${o.fecha?`<span style="color:#888;font-size:11px">(${o.fecha})</span>`:''}</li>`
+      ).join('')}</ul>`
+    : '<p style="color:#aaa;font-size:12px;font-style:italic">Sin observaciones registradas.</p>';
+
+  // Reuniones
+  const reunHTML = (a.reuniones||[]).length
+    ? `<table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:#f0f0f0">
+          <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px;text-align:left">Fecha</th>
+          <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px;text-align:left">Asunto</th>
+        </tr></thead>
+        <tbody>${(a.reuniones||[]).map(r=>`<tr>
+          <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;white-space:nowrap">${r.fecha||''}</td>
+          <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px">${r.texto||r.asunto||''}</td>
+        </tr>`).join('')}</tbody>
+      </table>`
+    : '<p style="color:#aaa;font-size:12px;font-style:italic">Sin reuniones registradas.</p>';
+
+  // Tags ACNEE/PAP/PEP
+  const tags = [a.acnee&&'ACNEE', a.pap&&'PAP', a.pep&&'PEP'].filter(Boolean);
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe — ${a.apellidos||''}, ${a.nombre||''}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#1a1917; background:#fff; }
+  @page { size:A4 portrait; margin:15mm 18mm; }
+  .toolbar { position:fixed;top:0;left:0;right:0;background:#2d5be3;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:100;font-family:Arial;box-shadow:0 2px 8px rgba(0,0,0,0.2) }
+  .toolbar h1 { font-size:14px;font-weight:700;flex:1 }
+  .toolbar button { padding:6px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600 }
+  .btn-print { background:#fff;color:#2d5be3 }
+  .btn-close  { background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.4) }
+  .contenido { padding:64px 0 0 }
+  .cabecera { display:flex;align-items:center;gap:20px;padding:16px;background:#f8f8f8;border-bottom:3px solid #2d5be3;margin-bottom:20px }
+  .foto { width:80px;height:80px;border-radius:50%;border:3px solid #2d5be3;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#2d5be3;background:#eef1fd }
+  .foto img { width:100%;height:100%;object-fit:cover }
+  .datos-basicos h2 { font-size:20px;font-weight:700;color:#1a1917 }
+  .datos-basicos .sub { font-size:13px;color:#555;margin-top:3px }
+  .datos-basicos .meta { font-size:12px;color:#888;margin-top:4px }
+  .tag { display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#f3eeff;color:#6d28d9;border:1px solid #c4b0f0;margin-right:4px }
+  .seccion { margin-bottom:22px }
+  .seccion-titulo { font-size:13px;font-weight:700;color:#2d5be3;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #2d5be3;padding-bottom:4px;margin-bottom:10px }
+  .nota-final-box { display:flex;gap:20px;padding:14px;background:#f0f4ff;border-radius:8px;border:2px solid #2d5be3 }
+  .nota-final-box .val { font-size:28px;font-weight:700;color:#2d5be3 }
+  .nota-final-box .lbl { font-size:11px;color:#666;margin-bottom:2px }
+  @media print { .toolbar{display:none} .contenido{padding:0} }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <h1>📄 Informe — ${a.apellidos||''}, ${a.nombre||''}</h1>
+  <button class="btn-print" onclick="window.print()">🖨 Imprimir / PDF</button>
+  <button class="btn-close" onclick="window.close()">✕ Cerrar</button>
+</div>
+<div class="contenido">
+  <div class="cabecera">
+    <div class="foto">${a.foto?`<img src="${a.foto}">`:(a.nombre||'?')[0]+(a.apellidos||'?')[0]}</div>
+    <div class="datos-basicos">
+      <h2>${a.apellidos||''}, ${a.nombre||''}</h2>
+      <div class="sub">${g?.nombre||''} ${g?.asignatura?'· '+g.asignatura:''}</div>
+      <div class="meta">
+        ${a.email?`📧 ${a.email} &nbsp;`:''}
+        ${a.telefono?`📞 ${a.telefono} &nbsp;`:''}
+        ${a.nre?`NRE: ${a.nre} &nbsp;`:''}
+        ${a.retrasos?`⏰ ${a.retrasos} retraso${a.retrasos!==1?'s':''} &nbsp;`:''}
+      </div>
+      <div style="margin-top:6px">
+        ${tags.map(t=>`<span class="tag">${t}</span>`).join('')}
+        ${(a.asigPendientes||[]).map(p=>`<span class="tag" style="background:#fff8e0;color:#b45309;border-color:#fbbf24">Pend: ${p.nivel?p.nivel+' – ':''}${p.asig}</span>`).join('')}
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-top:6px">Generado el ${fecha}</div>
+    </div>
+    ${notaFinal!==null?`<div class="nota-final-box" style="margin-left:auto;flex-shrink:0;text-align:center">
+      <div>
+        <div class="lbl">Nota final</div>
+        <div class="val">${notaFinal.toFixed(2)}</div>
+      </div>
+      ${notaFinalRed!==null?`<div>
+        <div class="lbl">Redondeada</div>
+        <div class="val" style="color:${notaFinalRed>=5?'#1a7a4a':'#c0392b'}">${notaFinalRed}</div>
+      </div>`:''}
+    </div>`:''}
+  </div>
+
+  <div style="padding:0 16px">
+    ${notasHTML?`<div class="seccion"><div class="seccion-titulo">Calificaciones</div>${notasHTML}</div>`:''}
+
+    <div class="seccion">
+      <div class="seccion-titulo">Observaciones</div>
+      ${obsHTML}
+    </div>
+
+    <div class="seccion">
+      <div class="seccion-titulo">Reuniones con familia</div>
+      ${reunHTML}
+    </div>
+  </div>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('El navegador bloqueó la ventana emergente. Permite ventanas emergentes para esta página.'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
+// Helper para obtener instrumentos con valores del alumno
+function getInstAlumnoConValores(a, trim) {
+  const g = APP.grupos.find(x=>x.id===a.grupoId); if(!g) return [];
+  const estructura = a.estructuraPersonal?.[trim] || g.estructura?.[trim] || [];
+  return estructura.map((inst, iIdx) => ({
+    ...inst,
+    items: (inst.items||[]).map((item, jIdx) => ({
+      ...item,
+      valor: a.notas?.[trim]?.[iIdx]?.[jIdx] ?? ''
+    }))
+  }));
+}
+
+// =====================
+// BÚSQUEDA GLOBAL
+// =====================
+let _busquedaActiva = false;
+
+function abrirBusqueda() {
+  _busquedaActiva = true;
+  const overlay = document.getElementById('busqueda-overlay');
+  if (overlay) {
+    overlay.classList.remove('hidden');
+    setTimeout(() => document.getElementById('busqueda-input')?.focus(), 50);
+  }
+}
+
+function cerrarBusqueda() {
+  _busquedaActiva = false;
+  const overlay = document.getElementById('busqueda-overlay');
+  if (overlay) overlay.classList.add('hidden');
+  // Limpiar input y resultados
+  const input = document.getElementById('busqueda-input');
+  if (input) input.value = '';
+  const res = document.getElementById('busqueda-resultados');
+  if (res) res.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Escribe para buscar...</div>';
+}
+
+function ejecutarBusqueda(q) {
+  const res = document.getElementById('busqueda-resultados'); if (!res) return;
+  q = q.trim().toLowerCase();
+  if (!q) { res.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Escribe para buscar...</div>'; return; }
+
+  const resultados = [];
+
+  // Alumnos — navega a clases y abre la ficha
+  APP.alumnos.forEach(a => {
+    const hay = [a.nombre, a.apellidos, a.email, a.nre].join(' ').toLowerCase();
+    if (hay.includes(q)) {
+      const g = APP.grupos.find(x=>x.id===a.grupoId);
+      resultados.push({
+        tipo:'alumno', icono:'👤',
+        titulo:`${a.apellidos||''}, ${a.nombre||''}`,
+        sub: g?.nombre||'',
+        accion:`busquedaIrAlumno('${a.id}')`
+      });
+    }
+  });
+
+  // Grupos — navega a clases y expande el grupo
+  APP.grupos.forEach(g => {
+    if ((g.nombre||'').toLowerCase().includes(q) || (g.asignatura||'').toLowerCase().includes(q)) {
+      resultados.push({
+        tipo:'grupo', icono:'👥',
+        titulo: g.nombre,
+        sub: g.asignatura||'',
+        accion:`busquedaIrGrupo('${g.id}')`
+      });
+    }
+  });
+
+  // Eventos del calendario
+  (APP.calendario?.eventos||[]).forEach(ev => {
+    if ([(ev.titulo||''),(ev.descripcion||'')].join(' ').toLowerCase().includes(q)) {
+      resultados.push({
+        tipo:'evento', icono:'📅',
+        titulo: ev.titulo,
+        sub: ev.fecha||'',
+        accion:`cerrarBusqueda();navTo('calendario')`
+      });
+    }
+  });
+
+  // Sesiones de programación
+  (APP.programacion?.niveles||[]).forEach(niv => {
+    (niv.bloques||[]).forEach(blq => {
+      (blq.sesiones||[]).forEach(ses => {
+        if ([(ses.titulo||''),(ses.descripcion||''),(ses.notaReal||'')].join(' ').toLowerCase().includes(q)) {
+          resultados.push({
+            tipo:'sesión', icono:'📖',
+            titulo: ses.titulo||blq.titulo,
+            sub: niv.nombre||'',
+            accion:`cerrarBusqueda();navTo('programacion')`
+          });
+        }
+      });
+    });
+  });
+
+  if (!resultados.length) {
+    res.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text3)">Sin resultados para "<strong>${q}</strong>"</div>`;
+    return;
+  }
+
+  res.innerHTML = resultados.slice(0,30).map(r => `
+    <div onclick="${r.accion}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;border-bottom:1px solid var(--border)"
+      onmouseenter="this.style.background='var(--accent-bg)'" onmouseleave="this.style.background=''">
+      <span style="font-size:20px;flex-shrink:0">${r.icono}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.titulo}</div>
+        ${r.sub?`<div style="font-size:11px;color:var(--text2)">${r.sub}</div>`:''}
+      </div>
+      <span style="font-size:11px;color:var(--text3);flex-shrink:0">${r.tipo}</span>
+    </div>`).join('');
+}
+
+function busquedaIrAlumno(aid) {
+  cerrarBusqueda();
+  // Navegar a clases primero, luego abrir ficha cuando el DOM esté listo
+  navTo('alumnos');
+  setTimeout(() => abrirFichaAlumno(aid), 100);
+}
+
+function busquedaIrGrupo(gid) {
+  cerrarBusqueda();
+  navTo('alumnos');
+  // Expandir el grupo
+  setTimeout(() => {
+    gruposExpandidos[gid] = true;
+    renderPage('alumnos');
+    // Scroll al grupo
+    setTimeout(() => {
+      const el = document.querySelector(`[data-grupo-id="${gid}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }, 50);
+}
+
+// =====================
+// MODO SIN CONEXIÓN (Service Worker)
+// =====================
+function registrarServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  const swCode = `
+const CACHE = 'profeapp-v1';
+const URLS  = [location.href];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(URLS)));
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
+  self.clients.claim();
+});
+self.addEventListener('fetch', e => {
+  e.respondWith(caches.match(e.request).then(cached => {
+    const net = fetch(e.request).then(res => {
+      if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+      return res;
+    }).catch(() => cached);
+    return cached || net;
+  }));
+});`;
+  const blob = new Blob([swCode], {type:'application/javascript'});
+  const url  = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(url).catch(()=>{});
+}
+
+// =====================
 // INIT
 // =====================
 cargarDatos();
 inicializarTema();
+inicializarTamanoFuente();
 renderPage('inicio');
 driveSetStatus('off');
+registrarServiceWorker();
+
+// Atajo de teclado Ctrl+K / Cmd+K para búsqueda global
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    abrirBusqueda();
+  }
+  if (e.key === 'Escape' && _busquedaActiva) cerrarBusqueda();
+});
 
 // Intentar reconexión silenciosa con Drive al arrancar
 (async () => {
   const reconectado = await driveReconectarSilencioso();
   if (reconectado) {
-    // Cargar datos remotos (pueden ser más recientes que el localStorage)
     await driveLeer();
   }
 })();
