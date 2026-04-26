@@ -1015,6 +1015,70 @@
 
 <!-- MODAL EDITAR COLOR GRUPO -->
 <!-- MODAL CONFIRMAR -->
+<!-- MODAL EXPORTAR PLANO -->
+<div class="modal-overlay hidden" id="modal-exportar-plano" style="z-index:300" onclick="event.target===this&&document.getElementById('modal-exportar-plano').classList.add('hidden')">
+  <div class="modal" style="max-width:360px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>🖼 Exportar imagen del plano</h3>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-exportar-plano').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px">¿Cómo quieres exportar el plano?</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="document.getElementById('modal-exportar-plano').classList.add('hidden');_exportarPlanoJPEGConOpciones(window._planoGrupoActualGid,document.getElementById('plano-grupo-body'),APP.grupos.find(x=>x.id===window._planoGrupoActualGid),false)"
+          style="padding:12px 16px;border-radius:10px;border:1.5px solid var(--border2);background:var(--surface2);cursor:pointer;text-align:left;font-family:inherit">
+          <div style="font-weight:600;font-size:13px">📐 Con huecos vacíos</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">Muestra todos los pupitres, ocupados y vacíos</div>
+        </button>
+        <button onclick="document.getElementById('modal-exportar-plano').classList.add('hidden');_exportarPlanoJPEGConOpciones(window._planoGrupoActualGid,document.getElementById('plano-grupo-body'),APP.grupos.find(x=>x.id===window._planoGrupoActualGid),true)"
+          style="padding:12px 16px;border-radius:10px;border:1.5px solid var(--border2);background:var(--surface2);cursor:pointer;text-align:left;font-family:inherit">
+          <div style="font-weight:600;font-size:13px">✂️ Sin huecos vacíos</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">Solo aparecen los alumnos asignados</div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFLICTO DRIVE -->
+<div class="modal-overlay hidden" id="modal-drive-conflicto" style="z-index:400">
+  <div class="modal" style="max-width:420px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>⚠️ Conflicto de versiones</h3>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6">
+        Tus datos locales y los datos de Drive son <strong>versiones diferentes</strong>. Trabajaste en dos dispositivos distintos sin sincronizar.
+      </p>
+      <div id="drive-conflicto-reciente" style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:14px"></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="padding:10px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:12px">
+          <div style="font-weight:600;margin-bottom:2px">📱 Datos locales (este dispositivo)</div>
+          <div id="drive-conflicto-local-fecha" style="color:var(--text3)"></div>
+        </div>
+        <div style="padding:10px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:12px">
+          <div style="font-weight:600;margin-bottom:2px">☁️ Datos en Drive</div>
+          <div id="drive-conflicto-drive-fecha" style="color:var(--text3)"></div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:12px">Si tienes dudas, descarga ambas versiones y luego elige cuál importar.</p>
+    </div>
+    <div class="modal-footer" style="flex-direction:column;gap:8px;align-items:stretch">
+      <button onclick="driveConflictoDescargarAmbos()" style="padding:10px;border-radius:8px;border:1.5px solid var(--accent);background:var(--accent-bg);color:var(--accent);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">
+        📥 Descargar ambas versiones
+      </button>
+      <div style="display:flex;gap:8px">
+        <button onclick="driveConflictoUsarLocal()" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">
+          Usar datos locales →<br><span style="font-size:10px;font-weight:400;color:var(--text3)">Sube local a Drive</span>
+        </button>
+        <button onclick="driveConflictoUsarDrive()" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">
+          ← Usar datos de Drive<br><span style="font-size:10px;font-weight:400;color:var(--text3)">Descarga Drive a local</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="modal-confirmar" style="z-index:300">
   <div class="modal" style="max-width:340px" onclick="event.stopPropagation()">
     <div class="modal-header">
@@ -1237,8 +1301,10 @@ let gruposExpandidos = {};
 // PERSISTENCIA LOCAL
 // =====================
 function guardarDatos() {
+  if (!APP.config) APP.config = {};
+  APP.config._lastSaved = Date.now(); // timestamp de última modificación
   try { localStorage.setItem('profeapp_data', JSON.stringify(APP)); } catch(e){}
-  driveGuardar(); // sincronizar con Drive si está conectado
+  driveGuardar();
 }
 function cargarDatos() {
   try {
@@ -1327,7 +1393,17 @@ function exportarExcelGrupo(grupoId) {
 function importarBackup(e) {
   const file = e.target.files[0]; if (!file) return;
   const r = new FileReader();
-  r.onload = ev => { try { APP = JSON.parse(ev.target.result); guardarDatos(); renderPage(); } catch(e){ alert('Archivo no válido'); } };
+  r.onload = ev => {
+    try {
+      APP = JSON.parse(ev.target.result);
+      APP.config._lastSaved = Date.now(); // marcar como más reciente
+      guardarDatos();
+      // Limpiar flag de conflicto pendiente — el usuario ya eligió
+      localStorage.removeItem('profeapp_conflicto_ts_remoto');
+      renderPage();
+      alert('✅ Backup importado correctamente. Los datos se sincronizarán con Drive automáticamente.');
+    } catch(e) { alert('Archivo no válido'); }
+  };
   r.readAsText(file);
 }
 
@@ -1880,22 +1956,194 @@ function cambiarVistaAlumnos(v) {
   renderPage();
 }
 
+// Columna extra por grupo: { gid: { trim, iIdx, jIdx } }
+let _columnasExtra = {};
+
+function getColumnaExtra(gid) {
+  return _columnasExtra[gid] || null;
+}
+
+function setColumnaExtra(gid, trim, iIdx, jIdx, modo) {
+  if (trim === null) {
+    delete _columnasExtra[gid];
+  } else {
+    _columnasExtra[gid] = { trim, iIdx, jIdx, modo: modo||'consultar' };
+  }
+  document.querySelectorAll('[id^="col-extra-menu-"]').forEach(m => m.classList.add('hidden'));
+  renderPage();
+}
+
+function guardarNotaColumnaExtra(aid, trim, iIdx, jIdx, val, inputEl) {
+  const a = APP.alumnos.find(x=>x.id===aid); if (!a) return;
+  const tieneRubrica = !!a.notas?.[trim]?.[iIdx]?.rubrica?.[jIdx];
+  if (tieneRubrica) {
+    confirmar(
+      'Nota evaluada con rúbrica',
+      'Este apartado tiene una rúbrica aplicada. Si introduces una nota manual se eliminará la rúbrica. ¿Deseas sobreescribirla?',
+      () => {
+        // Eliminar rúbrica y guardar nota manual
+        delete a.notas[trim][iIdx].rubrica[jIdx];
+        if (!Object.keys(a.notas[trim][iIdx].rubrica).length) delete a.notas[trim][iIdx].rubrica;
+        if (!a.notas) a.notas = {};
+        if (!a.notas[trim]) a.notas[trim] = {};
+        if (!a.notas[trim][iIdx]) a.notas[trim][iIdx] = {};
+        a.notas[trim][iIdx][jIdx] = val === '' ? '' : parseFloat(val);
+        guardarDatos();
+        if (inputEl) inputEl.blur();
+      },
+      'Sobreescribir',
+      () => {
+        // Mantener rúbrica — restaurar valor original en el input
+        if (inputEl) {
+          const notaRub = calcNotaRubrica(a.notas[trim][iIdx].rubrica[jIdx]);
+          inputEl.value = notaRub !== null ? notaRub : '';
+          inputEl.blur();
+        }
+      }
+    );
+    return;
+  }
+  if (!a.notas) a.notas = {};
+  if (!a.notas[trim]) a.notas[trim] = {};
+  if (!a.notas[trim][iIdx]) a.notas[trim][iIdx] = {};
+  a.notas[trim][iIdx][jIdx] = val === '' ? '' : parseFloat(val);
+  guardarDatos();
+  if (inputEl) inputEl.blur();
+}
+
+function toggleColumnaExtraMenu(gid) {
+  const menus = document.querySelectorAll('[id^="col-extra-menu-"]');
+  const menu = document.getElementById('col-extra-menu-' + gid);
+  const isOpen = menu && !menu.classList.contains('hidden');
+  menus.forEach(m => m.classList.add('hidden'));
+  if (!isOpen && menu) {
+    const btn = menu.previousElementSibling;
+    if (btn) {
+      const r = btn.getBoundingClientRect();
+      menu.style.top  = (r.bottom + 4) + 'px';
+      menu.style.left = r.left + 'px';
+      menu.style.right = 'auto';
+    }
+    menu.classList.remove('hidden');
+  }
+}
+// Cerrar menús columna extra al pulsar fuera
+document.addEventListener('click', () => {
+  document.querySelectorAll('[id^="col-extra-menu-"]').forEach(m => m.classList.add('hidden'));
+});
+
+function getValorColumnaExtra(a, cfg) {
+  if (!cfg) return null;
+  const { trim, iIdx, jIdx } = cfg;
+  if (jIdx === -1) {
+    // Nota del instrumento completo
+    const insts = getInstrumentosConValores(a, trim);
+    const inst = insts[iIdx];
+    if (!inst) return null;
+    return calcNota(inst.items);
+  } else {
+    // Nota de un item concreto
+    const recVal   = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+    const recRub   = a.notas?.[trim]?.[iIdx]?.recRubrica?.[jIdx];
+    const recNR    = recRub ? calcNotaRubrica(recRub) : null;
+    if (recNR !== null) return recNR;
+    if (recVal !== undefined && recVal !== '' && recVal !== null) return parseFloat(recVal);
+    const rub  = a.notas?.[trim]?.[iIdx]?.rubrica?.[jIdx];
+    const rubN = rub ? calcNotaRubrica(rub) : null;
+    if (rubN !== null) return rubN;
+    const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
+    return (v !== undefined && v !== '' && v !== null) ? parseFloat(v) : null;
+  }
+}
+
 function renderVistaLista(g, als) {
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
+  const cfg = getColumnaExtra(g.id);
+  const trims = ['T1','T2','T3'];
+  // modo edición solo si es un apartado concreto (jIdx >= 0)
+  const modoEdicion = cfg && cfg.modo === 'editar' && cfg.jIdx >= 0;
+  const esInstrumento = cfg && cfg.jIdx === -1; // instrumento = solo consulta
+
+  // ── Dropdown de selección ──────────────────────────────────
+  const opcionesMenu = () => {
+    let html = `<div id="col-extra-menu-${g.id}" class="hidden" style="position:fixed;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:230px;padding:6px;max-height:340px;overflow-y:auto">
+      <button onclick="event.stopPropagation();setColumnaExtra('${g.id}',null)" style="width:100%;text-align:left;padding:7px 10px;border:none;background:none;font-family:inherit;font-size:12px;color:var(--red);cursor:pointer;border-radius:6px" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">✕ Quitar columna extra</button>
+      <div style="height:1px;background:var(--border);margin:4px 0"></div>`;
+    trims.forEach(t => {
+      const lbl = {T1:'1ª Eval.',T2:'2ª Eval.',T3:'3ª Eval.'}[t];
+      const estructura = g.estructura?.[t] || [];
+      if (!estructura.length) return;
+      html += `<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;padding:5px 10px 2px;letter-spacing:0.5px">${lbl}</div>`;
+      estructura.forEach((inst, iIdx) => {
+        html += `<button onclick="event.stopPropagation();setColumnaExtra('${g.id}','${t}',${iIdx},-1,'consultar')" style="width:100%;text-align:left;padding:6px 10px;border:none;background:none;font-family:inherit;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;border-radius:6px" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">📊 ${inst.nombre} <span style="font-size:10px;color:var(--text3)">(solo consulta)</span></button>`;
+        (inst.items||[]).forEach((item, jIdx) => {
+          html += `<button onclick="event.stopPropagation();setColumnaExtra('${g.id}','${t}',${iIdx},${jIdx},'consultar')" style="width:100%;text-align:left;padding:5px 10px 5px 22px;border:none;background:none;font-family:inherit;font-size:11px;color:var(--text2);cursor:pointer;border-radius:6px" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">↳ ${item.nombre} <span style="color:var(--text3)">(${item.peso}%)</span></button>`;
+        });
+      });
+    });
+    html += '</div>';
+    return html;
+  };
+
+  // ── Cabecera de la columna extra ───────────────────────────
+  const cfgLabel = () => {
+    if (!cfg) return '+ Columna';
+    const t = {T1:'1ª',T2:'2ª',T3:'3ª'}[cfg.trim];
+    const inst = g.estructura?.[cfg.trim]?.[cfg.iIdx];
+    if (!inst) return '+ Columna';
+    if (cfg.jIdx === -1) return `${t} · ${inst.nombre}`;
+    const item = inst.items?.[cfg.jIdx];
+    return `${t} · ${item?.nombre||''}`;
+  };
+
+  const cabExtra = cfg ? `
+    <th style="position:relative;min-width:130px;max-width:180px" onclick="event.stopPropagation()">
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+        <div style="position:relative;display:inline-block">
+          <button onclick="event.stopPropagation();toggleColumnaExtraMenu('${g.id}')"
+            style="padding:3px 8px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent-bg);color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis">
+            ${cfgLabel()} ▾
+          </button>
+          ${opcionesMenu()}
+        </div>
+        ${!esInstrumento ? `<div style="display:flex;gap:4px">
+          <button onclick="event.stopPropagation();setColumnaExtra('${g.id}','${cfg.trim}',${cfg.iIdx},${cfg.jIdx},'consultar')"
+            style="padding:2px 7px;border-radius:5px;border:1px solid ${!modoEdicion?'var(--accent)':'var(--border2)'};background:${!modoEdicion?'var(--accent-bg)':'var(--surface2)'};color:${!modoEdicion?'var(--accent)':'var(--text3)'};font-size:10px;font-weight:600;cursor:pointer">👁 Consulta</button>
+          <button onclick="event.stopPropagation();setColumnaExtra('${g.id}','${cfg.trim}',${cfg.iIdx},${cfg.jIdx},'editar')"
+            style="padding:2px 7px;border-radius:5px;border:1px solid ${modoEdicion?'var(--green)':'var(--border2)'};background:${modoEdicion?'var(--green-bg)':'var(--surface2)'};color:${modoEdicion?'var(--green)':'var(--text3)'};font-size:10px;font-weight:600;cursor:pointer">✏️ Editar</button>
+        </div>` : `<span style="font-size:10px;color:var(--text3)">Solo consulta</span>`}
+      </div>
+    </th>` : `
+    <th style="position:relative" onclick="event.stopPropagation()">
+      <div style="position:relative;display:inline-block">
+        <button onclick="event.stopPropagation();toggleColumnaExtraMenu('${g.id}')"
+          style="padding:3px 8px;border-radius:6px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text3);font-size:11px;font-weight:600;cursor:pointer">
+          + Columna ▾
+        </button>
+        ${opcionesMenu()}
+      </div>
+    </th>`;
+
   return `<div class="table-wrap"><table class="alumnos-table">
     <thead><tr>
+      <th style="width:36px;text-align:center">Nº</th>
       <th>Alumno</th><th>Email</th>
       <th>${g.evalBloqueada?.T1?'🔒 ':''}1ª Eval.</th>
       <th>${g.evalBloqueada?.T2?'🔒 ':''}2ª Eval.</th>
       <th>${g.evalBloqueada?.T3?'🔒 ':''}3ª Eval.</th>
-      <th>Nota final</th><th>Incidencias</th><th></th>
+      <th>Nota final</th>
+      ${cabExtra}
+      <th></th>
     </tr></thead>
     <tbody>
     ${als.map(a => {
       const nt1=calcNotaTrimestre(a,'T1'),nt2=calcNotaTrimestre(a,'T2'),nt3=calcNotaTrimestre(a,'T3');
       const nf=calcNotaFinal(a), nr=redondear(nf,umbral);
       const col=getColorGrupo(a.grupoId);
+      const extraVal = cfg ? getValorColumnaExtra(a, cfg) : null;
+      const extraNR  = extraVal !== null ? redondear(extraVal, umbral) : null;
       return `<tr onclick="abrirFicha('${a.id}')">
+        <td style="text-align:center;font-size:12px;font-weight:700;color:var(--text3);font-family:'DM Mono',monospace">${a.nLista||'—'}</td>
         <td><div style="display:flex;align-items:center;gap:10px">
           <div class="alumno-avatar">${a.foto?`<img src="${a.foto}" alt="">`:iniciales(a)}</div>
           <div>
@@ -1916,12 +2164,20 @@ function renderVistaLista(g, als) {
           <span class="nota-pill ${notaColor(nr)}">${nr!==null?nr:'—'}</span>
           ${nf!==null?`<span style="font-size:11px;color:var(--text3)">(${fmtNota(nf)})</span>`:''}
         </div></td>
-        <td>${['retrasos','partesLeves','partesGraves','expulsiones'].map((k,i)=>{
-          const colors=['#2d5be3','#92400e','#c2410c','#b91c1c'];
-          const bgs=['#eef1fd','#fef3cd','#ffedd5','#fdecea'];
-          const v=a[k]||0;
-          return v>0?`<span style="background:${bgs[i]};color:${colors[i]};border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;margin-right:2px">${v}</span>`:'';
-        }).join('')||'<span style="color:var(--text3)">—</span>'}</td>
+        <td onclick="event.stopPropagation()">
+          ${cfg ? modoEdicion
+            ? `<input type="number" min="0" max="10" step="0.01"
+                value="${extraVal!==null?extraVal:''}"
+                placeholder="—"
+                style="width:70px;padding:4px 6px;border:1.5px solid var(--border2);border-radius:6px;font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;background:var(--surface)"
+                onchange="guardarNotaColumnaExtra('${a.id}','${cfg.trim}',${cfg.iIdx},${cfg.jIdx},this.value,this)"
+                onkeydown="if(event.key==='Enter'){guardarNotaColumnaExtra('${a.id}','${cfg.trim}',${cfg.iIdx},${cfg.jIdx},this.value,this);event.preventDefault()}"
+                onclick="event.stopPropagation()"
+                onfocus="this.style.borderColor='var(--accent)'"
+                onblur="this.style.borderColor='var(--border2)'">`
+            : `<span class="nota-pill ${notaColor(extraNR)}" style="font-size:13px;padding:4px 10px">${extraVal!==null?extraVal.toFixed(2):'—'}</span>`
+            : ''}
+        </td>
         <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirFicha('${a.id}')">Ver →</button></td>
       </tr>`;
     }).join('')}
@@ -1931,21 +2187,26 @@ function renderVistaLista(g, als) {
 function renderVistaMiniaturas(g, als) {
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
   const col = getColorGrupo(g.id);
+  const bg    = col ? col.bg     : 'var(--surface2)';
+  const brd   = col ? col.border : 'var(--border2)';
+  const txtColor = col ? col.text : 'var(--text)';      // blanco si hay color, texto normal si no
+  const txt2Color = col ? 'rgba(255,255,255,0.8)' : 'var(--text2)';
+  const numColor  = col ? 'rgba(255,255,255,0.7)' : 'var(--text3)';
+
   return `<div style="display:flex;flex-wrap:wrap;gap:10px;padding:14px">
     ${als.map(a => {
       const nf = calcNotaFinal(a);
       const nr = redondear(nf, umbral);
-      const bg  = col ? col.bg  : 'var(--accent-bg)';
-      const brd = col ? col.border : 'var(--accent)';
-      return `<div onclick="abrirFicha('${a.id}')" style="width:100px;border:2px solid ${brd};border-radius:10px;background:${bg};cursor:pointer;overflow:hidden;transition:transform 0.1s;text-align:center;padding:10px 6px 8px"
+      return `<div onclick="abrirFicha('${a.id}')" style="width:100px;border:2px solid ${brd};border-radius:10px;background:${bg};cursor:pointer;overflow:hidden;transition:transform 0.1s;text-align:center;padding:10px 6px 8px;position:relative"
         onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform=''">
-        <div style="width:52px;height:52px;border-radius:50%;margin:0 auto 6px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:${brd}">
+        ${a.nLista?`<div style="position:absolute;top:4px;left:5px;font-size:9px;font-weight:700;color:${numColor};font-family:'DM Mono',monospace">${a.nLista}</div>`:''}
+        <div style="width:52px;height:52px;border-radius:50%;margin:0 auto 6px;overflow:hidden;border:2px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:${txtColor}">
           ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}
         </div>
-        <div style="font-size:11px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${a.apellidos||''}</div>
-        <div style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.nombre||''}</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
+        <div style="font-size:10px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
         ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
-        ${a.acnee||a.pap||a.pep?`<div style="margin-top:3px;font-size:9px;color:var(--purple);font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP'].filter(Boolean).join(' ')}</div>`:''}
+        ${a.acnee||a.pap||a.pep?`<div style="margin-top:3px;font-size:9px;color:rgba(255,255,255,0.9);font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP'].filter(Boolean).join(' ')}</div>`:''}
       </div>`;
     }).join('')}
   </div>`;
@@ -1974,13 +2235,17 @@ function renderVistaPlano(g, als) {
       if (a) {
         const nf = calcNotaFinal(a);
         const nr = redondear(nf, umbral);
-        gridHTML += `<div onclick="abrirFicha('${a.id}')" style="width:80px;min-height:88px;border:2px solid ${brd};border-radius:8px;background:${bg};cursor:pointer;text-align:center;padding:6px 4px;transition:transform 0.1s;flex-shrink:0"
+        const txtColor  = col ? col.text : 'var(--text)';
+        const txt2Color = col ? 'rgba(255,255,255,0.8)' : 'var(--text2)';
+        const numColor  = col ? 'rgba(255,255,255,0.7)' : 'var(--text3)';
+        gridHTML += `<div onclick="abrirFicha('${a.id}')" style="width:80px;min-height:88px;border:2px solid ${brd};border-radius:8px;background:${bg};cursor:pointer;text-align:center;padding:6px 4px;transition:transform 0.1s;flex-shrink:0;position:relative"
           onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform=''">
-          <div style="width:40px;height:40px;border-radius:50%;margin:0 auto 4px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${brd}">
+          ${a.nLista?`<div style="position:absolute;top:3px;left:4px;font-size:8px;font-weight:700;color:${numColor};font-family:'DM Mono',monospace">${a.nLista}</div>`:''}
+          <div style="width:40px;height:40px;border-radius:50%;margin:0 auto 4px;overflow:hidden;border:2px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${txtColor}">
             ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}
           </div>
-          <div style="font-size:9px;font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.apellidos||''}</div>
-          <div style="font-size:9px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.nombre||''}</div>
+          <div style="font-size:9px;font-weight:700;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
+          <div style="font-size:9px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
           ${nr!==null?`<div style="margin-top:3px"><span class="nota-pill ${notaColor(nr)}" style="font-size:10px;padding:1px 5px">${nr}</span></div>`:''}
         </div>`;
       } else {
@@ -2390,7 +2655,8 @@ function renderTabNotas(a) {
           <div class="nota-item-valor">
             <input type="number" min="0" max="10" step="0.01" value="${recMostrar}" placeholder="Nota rec."
               ${recInputBloq?'readonly style="pointer-events:none;opacity:0.65;background:var(--surface2)"':''}
-              onchange="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value)">
+              onchange="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this)"
+              onkeydown="if(event.key==='Enter'){cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this);event.preventDefault()}">
           </div>
           <button class="btn btn-sm" onclick="abrirRubricaRecuperacion('${a.id}',${iIdx},${jIdx})"
             style="padding:3px 8px;font-size:11px;font-weight:600;${recRubrica?'background:var(--purple-bg);color:var(--purple);border-color:var(--purple)':'background:var(--bg);color:var(--text2);border:1px solid var(--border2)'}">
@@ -2695,33 +2961,12 @@ function _initRec(a, trim, iIdx) {
   if (!a.notas[trim][iIdx].recFecha) a.notas[trim][iIdx].recFecha = {};
 }
 
-function toggleRecuperacion(aid, iIdx, jIdx) {
-  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
-  _initRec(a, trimestreActual, iIdx);
-  const rec = a.notas[trimestreActual][iIdx].rec;
-  if (rec[jIdx] !== undefined) {
-    // Ya abierta — quitar (preguntar confirmación si tiene nota)
-    if (rec[jIdx] !== '' && rec[jIdx] !== null) {
-      eliminarRecuperacion(aid, iIdx, jIdx);
-    } else {
-      // Estaba vacía, cerrar sin guardar
-      delete rec[jIdx];
-      guardarDatos();
-      cambiarTabFicha('notas');
-    }
-  } else {
-    // Abrir sub-fila — poner entrada vacía
-    rec[jIdx] = '';
-    guardarDatos();
-    cambiarTabFicha('notas');
-  }
-}
-
-function cambiarNotaRecuperacion(aid, iIdx, jIdx, val) {
+function cambiarNotaRecuperacion(aid, iIdx, jIdx, val, inputEl) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
   _initRec(a, trimestreActual, iIdx);
   a.notas[trimestreActual][iIdx].rec[jIdx] = val === '' ? '' : parseFloat(val);
   guardarDatos();
+  if (inputEl) inputEl.blur();
   cambiarTabFicha('notas');
 }
 
@@ -2732,15 +2977,45 @@ function cambiarFechaRecuperacion(aid, iIdx, jIdx, val) {
   guardarDatos();
 }
 
-function eliminarRecuperacion(aid, iIdx, jIdx) {
+function toggleRecuperacion(aid, iIdx, jIdx) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
-  if (a.notas?.[trimestreActual]?.[iIdx]?.rec) delete a.notas[trimestreActual][iIdx].rec[jIdx];
-  if (a.notas?.[trimestreActual]?.[iIdx]?.recFecha) delete a.notas[trimestreActual][iIdx].recFecha[jIdx];
-  if (a.notas?.[trimestreActual]?.[iIdx]?.recRubrica) delete a.notas[trimestreActual][iIdx].recRubrica[jIdx];
-  guardarDatos();
-  cambiarTabFicha('notas');
+  _initRec(a, trimestreActual, iIdx);
+  const rec = a.notas[trimestreActual][iIdx].rec;
+  const tieneNota    = rec[jIdx] !== undefined && rec[jIdx] !== '' && rec[jIdx] !== null;
+  const tieneRubrica = !!a.notas[trimestreActual][iIdx]?.recRubrica?.[jIdx];
+  if (tieneNota || tieneRubrica) {
+    // Ya tiene datos: el botón no borra, solo muestra que está activa
+    // El usuario usa el botón ✕ Quitar para eliminar con confirmación
+    cambiarTabFicha('notas');
+    return;
+  }
+  if (rec[jIdx] !== undefined) {
+    // Sub-fila abierta pero vacía: cerrar sin confirmación
+    delete rec[jIdx];
+    guardarDatos();
+    cambiarTabFicha('notas');
+  } else {
+    // Abrir sub-fila vacía
+    rec[jIdx] = '';
+    guardarDatos();
+    cambiarTabFicha('notas');
+  }
 }
-
+function eliminarRecuperacion(aid, iIdx, jIdx) {
+  confirmar(
+    'Eliminar recuperación',
+    '¿Eliminar la nota de recuperación de este apartado? Esta acción no se puede deshacer.',
+    () => {
+      const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+      if (a.notas?.[trimestreActual]?.[iIdx]?.rec)        delete a.notas[trimestreActual][iIdx].rec[jIdx];
+      if (a.notas?.[trimestreActual]?.[iIdx]?.recFecha)   delete a.notas[trimestreActual][iIdx].recFecha[jIdx];
+      if (a.notas?.[trimestreActual]?.[iIdx]?.recRubrica) delete a.notas[trimestreActual][iIdx].recRubrica[jIdx];
+      guardarDatos();
+      cambiarTabFicha('notas');
+    },
+    'Eliminar'
+  );
+}
 function abrirRubricaRecuperacion(aid, iIdx, jIdx) {
   // Reutilizamos el sistema de rúbrica pero guardamos en recRubrica
   _rubricaCtx = { aid, iIdx, jIdx, esRecuperacion: true };
@@ -4366,45 +4641,46 @@ function renderPlanoGrupo(gid) {
             style="position:absolute;top:2px;right:2px;background:var(--red);color:#fff;border:none;border-radius:4px;width:16px;height:16px;font-size:11px;font-weight:700;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">×</button>
         </div>`;
       } else {
-        gridHTML += `<div style="${cBase};background:var(--surface2)"
+        gridHTML += `<div data-celda-vacia="1" style="${cBase};background:var(--surface2)"
             onclick="planoGrupoClickCelda('${gid}',${fi},${ci})"
             onmouseenter="this.style.background='var(--accent-bg)'"
             onmouseleave="this.style.background='var(--surface2)'">
           <span style="font-size:22px;color:var(--text3)">+</span>
         </div>`;
       }
-      // Pasillo después de esta columna (excepto la última)
+      // Separador entre columnas
       if (ci < plano.cols - 1) {
         const tienePasillo = plano.pasillos.includes(ci);
-        if (fi === 0) {
-          // Solo en la primera fila mostramos el botón toggle
-          gridHTML += `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">
-            ${tienePasillo
-              ? `<div style="width:24px;height:92px;background:repeating-linear-gradient(45deg,var(--border2),var(--border2) 2px,transparent 2px,transparent 8px);border-radius:4px;opacity:0.6"></div>`
-              : `<div style="width:8px;height:92px"></div>`}
-            <button onclick="planoTogglePasillo('${gid}',${ci})"
-              style="width:24px;font-size:9px;padding:2px 0;border-radius:4px;border:1px solid ${tienePasillo?'var(--accent)':'var(--border2)'};background:${tienePasillo?'var(--accent-bg)':'var(--surface2)'};color:${tienePasillo?'var(--accent)':'var(--text3)'};cursor:pointer;font-weight:700;flex-shrink:0"
-              title="${tienePasillo?'Quitar pasillo':'Añadir pasillo'}">${tienePasillo?'‖':'|'}</button>
+        if (tienePasillo) {
+          // Pasillo: dos líneas verticales con texto PASILLO — altura dinámica según filas
+          const altoPasillo = plano.filas * 100; // aprox px totales del grid
+          gridHTML += `<div style="width:36px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:relative;margin:0 2px">
+            <div style="width:100%;flex:1;display:flex;align-items:center;justify-content:center;gap:0;position:relative">
+              <div style="width:2px;background:var(--border);position:absolute;left:4px;top:0;bottom:0;border-radius:1px"></div>
+              <div style="width:2px;background:var(--border);position:absolute;right:4px;top:0;bottom:0;border-radius:1px"></div>
+              <span style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:2px;writing-mode:vertical-lr;text-orientation:mixed;text-transform:uppercase">PASILLO</span>
+            </div>
           </div>`;
         } else {
-          // Resto de filas: solo el espacio visual
-          gridHTML += tienePasillo
-            ? `<div style="width:24px;height:92px;background:repeating-linear-gradient(45deg,var(--border2),var(--border2) 2px,transparent 2px,transparent 8px);border-radius:4px;opacity:0.6;flex-shrink:0"></div>`
-            : `<div style="width:8px;flex-shrink:0"></div>`;
+          gridHTML += `<div style="width:8px;flex-shrink:0"></div>`;
         }
       }
     }
     gridHTML += '</div>';
   }
 
-  // Fila de botones de pasillo bajo el grid (más visible)
-  if (plano.cols > 1 && plano.filas > 0) {
-    gridHTML += '<div style="display:flex;gap:8px;align-items:center;margin-top:4px;padding-left:0">';
+  // Fila de botones toggle pasillo — separada del grid
+  if (plano.cols > 1) {
+    gridHTML += '<div style="display:flex;align-items:center;margin-top:6px">';
     for (let ci = 0; ci < plano.cols; ci++) {
       gridHTML += `<div style="width:82px;flex-shrink:0"></div>`;
       if (ci < plano.cols - 1) {
         const tienePasillo = plano.pasillos.includes(ci);
-        gridHTML += `<div style="width:${tienePasillo?24:8}px;flex-shrink:0;text-align:center;font-size:9px;color:${tienePasillo?'var(--accent)':'var(--text3)'};font-weight:600">${tienePasillo?'pasillo':''}</div>`;
+        gridHTML += `<div style="width:${tienePasillo?40:8}px;flex-shrink:0;display:flex;justify-content:center">
+          <button onclick="planoTogglePasillo('${gid}',${ci})"
+            style="font-size:9px;padding:2px 4px;border-radius:4px;border:1px solid ${tienePasillo?'var(--accent)':'var(--border2)'};background:${tienePasillo?'var(--accent-bg)':'var(--surface2)'};color:${tienePasillo?'var(--accent)':'var(--text3)'};cursor:pointer;font-weight:700;white-space:nowrap"
+            title="${tienePasillo?'Quitar pasillo':'Añadir pasillo'}">${tienePasillo?'✕ Quitar':'+ Pasillo'}</button>
+        </div>`;
       }
     }
     gridHTML += '</div>';
@@ -4753,8 +5029,10 @@ function agregarItemGrupo(iIdx) {
 }
 // ── Modal de confirmación reutilizable ────────────────────────
 let _confirmarCallback = null;
-function confirmar(titulo, mensaje, callback, btnLabel) {
+let _confirmarCancelCallback = null;
+function confirmar(titulo, mensaje, callback, btnLabel, cancelCallback) {
   _confirmarCallback = callback;
+  _confirmarCancelCallback = cancelCallback || null;
   document.getElementById('confirmar-titulo').textContent = titulo;
   document.getElementById('confirmar-mensaje').textContent = mensaje;
   document.getElementById('confirmar-btn-ok').textContent = btnLabel || 'Eliminar';
@@ -4763,9 +5041,11 @@ function confirmar(titulo, mensaje, callback, btnLabel) {
 function confirmarAceptar() {
   document.getElementById('modal-confirmar').classList.add('hidden');
   if (_confirmarCallback) { _confirmarCallback(); _confirmarCallback = null; }
+  _confirmarCancelCallback = null;
 }
 function confirmarCancelar() {
   document.getElementById('modal-confirmar').classList.add('hidden');
+  if (_confirmarCancelCallback) { _confirmarCancelCallback(); _confirmarCancelCallback = null; }
   _confirmarCallback = null;
 }
 
@@ -8245,31 +8525,99 @@ function exportarPlanoPDF() {
 function exportarPlanoJPEG() {
   const gid = window._planoGrupoActualGid;
   if (!gid) { alert('No hay plano abierto.'); return; }
-  const g = APP.grupos.find(x => x.id === gid);
-  if (!g) return;
+  document.getElementById('modal-exportar-plano').classList.remove('hidden');
+}
 
-  const body = document.getElementById('plano-grupo-body');
-  if (!body) return;
+function _exportarPlanoJPEGConOpciones(gid, body, g, sinHuecos) {
+  const plano = g?.plano;
+  if (!plano) { alert('No hay plano configurado.'); return; }
+  if (!plano.pasillos) plano.pasillos = [];
 
-  // Ocultar botones de edición para captura limpia
-  const controles = body.querySelectorAll('button, input');
-  controles.forEach(el => el.style.visibility = 'hidden');
+  const alumnos = APP.alumnos.filter(a => a.grupoId === gid);
+  const col = getColorGrupo(gid);
+  const bg  = col ? col.bg   : '#eef1fd';
+  const brd = col ? col.border : '#2d5be3';
+
+  // ── Construir HTML del plano fuera del viewport ──────────────
+  const CELDA_W = 88, CELDA_H = 96, GAP = 6, PAS_W = 40;
+
+  let gridRows = '';
+  for (let fi = 0; fi < plano.filas; fi++) {
+    let row = `<div style="display:flex;gap:0;align-items:stretch;margin-bottom:${GAP}px">`;
+    for (let ci = 0; ci < plano.cols; ci++) {
+      const aid = (plano.celdas[fi]||[])[ci];
+      const al = aid ? alumnos.find(x=>x.id===aid) : null;
+      if (al) {
+        const ini = iniciales(al);
+        row += `<div style="width:${CELDA_W}px;height:${CELDA_H}px;border:2px solid ${brd};border-radius:8px;background:${bg};display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;box-sizing:border-box;flex-shrink:0;margin-right:${GAP}px;text-align:center">
+          ${al.foto
+            ? `<img src="${al.foto}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;margin-bottom:4px">`
+            : `<div style="width:44px;height:44px;border-radius:50%;background:#fff;color:${brd};font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">${ini}</div>`}
+          <div style="font-size:9px;font-weight:700;line-height:1.2;max-width:80px;word-break:break-word">${al.apellidos||''}</div>
+          <div style="font-size:8px;color:#666;line-height:1.2">${al.nombre||''}</div>
+        </div>`;
+      } else if (!sinHuecos) {
+        row += `<div style="width:${CELDA_W}px;height:${CELDA_H}px;border:2px dashed #ccc;border-radius:8px;background:#f8f8f8;flex-shrink:0;margin-right:${GAP}px"></div>`;
+      } else {
+        row += `<div style="width:${CELDA_W}px;height:${CELDA_H}px;background:transparent;flex-shrink:0;margin-right:${GAP}px"></div>`;
+      }
+      // Pasillo
+      if (ci < plano.cols - 1 && plano.pasillos.includes(ci)) {
+        const totalH = plano.filas * (CELDA_H + GAP) - GAP;
+        if (fi === 0) {
+          // Solo renderizar el pasillo completo en la primera fila con altura del grid entero
+          row += `<div style="width:${PAS_W}px;height:${totalH}px;flex-shrink:0;margin-right:${GAP}px;display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:-${totalH - CELDA_H}px">
+            <div style="position:absolute;left:4px;top:0;bottom:0;width:2px;background:#aaa;border-radius:1px"></div>
+            <div style="position:absolute;right:4px;top:0;bottom:0;width:2px;background:#aaa;border-radius:1px"></div>
+            <span style="font-size:9px;font-weight:700;color:#aaa;letter-spacing:3px;writing-mode:vertical-lr;text-orientation:mixed;text-transform:uppercase">PASILLO</span>
+          </div>`;
+        } else {
+          // Filas siguientes: espacio transparente (ya cubierto por la columna de fi=0)
+          row += `<div style="width:${PAS_W}px;height:${CELDA_H}px;flex-shrink:0;margin-right:${GAP}px;background:transparent"></div>`;
+        }
+      }
+    }
+    row += '</div>';
+    gridRows += row;
+  }
+
+  const pizarraH = 28;
+  const totalW = plano.cols * (CELDA_W + GAP)
+    + plano.pasillos.filter(p=>p<plano.cols-1).length * (PAS_W - CELDA_W)
+    + 20;
+
+  const htmlPlano = `<div style="font-family:Arial,sans-serif;padding:16px;background:#fff;display:inline-block;min-width:${totalW}px">
+    <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:10px">🗺 ${g.nombre}</div>
+    <div style="position:relative">${gridRows}</div>
+    <div style="text-align:center;margin-top:10px">
+      <div style="display:inline-block;background:#222;color:#fff;padding:5px 60px;border-radius:0 0 6px 6px;font-size:11px;font-weight:700;letter-spacing:1px">PIZARRA · MESA DEL PROFESOR</div>
+    </div>
+  </div>`;
+
+  // Crear div temporal fuera del viewport
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:fixed;top:-9999px;left:-9999px;z-index:-1;';
+  tmp.innerHTML = htmlPlano;
+  document.body.appendChild(tmp);
+  const target = tmp.firstElementChild;
 
   const capturar = () => {
-    window.html2canvas(body, {
+    window.html2canvas(target, {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
-      logging: false
+      logging: false,
+      width: target.scrollWidth,
+      height: target.scrollHeight,
     }).then(canvas => {
-      controles.forEach(el => el.style.visibility = '');
+      document.body.removeChild(tmp);
       const link = document.createElement('a');
       link.download = `plano_${(g.nombre||'clase').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'_')}_${new Date().toISOString().slice(0,10)}.jpg`;
       link.href = canvas.toDataURL('image/jpeg', 0.92);
       link.click();
-    }).catch(() => {
-      controles.forEach(el => el.style.visibility = '');
-      alert('No se pudo generar la imagen.');
+    }).catch(err => {
+      document.body.removeChild(tmp);
+      alert('No se pudo generar la imagen: ' + err.message);
     });
   };
 
@@ -8279,7 +8627,7 @@ function exportarPlanoJPEG() {
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
     s.onload = capturar;
-    s.onerror = () => { controles.forEach(el => el.style.visibility = ''); alert('No se pudo cargar la librería. Comprueba la conexión.'); };
+    s.onerror = () => { document.body.removeChild(tmp); alert('No se pudo cargar la librería.'); };
     document.head.appendChild(s);
   }
 }
@@ -8993,19 +9341,134 @@ async function driveLeer() {
       `https://www.googleapis.com/drive/v3/files/${fid}?alt=media`,
       { headers: { Authorization: 'Bearer ' + _driveToken } }
     );
-    if (!resp.ok) return;
+    if (!resp.ok) { driveSetStatus('ok'); return; }
     const text = await resp.text();
-    if (!text || text[0] !== '{') return;
+
+    // Drive vacío → subir datos locales directamente
+    if (!text || text[0] !== '{') {
+      driveGuardar();
+      driveSetStatus('ok');
+      return;
+    }
+
     const remoto = JSON.parse(text);
-    // Usar los datos remotos (Drive es la fuente de verdad)
-    APP = remoto;
-    guardarDatos(); // actualizar localStorage también
-    renderPage();
-    driveSetStatus('ok');
+    const tsRemoto = remoto?.config?._lastSaved || 0;
+    const tsLocal  = APP?.config?._lastSaved    || 0;
+
+    // Sin datos locales → cargar Drive sin preguntar
+    if (!tsLocal) {
+      APP = remoto;
+      if (APP.config?.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
+      try { localStorage.setItem('profeapp_data', JSON.stringify(APP)); } catch(e){}
+      renderPage();
+      driveSetStatus('ok');
+      return;
+    }
+
+    // Sin datos en Drive → subir local sin preguntar
+    if (!tsRemoto) {
+      driveGuardar();
+      driveSetStatus('ok');
+      return;
+    }
+
+    // Misma versión → sin conflicto
+    if (tsLocal === tsRemoto) {
+      driveSetStatus('ok');
+      return;
+    }
+
+    // ── Conflicto: versiones diferentes ──────────────────────
+    // Comprobar si ya descargamos ambas versiones para este mismo conflicto
+    const tsConflictoPendiente = parseInt(localStorage.getItem('profeapp_conflicto_ts_remoto') || '0');
+    if (tsConflictoPendiente === tsRemoto) {
+      // Ya se descargaron ambas versiones — esperar a que el usuario importe manualmente
+      driveSetStatus('ok');
+      return;
+    }
+    const fmtFecha = ts => {
+      const d = new Date(ts);
+      return d.toLocaleDateString('es-ES') + ' a las ' + d.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
+    };
+    const labelLocal  = fmtFecha(tsLocal);
+    const labelRemoto = fmtFecha(tsRemoto);
+    const masReciente = tsLocal > tsRemoto ? 'local' : 'drive';
+
+    // Guardar remoto temporalmente para poder descargarlo
+    window._driveConflictoRemoto = remoto;
+    window._driveConflictoLocal  = JSON.parse(JSON.stringify(APP));
+
+    // Mostrar modal de conflicto
+    document.getElementById('drive-conflicto-local-fecha').textContent  = labelLocal;
+    document.getElementById('drive-conflicto-drive-fecha').textContent  = labelRemoto;
+    document.getElementById('drive-conflicto-reciente').textContent =
+      masReciente === 'local' ? '📱 Tus datos locales son más recientes.' : '☁️ Los datos de Drive son más recientes.';
+    document.getElementById('modal-drive-conflicto').classList.remove('hidden');
+    driveSetStatus('error');
+
   } catch(e) {
     console.warn('Drive leer error:', e);
     driveSetStatus('error');
   }
+}
+
+function driveConflictoUsarLocal() {
+  document.getElementById('modal-drive-conflicto').classList.add('hidden');
+  // Subir local a Drive
+  driveGuardar();
+  driveSetStatus('ok');
+}
+
+function driveConflictoUsarDrive() {
+  document.getElementById('modal-drive-conflicto').classList.add('hidden');
+  const remoto = window._driveConflictoRemoto;
+  if (!remoto) return;
+  APP = remoto;
+  if (APP.config?.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
+  try { localStorage.setItem('profeapp_data', JSON.stringify(APP)); } catch(e){}
+  window._driveConflictoRemoto = null;
+  window._driveConflictoLocal  = null;
+  renderPage();
+  driveSetStatus('ok');
+}
+
+function driveConflictoDescargarAmbos() {
+  // Descargar versión local
+  const jsonLocal = JSON.stringify(window._driveConflictoLocal || APP, null, 2);
+  const blobLocal = new Blob([jsonLocal], {type:'application/json'});
+  const urlLocal  = URL.createObjectURL(blobLocal);
+  const aLocal    = document.createElement('a');
+  aLocal.href     = urlLocal;
+  aLocal.download = 'profeapp_LOCAL_' + new Date().toISOString().slice(0,10) + '.json';
+  aLocal.click();
+  URL.revokeObjectURL(urlLocal);
+
+  // Descargar versión Drive
+  setTimeout(() => {
+    const jsonDrive = JSON.stringify(window._driveConflictoRemoto, null, 2);
+    const blobDrive = new Blob([jsonDrive], {type:'application/json'});
+    const urlDrive  = URL.createObjectURL(blobDrive);
+    const aDrive    = document.createElement('a');
+    aDrive.href     = urlDrive;
+    aDrive.download = 'profeapp_DRIVE_' + new Date().toISOString().slice(0,10) + '.json';
+    aDrive.click();
+    URL.revokeObjectURL(urlDrive);
+  }, 500);
+
+  // Marcar conflicto como "pendiente de resolución manual"
+  // Guardamos el timestamp del remoto para no volver a preguntar por este mismo conflicto
+  localStorage.setItem('profeapp_conflicto_ts_remoto', window._driveConflictoRemoto?.config?._lastSaved || 0);
+
+  // Cerrar el modal — el usuario importará manualmente el JSON que quiera
+  document.getElementById('modal-drive-conflicto').classList.add('hidden');
+  window._driveConflictoRemoto = null;
+  window._driveConflictoLocal  = null;
+  driveSetStatus('ok');
+
+  // Mostrar instrucciones
+  setTimeout(() => {
+    alert('✅ Ambas versiones descargadas.\n\nCuando decidas cuál usar, ve a Ajustes → "📂 Importar backup JSON" y carga el archivo que prefieras.\n\nLa app no volverá a preguntar por este conflicto hasta que importes un nuevo archivo.');
+  }, 800);
 }
 
 // ── Escribir datos en Drive (con debounce de 2s) ──────────────
