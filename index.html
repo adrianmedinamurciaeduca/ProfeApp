@@ -1255,6 +1255,17 @@ const GRUPO_COLORES = [
   { id:'gris',     bg:'#4b5563', border:'#374151', text:'#ffffff', dark:'#1f2937' },
 ];
 
+// Devuelve '#111' o '#fff' según el contraste óptimo con el fondo dado
+function colorTextoContraste(hexColor) {
+  const hex = (hexColor||'').replace('#','');
+  if (hex.length < 6) return '#111';
+  const r = parseInt(hex.slice(0,2),16);
+  const g = parseInt(hex.slice(2,4),16);
+  const b = parseInt(hex.slice(4,6),16);
+  const lum = 0.2126*r/255 + 0.7152*g/255 + 0.0722*b/255;
+  return lum > 0.45 ? '#111' : '#fff';
+}
+
 function getColorGrupo(grupoId) {
   if (!grupoId) return null;
   const g = APP.grupos.find(x => x.id === grupoId);
@@ -1633,7 +1644,7 @@ function renderInicio() {
         <div style="width:3px;align-self:stretch;background:${col.border};border-radius:2px;flex-shrink:0"></div>
         <div style="flex:1">
           <div style="font-size:13px;font-weight:600;color:${col.text}">${icon} ${tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':'Recreo'}</div>
-          ${g?`<div style="font-size:11px;color:var(--text2)">${g.nombre}${cel.ubicacion?' · 📍'+cel.ubicacion:''}</div>`:''}
+          ${g?`<div style="font-size:13px;font-weight:600;color:${col.text}">${g.nombre}${cel.ubicacion?' · 📍'+cel.ubicacion:''}</div>`:''}
           ${sesion?`<div style="font-size:11px;color:var(--purple);margin-top:2px">📖 ${sesion}</div>`:''}
         </div>
       </div>`;
@@ -5164,7 +5175,7 @@ function renderHorario() {
         if (cel.ubicacion) html += `<div style="font-size:10px;color:var(--text2)">📍${cel.ubicacion}</div>`;
       } else if (tipo === 'clase') {
         html += `<div style="color:${col.text};font-size:12px;font-weight:600">${cel.materia || 'Clase'}</div>`;
-        html += `<div style="font-size:11px;color:var(--text2)">${g ? g.nombre : ''}</div>`;
+        html += `<div style="font-size:12px;font-weight:600;color:${col.text}">${g ? g.nombre : ''}</div>`;
         if (cel.ubicacion) html += `<div style="font-size:10px;color:var(--text3)">📍${cel.ubicacion}</div>`;
       } else {
         html += `<div style="color:var(--text3);font-size:20px;text-align:center;margin-top:10px">+</div>`;
@@ -5766,7 +5777,7 @@ function calRenderSemana() {
         const tipo=cel.tipo||'libre';
         if(tipo==='libre') return;
         const g=cel.grupoId?APP.grupos.find(x=>x.id===cel.grupoId):null;
-        const colMap={clase:{bg:'#eef1fd',text:'#1e3fa8',border:'#bfcffa'},guardia:{bg:'#fef9c3',text:'#854d0e',border:'#fde047'},recreo:{bg:'#dcfce7',text:'#166534',border:'#86efac'}};
+        const colMap={clase:{bg:'#1e3fa8',text:'#fff',border:'#1e40af'},guardia:{bg:'#92400e',text:'#fff',border:'#d97706'},recreo:{bg:'#166534',text:'#fff',border:'#16a34a'}};
         const grupoCol=(tipo==='clase'&&cel.grupoId&&!colorDia)?getColorGrupo(cel.grupoId):null;
         const col=colorDia?{bg:colorDia.bg,text:colorDia.text,border:colorDia.border}:grupoCol||colMap[tipo]||{bg:'var(--surface2)',text:'var(--text3)',border:'var(--border)'};
         const top=(ini-minH)*PX, h=Math.max((fin-ini)*PX,18);
@@ -5774,7 +5785,7 @@ function calRenderSemana() {
         const sp=obtenerSesionProgramada(cel.grupoId,dKey(d));
         bloqHtml+=`<div style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box">
           <div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icon}${colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':'Recreo'}</div>
-          ${h>22&&g?`<div style="font-size:9px;color:${col.text};opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nombre}</div>`:''}
+          ${h>22&&g?`<div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nombre}</div>`:''}
           ${h>36&&sp?`<div style="font-size:9px;color:var(--purple);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📖 ${sp}</div>`:''}
         </div>`;
       });
@@ -5938,9 +5949,9 @@ function calRenderDia() {
   // Franjas del horario
   if (!isWknd) {
     const colMap = {
-      clase:   { bg:'#eef1fd', text:'#1e3fa8', border:'#bfcffa' },
-      guardia: { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
-      recreo:  { bg:'#dcfce7', text:'#166534', border:'#86efac' },
+      clase:   { bg:'#1e3fa8', text:'#fff', border:'#1e40af' },
+      guardia: { bg:'#92400e', text:'#fff', border:'#d97706' },
+      recreo:  { bg:'#166534', text:'#fff', border:'#16a34a' },
     };
     franjas.forEach(f => {
       const ini = toMin(f.inicio), fin = toMin(f.fin);
