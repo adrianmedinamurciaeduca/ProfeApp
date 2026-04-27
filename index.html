@@ -152,7 +152,7 @@
   }
 
   /* ── MOBILE BREAKPOINT ──────────────────────────────── */
-  @media (max-width: 900px) {
+  @media (max-width: 700px) {
     body { font-size: 15px; }
 
     /* Sidebar se convierte en drawer deslizante */
@@ -1919,7 +1919,7 @@ function renderAlumnos() {
               style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0b8e8;background:#e8f0fc;color:#1a4a9a;font-size:12px;font-weight:600;cursor:pointer">+ Alumno</button>
             <button onclick="event.stopPropagation();abrirEstructuraGrupo('${g.id}')"
               style="padding:4px 11px;border-radius:7px;border:1.5px solid #2d5be3;background:#2d5be3;color:#fff;font-size:12px;font-weight:600;cursor:pointer">⚙ Notas</button>
-            ${window.innerWidth > 900 ? `
+            ${window.innerWidth > 700 ? `
             <button onclick="event.stopPropagation();abrirModalReordenar('${g.id}')"
               style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0c8a0;background:#e8f5e8;color:#1a6a1a;font-size:12px;font-weight:600;cursor:pointer">↕ Reordenar</button>
             <button onclick="event.stopPropagation();abrirCuaderno('${g.id}')"
@@ -4464,10 +4464,7 @@ function renderAjustes() {
   return `
   <div class="topbar"><h2>Ajustes</h2></div>
   <div class="page">
-    <div class="card" style="padding:20px;margin-bottom:16px">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🔤 Tamaño de letra</h3>
-      <div id="font-size-card">${renderFontSizeCard()}</div>
-    </div>
+
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${Object.entries(TEMAS).map(([id, t]) => {
           const sel = (APP.config?.tema || 'claro') === id;
@@ -9239,61 +9236,6 @@ function aplicarTema(id) {
   renderPage();
 }
 
-function renderFontSizeCard() {
-  const actual = APP.config?.tamanoFuente || 14;
-  const opciones = [
-    [12,'Muy pequeño'],[13,'Pequeño'],[14,'Normal'],
-    [16,'Grande'],[18,'Muy grande'],[20,'Extra grande']
-  ];
-  const btns = opciones.map(([px, label]) => {
-    const sel = actual === px;
-    return '<button onclick="aplicarTamanoFuente(' + px + ');document.getElementById(\'font-size-card\').innerHTML=renderFontSizeCard()" '
-      + 'style="padding:8px 14px;border-radius:20px;font-size:' + px + 'px;font-weight:' + (sel?700:400) + ';cursor:pointer;'
-      + 'border:2px solid ' + (sel?'var(--accent)':'var(--border2)') + ';'
-      + 'background:' + (sel?'var(--accent-bg)':'var(--surface2)') + ';'
-      + 'color:' + (sel?'var(--accent)':'var(--text)') + ';transition:all 0.15s">'
-      + label + '</button>';
-  }).join('');
-  return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + btns + '</div>'
-    + '<div style="display:flex;align-items:center;gap:12px">'
-    + '<span style="font-size:11px;color:var(--text3)">A</span>'
-    + '<input type="range" min="11" max="22" step="1" value="' + actual + '" '
-    + 'oninput="previewFontSize(this.value)" '
-    + 'onchange="aplicarTamanoFuente(parseInt(this.value));document.getElementById(\'font-size-card\').innerHTML=renderFontSizeCard()" '
-    + 'style="flex:1;accent-color:var(--accent)">'
-    + '<span style="font-size:20px;color:var(--text3)">A</span>'
-    + '<span id="font-size-preview" style="font-size:12px;color:var(--text2);min-width:32px">' + actual + 'px</span>'
-    + '</div>'
-    + '<p style="font-size:12px;color:var(--text3);margin-top:8px">El tamaño afecta a toda la aplicación y se guarda automáticamente.</p>';
-}
-
-function previewFontSize(val) {
-  document.documentElement.style.fontSize = val + 'px';
-  document.body.style.fontSize = val + 'px';
-  const el = document.getElementById('font-size-preview');
-  if (el) el.textContent = val + 'px';
-}
-
-function aplicarTamanoFuente(px) {
-  // Cambiar font-size del :root hace que todos los rem escalen
-  // Además ajustamos body directamente para los em
-  document.documentElement.style.fontSize = px + 'px';
-  document.body.style.fontSize = px + 'px';
-  // Quitar zoom si había sido aplicado antes
-  const shell = document.getElementById('app-shell');
-  if (shell) shell.style.zoom = '';
-  APP.config.tamanoFuente = px;
-  guardarDatos();
-}
-
-function inicializarTamanoFuente() {
-  const px = APP.config?.tamanoFuente || 14;
-  document.documentElement.style.fontSize = px + 'px';
-  document.body.style.fontSize = px + 'px';
-  const shell = document.getElementById('app-shell');
-  if (shell) shell.style.zoom = '';
-}
-
 function inicializarTema() {
   const id = APP.config?.tema || 'claro';
   const tema = TEMAS[id];
@@ -9861,12 +9803,10 @@ self.addEventListener('fetch', e => {
   navigator.serviceWorker.register(url).catch(()=>{});
 }
 
-// =====================
-// INIT
+
 // =====================
 cargarDatos();
 inicializarTema();
-inicializarTamanoFuente();
 renderPage('inicio');
 driveSetStatus('off');
 registrarServiceWorker();
