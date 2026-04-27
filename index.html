@@ -152,7 +152,7 @@
   }
 
   /* ── MOBILE BREAKPOINT ──────────────────────────────── */
-  @media (max-width: 700px) {
+  @media (max-width: 768px) {
     body { font-size: 15px; }
 
     /* Sidebar se convierte en drawer deslizante */
@@ -348,7 +348,7 @@
     font-family: 'DM Mono', monospace;
     overflow: hidden;
   }
-  .alumno-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .alumno-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
 
   .nota-pill {
     display: inline-flex;
@@ -1040,6 +1040,32 @@
   </div>
 </div>
 
+<!-- MODAL CONFIRMAR -->
+<!-- MODAL EXPORTAR PLANO -->
+<div class="modal-overlay hidden" id="modal-exportar-plano" style="z-index:300" onclick="event.target===this&&document.getElementById('modal-exportar-plano').classList.add('hidden')">
+  <div class="modal" style="max-width:360px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>🖼 Exportar imagen del plano</h3>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-exportar-plano').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px">¿Cómo quieres exportar el plano?</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="document.getElementById('modal-exportar-plano').classList.add('hidden');_exportarPlanoJPEGConOpciones(window._planoGrupoActualGid,document.getElementById('plano-grupo-body'),APP.grupos.find(x=>x.id===window._planoGrupoActualGid),false)"
+          style="padding:12px 16px;border-radius:10px;border:1.5px solid var(--border2);background:var(--surface2);cursor:pointer;text-align:left;font-family:inherit">
+          <div style="font-weight:600;font-size:13px">📐 Con huecos vacíos</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">Muestra todos los pupitres, ocupados y vacíos</div>
+        </button>
+        <button onclick="document.getElementById('modal-exportar-plano').classList.add('hidden');_exportarPlanoJPEGConOpciones(window._planoGrupoActualGid,document.getElementById('plano-grupo-body'),APP.grupos.find(x=>x.id===window._planoGrupoActualGid),true)"
+          style="padding:12px 16px;border-radius:10px;border:1.5px solid var(--border2);background:var(--surface2);cursor:pointer;text-align:left;font-family:inherit">
+          <div style="font-weight:600;font-size:13px">✂️ Sin huecos vacíos</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">Solo aparecen los alumnos asignados</div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CONFLICTO DRIVE -->
 <div class="modal-overlay hidden" id="modal-drive-conflicto" style="z-index:400">
   <div class="modal" style="max-width:420px" onclick="event.stopPropagation()">
@@ -1243,16 +1269,16 @@
 
 // Paleta de colores asignables a grupos
 const GRUPO_COLORES = [
-  { id:'azul',     bg:'#1d4ed8', border:'#1e40af', text:'#ffffff', dark:'#1e3a8a' },
-  { id:'verde',    bg:'#16a34a', border:'#15803d', text:'#ffffff', dark:'#14532d' },
-  { id:'rojo',     bg:'#dc2626', border:'#b91c1c', text:'#ffffff', dark:'#991b1b' },
-  { id:'naranja',  bg:'#ea580c', border:'#c2410c', text:'#ffffff', dark:'#9a3412' },
-  { id:'morado',   bg:'#7c3aed', border:'#6d28d9', text:'#ffffff', dark:'#4c1d95' },
-  { id:'rosa',     bg:'#db2777', border:'#be185d', text:'#ffffff', dark:'#9d174d' },
-  { id:'amarillo', bg:'#ca8a04', border:'#a16207', text:'#ffffff', dark:'#713f12' },
-  { id:'cian',     bg:'#0891b2', border:'#0e7490', text:'#ffffff', dark:'#155e75' },
-  { id:'lima',     bg:'#65a30d', border:'#4d7c0f', text:'#ffffff', dark:'#365314' },
-  { id:'gris',     bg:'#4b5563', border:'#374151', text:'#ffffff', dark:'#1f2937' },
+  { id:'azul',     bg:'#1d4ed8', border:'#1e40af', text:'#ffffff', dark:'#1e3a8a', light:'#dbeafe' },
+  { id:'verde',    bg:'#16a34a', border:'#15803d', text:'#ffffff', dark:'#14532d', light:'#dcfce7' },
+  { id:'rojo',     bg:'#dc2626', border:'#b91c1c', text:'#ffffff', dark:'#991b1b', light:'#fee2e2' },
+  { id:'naranja',  bg:'#ea580c', border:'#c2410c', text:'#ffffff', dark:'#9a3412', light:'#ffedd5' },
+  { id:'morado',   bg:'#7c3aed', border:'#6d28d9', text:'#ffffff', dark:'#4c1d95', light:'#ede9fe' },
+  { id:'rosa',     bg:'#db2777', border:'#be185d', text:'#ffffff', dark:'#9d174d', light:'#fce7f3' },
+  { id:'amarillo', bg:'#ca8a04', border:'#a16207', text:'#ffffff', dark:'#713f12', light:'#fef9c3' },
+  { id:'cian',     bg:'#0891b2', border:'#0e7490', text:'#ffffff', dark:'#155e75', light:'#cffafe' },
+  { id:'lima',     bg:'#65a30d', border:'#4d7c0f', text:'#ffffff', dark:'#365314', light:'#ecfccb' },
+  { id:'gris',     bg:'#4b5563', border:'#374151', text:'#ffffff', dark:'#1f2937', light:'#f3f4f6' },
 ];
 
 // Devuelve '#111' o '#fff' según el contraste óptimo con el fondo dado
@@ -1893,7 +1919,7 @@ function renderAlumnos() {
               style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0b8e8;background:#e8f0fc;color:#1a4a9a;font-size:12px;font-weight:600;cursor:pointer">+ Alumno</button>
             <button onclick="event.stopPropagation();abrirEstructuraGrupo('${g.id}')"
               style="padding:4px 11px;border-radius:7px;border:1.5px solid #2d5be3;background:#2d5be3;color:#fff;font-size:12px;font-weight:600;cursor:pointer">⚙ Notas</button>
-            ${window.innerWidth > 700 ? `
+            ${window.innerWidth > 768 ? `
             <button onclick="event.stopPropagation();abrirModalReordenar('${g.id}')"
               style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0c8a0;background:#e8f5e8;color:#1a6a1a;font-size:12px;font-weight:600;cursor:pointer">↕ Reordenar</button>
             <button onclick="event.stopPropagation();abrirCuaderno('${g.id}')"
@@ -2198,26 +2224,26 @@ function renderVistaLista(g, als) {
 function renderVistaMiniaturas(g, als) {
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
   const col = getColorGrupo(g.id);
-  const bg    = col ? col.bg     : 'var(--surface2)';
-  const brd   = col ? col.border : 'var(--border2)';
-  const txtColor = col ? col.text : 'var(--text)';      // blanco si hay color, texto normal si no
-  const txt2Color = col ? 'rgba(255,255,255,0.8)' : 'var(--text2)';
-  const numColor  = col ? 'rgba(255,255,255,0.7)' : 'var(--text3)';
+  const bgCard  = col ? col.light  : 'var(--surface2)';
+  const brd     = col ? col.border : 'var(--border2)';
+  const txtColor  = col ? col.dark  : 'var(--text)';
+  const txt2Color = col ? col.bg    : 'var(--text2)';
+  const numColor  = col ? col.bg    : 'var(--text3)';
 
   return `<div style="display:flex;flex-wrap:wrap;gap:10px;padding:14px">
     ${als.map(a => {
       const nf = calcNotaFinal(a);
       const nr = redondear(nf, umbral);
-      return `<div onclick="abrirFicha('${a.id}')" style="width:100px;border:2px solid ${brd};border-radius:10px;background:${bg};cursor:pointer;overflow:hidden;transition:transform 0.1s;text-align:center;padding:10px 6px 8px;position:relative"
+      return `<div onclick="abrirFicha('${a.id}')" style="width:100px;border:2px solid ${brd};border-radius:10px;background:${bgCard};cursor:pointer;overflow:hidden;transition:transform 0.1s;text-align:center;padding:10px 6px 8px;position:relative"
         onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform=''">
         ${a.nLista?`<div style="position:absolute;top:4px;left:5px;font-size:9px;font-weight:700;color:${numColor};font-family:'DM Mono',monospace">${a.nLista}</div>`:''}
-        <div style="width:52px;height:52px;border-radius:50%;margin:0 auto 6px;overflow:hidden;border:2px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:${txtColor}">
+        <div style="width:52px;height:52px;border-radius:6px;margin:0 auto 6px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:${brd}">
           ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}
         </div>
         <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
-        <div style="font-size:10px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
+        <div style="font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
         ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
-        ${a.acnee||a.pap||a.pep?`<div style="margin-top:3px;font-size:9px;color:rgba(255,255,255,0.9);font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP'].filter(Boolean).join(' ')}</div>`:''}
+        ${a.acnee||a.pap||a.pep?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP'].filter(Boolean).join(' ')}</div>`:''}
       </div>`;
     }).join('')}
   </div>`;
@@ -2232,8 +2258,8 @@ function renderVistaPlano(g, als) {
     </div>${renderVistaMiniaturas(g, als)}`;
   }
   const col = getColorGrupo(g.id);
-  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
-  if (!plano.pasillos) plano.pasillos = [];
+  const bgCard  = col ? col.light  : 'var(--surface2)';
+  const brd     = col ? col.border : 'var(--border2)';
 
   let gridHTML = '<div style="padding:14px;overflow-x:auto"><div style="display:inline-block">';
   for (let fi = 0; fi < plano.filas; fi++) {
@@ -2246,17 +2272,14 @@ function renderVistaPlano(g, als) {
       if (a) {
         const nf = calcNotaFinal(a);
         const nr = redondear(nf, umbral);
-        const txtColor  = col ? col.text : 'var(--text)';
-        const txt2Color = col ? 'rgba(255,255,255,0.8)' : 'var(--text2)';
-        const numColor  = col ? 'rgba(255,255,255,0.7)' : 'var(--text3)';
-        gridHTML += `<div onclick="abrirFicha('${a.id}')" style="width:80px;min-height:88px;border:2px solid ${brd};border-radius:8px;background:${bg};cursor:pointer;text-align:center;padding:6px 4px;transition:transform 0.1s;flex-shrink:0;position:relative"
+        gridHTML += `<div onclick="abrirFicha('${a.id}')" style="width:80px;min-height:88px;border:2px solid ${brd};border-radius:8px;background:${bgCard};cursor:pointer;text-align:center;padding:6px 4px;transition:transform 0.1s;flex-shrink:0;position:relative"
           onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform=''">
           ${a.nLista?`<div style="position:absolute;top:3px;left:4px;font-size:8px;font-weight:700;color:${numColor};font-family:'DM Mono',monospace">${a.nLista}</div>`:''}
-          <div style="width:40px;height:40px;border-radius:50%;margin:0 auto 4px;overflow:hidden;border:2px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${txtColor}">
+          <div style="width:40px;height:40px;border-radius:5px;margin:0 auto 4px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${brd}">
             ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}
           </div>
           <div style="font-size:9px;font-weight:700;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
-          <div style="font-size:9px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
+          <div style="font-size:9px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
           ${nr!==null?`<div style="margin-top:3px"><span class="nota-pill ${notaColor(nr)}" style="font-size:10px;padding:1px 5px">${nr}</span></div>`:''}
         </div>`;
       } else {
@@ -3101,9 +3124,11 @@ function añadirObservacion() {
 
 function eliminarObservacion(idx) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
-  a.observaciones.splice(idx,1);
-  guardarDatos();
-  cambiarTabFicha('observaciones');
+  confirmar('Eliminar observación', '¿Eliminar esta observación? Esta acción no se puede deshacer.', () => {
+    a.observaciones.splice(idx,1);
+    guardarDatos();
+    cambiarTabFicha('observaciones');
+  }, 'Eliminar');
 }
 
 function abrirNuevaReunion() { document.getElementById('form-reunion')?.classList.remove('hidden'); }
@@ -4630,6 +4655,10 @@ function renderPlanoGrupo(gid) {
   const asignados = new Set(plano.celdas.flat().filter(Boolean));
   const sinAsignar = alumnos.filter(al => !asignados.has(al.id));
   const col = getColorGrupo(gid);
+  const bgCard  = col ? col.light  : 'var(--surface2)';
+  const brdCard = col ? col.border : 'var(--accent)';
+  const txtCard = col ? col.dark   : 'var(--text)';
+  const txt2Card= col ? col.bg     : 'var(--text2)';
   const cBase = 'width:82px;min-height:92px;border:2px dashed var(--border2);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:4px;text-align:center;flex-shrink:0;position:relative;transition:background 0.1s';
 
   let gridHTML = '';
@@ -4639,15 +4668,13 @@ function renderPlanoGrupo(gid) {
       const aid = plano.celdas[fi][ci];
       const al = aid ? alumnos.find(x => x.id === aid) : null;
       if (al) {
-        const bg = col ? col.bg : 'var(--accent-bg)';
-        const border = col ? col.border : 'var(--accent)';
-        gridHTML += `<div style="${cBase};background:${bg};border-color:${border};border-style:solid"
+        gridHTML += `<div style="${cBase};background:${bgCard};border-color:${brdCard};border-style:solid"
             onclick="planoGrupoClickCelda('${gid}',${fi},${ci})">
           ${al.foto
-            ? `<img src="${al.foto}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;margin-bottom:3px">`
-            : `<div style="width:42px;height:42px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin-bottom:3px">${iniciales(al)}</div>`}
-          <div style="font-size:9px;font-weight:600;line-height:1.2;max-width:76px;word-break:break-word">${al.apellidos || ''}</div>
-          <div style="font-size:9px;color:var(--text2);line-height:1.2">${al.nombre || ''}</div>
+            ? `<img src="${al.foto}" style="width:42px;height:42px;border-radius:5px;object-fit:cover;margin-bottom:3px;border:2px solid ${brdCard}">`
+            : `<div style="width:42px;height:42px;border-radius:5px;background:var(--surface);border:2px solid ${brdCard};color:${brdCard};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin-bottom:3px">${iniciales(al)}</div>`}
+          <div style="font-size:9px;font-weight:700;line-height:1.2;max-width:76px;word-break:break-word;color:${txtCard}">${al.apellidos || ''}</div>
+          <div style="font-size:9px;font-weight:600;line-height:1.2;color:${txt2Card}">${al.nombre || ''}</div>
           <button onclick="event.stopPropagation();planoGrupoVaciar('${gid}',${fi},${ci})"
             style="position:absolute;top:2px;right:2px;background:var(--red);color:#fff;border:none;border-radius:4px;width:16px;height:16px;font-size:11px;font-weight:700;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">×</button>
         </div>`;
@@ -5127,6 +5154,7 @@ function renderHorario() {
   let html = `<div class="topbar">
     <button class="hamburger-btn" onclick="abrirSidebar()">☰</button>
     <h2>🕐 Horario semanal</h2>
+    <button class="btn btn-secondary btn-sm" onclick="exportarHorario()">🖨 Exportar</button>
     <button class="btn btn-primary btn-sm" onclick="hAbrirModalFranja()">+ Franja</button>
   </div>`;
 
@@ -5172,11 +5200,11 @@ function renderHorario() {
         html += `<div style="color:${col.text};font-size:12px;font-weight:600">☕ ${f.label || 'Recreo'}</div>`;
       } else if (tipo === 'guardia') {
         html += `<div style="color:${col.text};font-size:12px;font-weight:600">👁 Guardia</div>`;
-        if (cel.ubicacion) html += `<div style="font-size:10px;color:var(--text2)">📍${cel.ubicacion}</div>`;
+        if (cel.ubicacion) html += `<div style="font-size:12px;font-weight:600;color:${col.text}">📍${cel.ubicacion}</div>`;
       } else if (tipo === 'clase') {
         html += `<div style="color:${col.text};font-size:12px;font-weight:600">${cel.materia || 'Clase'}</div>`;
         html += `<div style="font-size:12px;font-weight:600;color:${col.text}">${g ? g.nombre : ''}</div>`;
-        if (cel.ubicacion) html += `<div style="font-size:10px;color:var(--text3)">📍${cel.ubicacion}</div>`;
+        if (cel.ubicacion) html += `<div style="font-size:12px;font-weight:600;color:${col.text}">📍${cel.ubicacion}</div>`;
       } else {
         html += `<div style="color:var(--text3);font-size:20px;text-align:center;margin-top:10px">+</div>`;
       }
@@ -5268,6 +5296,68 @@ function hModales() {
 }
 
 // ── Acciones franja ───────────────────────────────────────────
+function exportarHorario() {
+  const h = APP.horario;
+  if (!h || !h.franjas?.length) { alert('No hay horario configurado.'); return; }
+  const dias = ['Lunes','Martes','Miércoles','Jueves','Viernes'];
+  const colores = { clase:'#1e3fa8', guardia:'#92400e', recreo:'#166534', libre:'' };
+
+  let filas = h.franjas.map(f => {
+    let celdas = dias.map((_, di) => {
+      const cel = (f.celdas||[])[di] || {};
+      const tipo = cel.tipo || 'libre';
+      const g = cel.grupoId ? APP.grupos.find(x=>x.id===cel.grupoId) : null;
+      const col = getColorGrupo(cel.grupoId);
+      const bg = col ? col.bg : (colores[tipo] || '#f8f8f8');
+      const txt = col ? col.text : (tipo !== 'libre' ? '#fff' : '#333');
+      const icono = tipo==='guardia'?'👁 ':tipo==='recreo'?'☕ ':'';
+      const linea1 = tipo==='libre' ? '' : tipo==='clase' ? (cel.materia||'Clase') : tipo==='guardia' ? 'Guardia' : 'Recreo/Descanso';
+      const linea2 = g ? g.nombre : '';
+      const linea3 = cel.ubicacion ? '📍'+cel.ubicacion : '';
+      return `<td style="background:${bg};color:${txt};padding:8px 10px;border:1px solid #ddd;vertical-align:middle;text-align:center;min-width:100px">
+        ${tipo==='libre'?'<span style="color:#ccc">—</span>':`
+          <div style="font-size:12px;font-weight:700">${icono}${linea1}</div>
+          ${linea2?`<div style="font-size:11px;font-weight:600;margin-top:2px">${linea2}</div>`:''}
+          ${linea3?`<div style="font-size:11px;font-weight:600;margin-top:2px">${linea3}</div>`:''}
+        `}
+      </td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:6px 12px;border:1px solid #ddd;font-weight:600;font-size:12px;background:#f5f5f5;white-space:nowrap">
+        ${f.label||''}<br><span style="font-weight:400;color:#888;font-size:11px">${f.inicio||''}${f.fin?' – '+f.fin:''}</span>
+      </td>
+      ${celdas}
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Horario semanal</title>
+  <style>* { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; padding:20px; }
+  table { border-collapse:collapse; width:100%; } th { background:#222; color:#fff; padding:8px 10px; font-size:13px; }
+  .toolbar { background:#2d5be3; color:#fff; padding:10px 20px; display:flex; align-items:center; gap:12px; margin-bottom:20px; border-radius:8px; }
+  .toolbar h1 { font-size:16px; flex:1; } button { padding:6px 16px; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; }
+  @media print { .toolbar { display:none; } }
+  </style></head><body>
+  <div class="toolbar">
+    <h1>🕐 Horario semanal</h1>
+    <button style="background:#fff;color:#2d5be3" onclick="window.print()">🖨 Imprimir / PDF</button>
+    <button style="background:rgba(255,255,255,0.2);color:#fff" onclick="window.close()">✕ Cerrar</button>
+  </div>
+  <table>
+    <thead><tr>
+      <th style="min-width:100px">Franja</th>
+      ${dias.map(d=>`<th>${d}</th>`).join('')}
+    </tr></thead>
+    <tbody>${filas}</tbody>
+  </table>
+  </body></html>`;
+
+  const w = window.open('','_blank');
+  if (!w) { alert('El navegador bloqueó la ventana. Permite ventanas emergentes.'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
 function hAbrirModalFranja() {
   const m = document.getElementById('h-modal-franja');
   if (!m) return;
@@ -7864,7 +7954,7 @@ function renderArchivo() {
                         <td style="padding:7px 10px">
                           <div style="display:flex;align-items:center;gap:8px">
                             <div class="alumno-avatar">
-                              ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:`${iniciales(a)}`}
+                              ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`:`${iniciales(a)}`}
                             </div>
                             <div>
                               <div style="font-weight:500">${a.apellidos||''}, ${a.nombre||''}</div>
@@ -8005,7 +8095,7 @@ function actualizarListaAlumnos(cont) {
     const clickable = !a._archivado;
     html += '<tr onclick="' + (clickable ? "abrirFicha('" + a.id + "')" : '') + '" style="cursor:' + (clickable ? 'pointer' : 'default') + '">'
       + '<td><div style="display:flex;align-items:center;gap:10px">'
-      + '<div class="alumno-avatar">' + (a.foto ? '<img src="' + a.foto + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">' : iniciales(a)) + '</div>'
+      + '<div class="alumno-avatar">' + (a.foto ? '<img src="' + a.foto + '" style="width:100%;height:100%;object-fit:cover;border-radius:6px">' : iniciales(a)) + '</div>'
       + '<div><div style="font-weight:500">' + (a.apellidos || '') + ', ' + (a.nombre || '') + '</div>'
       + (a._archivado ? '<span style="font-size:10px;background:var(--amber-bg);color:var(--amber);border-radius:4px;padding:1px 5px;font-weight:600">Archivado ' + a._archivado + '</span>' : '')
       + (a.acnee ? '<span class="acnee-tag">ACNEE</span>' : '')
@@ -8466,12 +8556,12 @@ function abrirVentanaPDF(htmlBody, titulo) {
   tr:nth-child(even) td { background: #fafaf8; }
   .grid { display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .fila { display: flex; gap: 6px; justify-content: center; }
-  .celda { width: 72px; min-height: 80px; border: 1.5px solid #ccc; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; text-align: center; font-size: 8px; background: #f8f6f2; }
-  .celda.ocupada { border-color: #2d5be3; background: #eef1fd; }
-  .celda .avatar { width: 32px; height: 32px; border-radius: 50%; background: #dbeafe; color: #1e40af; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; margin-bottom: 3px; flex-shrink: 0; }
-  .celda .apellido { font-weight: 700; font-size: 8px; line-height: 1.2; word-break: break-word; }
-  .celda .nombre { font-size: 7.5px; color: #555; line-height: 1.2; }
-  .celda.vacia { background: #f8f6f2; border-style: dashed; }
+  .celda { width: 72px; min-height: 80px; border: 2px solid #ccc; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; text-align: center; font-size: 8px; background: #fff; }
+  .celda.ocupada { background: #fff; }
+  .celda .avatar { width: 32px; height: 32px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; margin-bottom: 3px; flex-shrink: 0; color: #fff; }
+  .celda .apellido { font-weight: 700; font-size: 8px; line-height: 1.2; word-break: break-word; color: #111; }
+  .celda .nombre { font-size: 7.5px; color: #333; line-height: 1.2; font-weight: 600; }
+  .celda.vacia { background: #fff; border-style: dashed; border-color: #ddd; }
   .pizarra { background: #1a1917; color: #fff; padding: 5px 40px; border-radius: 0 0 6px 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-align: center; margin-top: 4px; }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -8501,8 +8591,8 @@ function exportarPlanoPDF() {
   const plano = g.plano;
   const alumnos = APP.alumnos.filter(a => a.grupoId === gid);
   const col = getColorGrupo(gid);
-  const bgOcupada = col ? col.bg : '#eef1fd';
-  const borderOcupada = col ? col.border : '#2d5be3';
+  const bgCard  = col ? col.light  : '#f0f4ff';
+  const brdCard = col ? col.border : '#2d5be3';
 
   let filasHtml = '';
   for (let fi = 0; fi < plano.filas; fi++) {
@@ -8512,10 +8602,10 @@ function exportarPlanoPDF() {
       const al = aid ? alumnos.find(x => x.id === aid) : null;
       if (al) {
         const ini = iniciales(al);
-        filasHtml += `<div class="celda ocupada" style="border-color:${borderOcupada};background:${bgOcupada}">
-          <div class="avatar" style="background:${bgOcupada};color:${borderOcupada}">${ini}</div>
+        filasHtml += `<div class="celda ocupada" style="border-color:${brdCard};background:${bgCard}">
+          <div class="avatar" style="background:${brdCard}">${ini}</div>
           <div class="apellido">${al.apellidos || ''}</div>
-          <div class="nombre">${al.nombre || ''}</div>
+          <div class="apellido" style="font-weight:600">${al.nombre || ''}</div>
         </div>`;
       } else {
         filasHtml += `<div class="celda vacia"></div>`;
@@ -8546,8 +8636,10 @@ function _exportarPlanoJPEGConOpciones(gid, body, g, sinHuecos) {
 
   const alumnos = APP.alumnos.filter(a => a.grupoId === gid);
   const col = getColorGrupo(gid);
-  const bg  = col ? col.bg   : '#eef1fd';
-  const brd = col ? col.border : '#2d5be3';
+  const bgCard  = col ? col.light  : '#f0f4ff';
+  const brdCard = col ? col.border : '#2d5be3';
+  const txtCard = col ? col.dark   : '#111';
+  const txt2Card= col ? col.bg     : '#333';
 
   // ── Construir HTML del plano fuera del viewport ──────────────
   const CELDA_W = 88, CELDA_H = 96, GAP = 6, PAS_W = 40;
@@ -8560,12 +8652,12 @@ function _exportarPlanoJPEGConOpciones(gid, body, g, sinHuecos) {
       const al = aid ? alumnos.find(x=>x.id===aid) : null;
       if (al) {
         const ini = iniciales(al);
-        row += `<div style="width:${CELDA_W}px;height:${CELDA_H}px;border:2px solid ${brd};border-radius:8px;background:${bg};display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;box-sizing:border-box;flex-shrink:0;margin-right:${GAP}px;text-align:center">
+        row += `<div style="width:${CELDA_W}px;height:${CELDA_H}px;border:3px solid ${brdCard};border-radius:8px;background:${bgCard};display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;box-sizing:border-box;flex-shrink:0;margin-right:${GAP}px;text-align:center">
           ${al.foto
-            ? `<img src="${al.foto}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;margin-bottom:4px">`
-            : `<div style="width:44px;height:44px;border-radius:50%;background:#fff;color:${brd};font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">${ini}</div>`}
-          <div style="font-size:9px;font-weight:700;line-height:1.2;max-width:80px;word-break:break-word">${al.apellidos||''}</div>
-          <div style="font-size:8px;color:#666;line-height:1.2">${al.nombre||''}</div>
+            ? `<img src="${al.foto}" style="width:44px;height:44px;border-radius:5px;object-fit:cover;margin-bottom:4px;border:2px solid ${brdCard}">`
+            : `<div style="width:44px;height:44px;border-radius:5px;background:#fff;border:2px solid ${brdCard};color:${brdCard};font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">${ini}</div>`}
+          <div style="font-size:9px;font-weight:700;line-height:1.2;max-width:80px;word-break:break-word;color:${txtCard}">${al.apellidos||''}</div>
+          <div style="font-size:8px;line-height:1.2;font-weight:600;color:${txt2Card}">${al.nombre||''}</div>
         </div>`;
       } else if (!sinHuecos) {
         row += `<div style="width:${CELDA_W}px;height:${CELDA_H}px;border:2px dashed #ccc;border-radius:8px;background:#f8f8f8;flex-shrink:0;margin-right:${GAP}px"></div>`;
@@ -9232,7 +9324,6 @@ let _driveInited     = false;
 
 // ── Estado visual ─────────────────────────────────────────────
 function driveSetStatus(estado) {
-  // estados: 'off' | 'connecting' | 'ok' | 'saving' | 'error'
   const el = document.getElementById('drive-status');
   if (!el) return;
   const map = {
@@ -9246,6 +9337,12 @@ function driveSetStatus(estado) {
   el.textContent = s.icon;
   el.title = s.title;
   localStorage.setItem('profeapp_drive_status', estado);
+  // Mostrar banner offline si no hay conexión con Drive
+  if (estado === 'off' || estado === 'error') {
+    mostrarBannerOffline();
+  } else {
+    ocultarBannerOffline();
+  }
 }
 
 function driveStatusClick() {
@@ -9355,7 +9452,7 @@ async function driveLeer() {
     if (!resp.ok) { driveSetStatus('ok'); return; }
     const text = await resp.text();
 
-    // Drive vacío → subir datos locales directamente
+    // Drive vacío → subir datos locales
     if (!text || text[0] !== '{') {
       driveGuardar();
       driveSetStatus('ok');
@@ -9364,125 +9461,43 @@ async function driveLeer() {
 
     const remoto = JSON.parse(text);
     const tsRemoto = remoto?.config?._lastSaved || 0;
-    const tsLocal  = APP?.config?._lastSaved    || 0;
 
-    // Sin datos locales → cargar Drive sin preguntar
-    if (!tsLocal) {
+    // Drive tiene datos → siempre aplicar Drive (fuente de verdad)
+    if (tsRemoto > 0) {
       APP = remoto;
       if (APP.config?.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
       try { localStorage.setItem('profeapp_data', JSON.stringify(APP)); } catch(e){}
+      // Guardar timestamp de última sincronización con Drive
+      localStorage.setItem('profeapp_last_sync', tsRemoto.toString());
       renderPage();
-      driveSetStatus('ok');
-      return;
     }
-
-    // Sin datos en Drive → subir local sin preguntar
-    if (!tsRemoto) {
-      driveGuardar();
-      driveSetStatus('ok');
-      return;
-    }
-
-    // Misma versión → sin conflicto
-    if (tsLocal === tsRemoto) {
-      driveSetStatus('ok');
-      return;
-    }
-
-    // ── Conflicto: versiones diferentes ──────────────────────
-    // Comprobar si ya descargamos ambas versiones para este mismo conflicto
-    const tsConflictoPendiente = parseInt(localStorage.getItem('profeapp_conflicto_ts_remoto') || '0');
-    if (tsConflictoPendiente === tsRemoto) {
-      // Ya se descargaron ambas versiones — esperar a que el usuario importe manualmente
-      driveSetStatus('ok');
-      return;
-    }
-    const fmtFecha = ts => {
-      const d = new Date(ts);
-      return d.toLocaleDateString('es-ES') + ' a las ' + d.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
-    };
-    const labelLocal  = fmtFecha(tsLocal);
-    const labelRemoto = fmtFecha(tsRemoto);
-    const masReciente = tsLocal > tsRemoto ? 'local' : 'drive';
-
-    // Guardar remoto temporalmente para poder descargarlo
-    window._driveConflictoRemoto = remoto;
-    window._driveConflictoLocal  = JSON.parse(JSON.stringify(APP));
-
-    // Mostrar modal de conflicto
-    document.getElementById('drive-conflicto-local-fecha').textContent  = labelLocal;
-    document.getElementById('drive-conflicto-drive-fecha').textContent  = labelRemoto;
-    document.getElementById('drive-conflicto-reciente').textContent =
-      masReciente === 'local' ? '📱 Tus datos locales son más recientes.' : '☁️ Los datos de Drive son más recientes.';
-    document.getElementById('modal-drive-conflicto').classList.remove('hidden');
-    driveSetStatus('error');
-
+    driveSetStatus('ok');
   } catch(e) {
     console.warn('Drive leer error:', e);
     driveSetStatus('error');
   }
 }
 
-function driveConflictoUsarLocal() {
-  document.getElementById('modal-drive-conflicto').classList.add('hidden');
-  // Subir local a Drive
-  driveGuardar();
-  driveSetStatus('ok');
+function mostrarBannerOffline() {
+  if (document.getElementById('banner-offline')) return;
+  const ts = parseInt(localStorage.getItem('profeapp_last_sync') || '0');
+  const fechaTxt = ts
+    ? new Date(ts).toLocaleDateString('es-ES', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
+    : 'desconocida';
+  const banner = document.createElement('div');
+  banner.id = 'banner-offline';
+  banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:500;background:#92400e;color:#fff;font-size:12px;font-weight:600;padding:8px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 -2px 8px rgba(0,0,0,0.2)';
+  banner.innerHTML = `
+    <span style="flex:1">📵 Modo sin conexión — Última sincronización: ${fechaTxt}</span>
+    <span style="opacity:0.8;font-weight:400;font-size:11px">Exporta desde Ajustes si haces cambios importantes.</span>
+    <button onclick="document.getElementById('banner-offline').remove()"
+      style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:16px;font-weight:700;cursor:pointer;border-radius:4px;padding:2px 8px;line-height:1;flex-shrink:0">✕</button>`;
+  document.body.appendChild(banner);
 }
 
-function driveConflictoUsarDrive() {
-  document.getElementById('modal-drive-conflicto').classList.add('hidden');
-  const remoto = window._driveConflictoRemoto;
-  if (!remoto) return;
-  APP = remoto;
-  if (APP.config?.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
-  try { localStorage.setItem('profeapp_data', JSON.stringify(APP)); } catch(e){}
-  window._driveConflictoRemoto = null;
-  window._driveConflictoLocal  = null;
-  renderPage();
-  driveSetStatus('ok');
+function ocultarBannerOffline() {
+  document.getElementById('banner-offline')?.remove();
 }
-
-function driveConflictoDescargarAmbos() {
-  // Descargar versión local
-  const jsonLocal = JSON.stringify(window._driveConflictoLocal || APP, null, 2);
-  const blobLocal = new Blob([jsonLocal], {type:'application/json'});
-  const urlLocal  = URL.createObjectURL(blobLocal);
-  const aLocal    = document.createElement('a');
-  aLocal.href     = urlLocal;
-  aLocal.download = 'profeapp_LOCAL_' + new Date().toISOString().slice(0,10) + '.json';
-  aLocal.click();
-  URL.revokeObjectURL(urlLocal);
-
-  // Descargar versión Drive
-  setTimeout(() => {
-    const jsonDrive = JSON.stringify(window._driveConflictoRemoto, null, 2);
-    const blobDrive = new Blob([jsonDrive], {type:'application/json'});
-    const urlDrive  = URL.createObjectURL(blobDrive);
-    const aDrive    = document.createElement('a');
-    aDrive.href     = urlDrive;
-    aDrive.download = 'profeapp_DRIVE_' + new Date().toISOString().slice(0,10) + '.json';
-    aDrive.click();
-    URL.revokeObjectURL(urlDrive);
-  }, 500);
-
-  // Marcar conflicto como "pendiente de resolución manual"
-  // Guardamos el timestamp del remoto para no volver a preguntar por este mismo conflicto
-  localStorage.setItem('profeapp_conflicto_ts_remoto', window._driveConflictoRemoto?.config?._lastSaved || 0);
-
-  // Cerrar el modal — el usuario importará manualmente el JSON que quiera
-  document.getElementById('modal-drive-conflicto').classList.add('hidden');
-  window._driveConflictoRemoto = null;
-  window._driveConflictoLocal  = null;
-  driveSetStatus('ok');
-
-  // Mostrar instrucciones
-  setTimeout(() => {
-    alert('✅ Ambas versiones descargadas.\n\nCuando decidas cuál usar, ve a Ajustes → "📂 Importar backup JSON" y carga el archivo que prefieras.\n\nLa app no volverá a preguntar por este conflicto hasta que importes un nuevo archivo.');
-  }, 800);
-}
-
-// ── Escribir datos en Drive (con debounce de 2s) ──────────────
 function driveGuardar() {
   if (!_driveToken || !_driveInited) return;
   clearTimeout(_driveSyncTimer);
@@ -9606,7 +9621,7 @@ function generarInformeAlumno(aid) {
   .btn-close  { background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.4) }
   .contenido { padding:64px 0 0 }
   .cabecera { display:flex;align-items:center;gap:20px;padding:16px;background:#f8f8f8;border-bottom:3px solid #2d5be3;margin-bottom:20px }
-  .foto { width:80px;height:80px;border-radius:50%;border:3px solid #2d5be3;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#2d5be3;background:#eef1fd }
+  .foto { width:80px;height:80px;border-radius:8px;border:3px solid #2d5be3;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#2d5be3;background:#eef1fd }
   .foto img { width:100%;height:100%;object-fit:cover }
   .datos-basicos h2 { font-size:20px;font-weight:700;color:#1a1917 }
   .datos-basicos .sub { font-size:13px;color:#555;margin-top:3px }
