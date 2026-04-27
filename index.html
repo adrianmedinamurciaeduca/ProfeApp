@@ -8112,43 +8112,7 @@ function actualizarListaAlumnos(cont) {
 // =====================
 
 // Plantillas predefinidas
-const RUBRICA_PLANTILLAS = {
-  exposicion: {
-    nombre: 'Exposición oral',
-    criterios: [
-      {
-        nombre: '1. Contenido y exactitud',
-        peso: 33,
-        niveles: [
-          'Expone información rigurosa, completa y bien seleccionada; demuestra comprensión profunda.',
-          'Contenido correcto y suficiente; algunos aspectos podrían ampliarse.',
-          'Información incompleta o poco precisa; comprensión parcial.',
-          'Contenido incorrecto, muy incompleto o sin relación clara con el tema.'
-        ]
-      },
-      {
-        nombre: '2. Organización y estructura',
-        peso: 33,
-        niveles: [
-          'Presentación muy bien estructurada: introducción, desarrollo y cierre claros; ideas conectadas.',
-          'Estructura adecuada; algunas transiciones mejorables.',
-          'Organización poco clara; saltos entre ideas.',
-          'Desorganización evidente; difícil de seguir.'
-        ]
-      },
-      {
-        nombre: '3. Comunicación oral',
-        peso: 34,
-        niveles: [
-          'Habla con claridad, buen ritmo, volumen adecuado y entonación expresiva.',
-          'Se entiende bien; ritmo o entonación mejorables.',
-          'Dificultades de claridad, ritmo irregular o volumen inadecuado.',
-          'Difícil de entender; lectura excesiva o voz inapropiada.'
-        ]
-      }
-    ]
-  }
-};
+const RUBRICA_PLANTILLAS = {};
 
 // Estado del modal de rúbrica
 let _rubricaCtx = { aid: null, iIdx: null, jIdx: null };
