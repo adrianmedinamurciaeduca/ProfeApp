@@ -9818,7 +9818,14 @@ document.addEventListener('keydown', e => {
 (async () => {
   const reconectado = await driveReconectarSilencioso();
   if (reconectado) {
-    await driveLeer();
+    // Solo sincronizar si hay conexión real
+    if (navigator.onLine) {
+      await driveLeer();
+    } else {
+      // Sin internet: mantener token pero no sincronizar
+      driveSetStatus('off');
+      mostrarBannerOffline();
+    }
   }
 })();
 
