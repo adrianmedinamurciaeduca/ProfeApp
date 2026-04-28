@@ -9382,16 +9382,21 @@ async function driveLeer() {
 
     const remoto = JSON.parse(text);
     const tsRemoto = remoto?.config?._lastSaved || 0;
+    const tsLocal  = APP?.config?._lastSaved    || 0;
 
-    // Drive tiene datos → siempre aplicar Drive (fuente de verdad)
-    if (tsRemoto > 0) {
+    if (tsLocal > tsRemoto) {
+      // Local más reciente → subir local a Drive
+      driveGuardar();
+    } else if (tsRemoto > tsLocal) {
+      // Drive más reciente → aplicar Drive
       APP = remoto;
       if (APP.config?.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
       try { localStorage.setItem('profeapp_data', JSON.stringify(APP)); } catch(e){}
-      // Guardar timestamp de última sincronización con Drive
       localStorage.setItem('profeapp_last_sync', tsRemoto.toString());
       renderPage();
     }
+    // Si son iguales → ya están sincronizados, no hacer nada
+
     driveSetStatus('ok');
   } catch(e) {
     console.warn('Drive leer error:', e);
