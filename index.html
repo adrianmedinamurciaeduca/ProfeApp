@@ -841,10 +841,12 @@
       </div>
     </div>
     <nav class="sidebar-nav">
-      <div style="padding:8px 10px 0">
-        <button onclick="abrirBusqueda()" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text2);font-family:inherit;font-size:12px;cursor:pointer;text-align:left">
+      <div style="padding:8px 10px 0;display:flex;gap:6px">
+        <button onclick="abrirBusqueda()" style="flex:1;display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text2);font-family:inherit;font-size:12px;cursor:pointer;text-align:left">
           <span>🔍</span><span style="flex:1">Buscar...</span><span style="font-size:10px;opacity:0.6">Ctrl+K</span>
         </button>
+        <button onclick="abrirBusqueda();setTimeout(()=>abrirVozCalendario(),100)" title="Buscar o añadir evento por voz"
+          style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text2);font-size:16px;cursor:pointer;flex-shrink:0">🎤</button>
       </div>
       <div class="nav-section">Principal</div>
       <div class="nav-item active" onclick="navTo('inicio')">
@@ -9991,27 +9993,24 @@ function vozParsearEvento(texto, t) {
 }
 
 function vozBuscar(texto) {
-  // Buscar coincidencias de alumnos
   const q = texto.toLowerCase().trim();
   const coincidencias = APP.alumnos.filter(a =>
     `${a.nombre} ${a.apellidos} ${a.apellidos} ${a.nombre}`.toLowerCase().includes(q)
   );
 
   if (coincidencias.length === 1) {
-    // Coincidencia única → abrir ficha directamente
-    document.getElementById('voz-panel')?.classList.add('hidden');
+    // Coincidencia única → expandir grupo y abrir ficha
+    const a = coincidencias[0];
+    gruposExpandidos[a.grupoId] = true;
     cerrarBusqueda();
     navTo('alumnos');
-    setTimeout(() => abrirFichaAlumno(coincidencias[0].id), 150);
+    setTimeout(() => busquedaIrAlumno(a.id), 200);
     return;
   }
 
-  // Varias coincidencias o ninguna → mostrar en buscador
+  // Varias o ninguna → mostrar en buscador
   const input = document.getElementById('busqueda-input');
-  if (input) {
-    input.value = texto;
-    ejecutarBusqueda(texto);
-  }
+  if (input) { input.value = texto; ejecutarBusqueda(texto); }
   document.getElementById('voz-panel')?.classList.add('hidden');
   document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y habla';
 }
