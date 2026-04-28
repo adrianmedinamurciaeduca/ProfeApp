@@ -9991,13 +9991,28 @@ function vozParsearEvento(texto, t) {
 }
 
 function vozBuscar(texto) {
-  // Rellenar el buscador y ejecutar búsqueda
+  // Buscar coincidencias de alumnos
+  const q = texto.toLowerCase().trim();
+  const coincidencias = APP.alumnos.filter(a =>
+    `${a.nombre} ${a.apellidos} ${a.apellidos} ${a.nombre}`.toLowerCase().includes(q)
+  );
+
+  if (coincidencias.length === 1) {
+    // Coincidencia única → abrir ficha directamente
+    document.getElementById('voz-panel')?.classList.add('hidden');
+    cerrarBusqueda();
+    navTo('alumnos');
+    setTimeout(() => abrirFichaAlumno(coincidencias[0].id), 150);
+    return;
+  }
+
+  // Varias coincidencias o ninguna → mostrar en buscador
   const input = document.getElementById('busqueda-input');
   if (input) {
     input.value = texto;
     ejecutarBusqueda(texto);
   }
-  document.getElementById('voz-panel').classList.add('hidden');
+  document.getElementById('voz-panel')?.classList.add('hidden');
   document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y habla';
 }
 
