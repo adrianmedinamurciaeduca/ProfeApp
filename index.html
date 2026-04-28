@@ -9382,12 +9382,23 @@ async function driveLeer() {
 
     const remoto = JSON.parse(text);
     const tsRemoto = remoto?.config?._lastSaved || 0;
-    const tsLocal  = APP?.config?._lastSaved    || 0;
 
-    if (tsLocal > tsRemoto) {
-      // Local más reciente → subir local a Drive
+    // Leer timestamp local directamente del localStorage (más fiable que APP en memoria)
+    let tsLocal = 0;
+    try {
+      const localRaw = localStorage.getItem('profeapp_data');
+      if (localRaw) {
+        const localParsed = JSON.parse(localRaw);
+        tsLocal = localParsed?.config?._lastSaved || 0;
+      }
+    } catch(e) {}
+
+    console.log('Drive sync — local:', new Date(tsLocal).toLocaleTimeString(), '| remoto:', new Date(tsRemoto).toLocaleTimeString());
+
+    if (tsLocal >= tsRemoto) {
+      // Local igual o más reciente → subir local a Drive
       driveGuardar();
-    } else if (tsRemoto > tsLocal) {
+    } else {
       // Drive más reciente → aplicar Drive
       APP = remoto;
       if (APP.config?.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
@@ -9395,7 +9406,6 @@ async function driveLeer() {
       localStorage.setItem('profeapp_last_sync', tsRemoto.toString());
       renderPage();
     }
-    // Si son iguales → ya están sincronizados, no hacer nada
 
     driveSetStatus('ok');
   } catch(e) {
