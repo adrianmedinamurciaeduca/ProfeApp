@@ -845,7 +845,7 @@
         <button onclick="abrirBusqueda()" style="flex:1;display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text2);font-family:inherit;font-size:12px;cursor:pointer;text-align:left">
           <span>🔍</span><span style="flex:1">Buscar...</span><span style="font-size:10px;opacity:0.6">Ctrl+K</span>
         </button>
-        <button onclick="abrirBusqueda();setTimeout(()=>abrirVozCalendario(),100)" title="Buscar o añadir evento por voz"
+        <button onclick="abrirBusqueda();setTimeout(()=>{abrirVozCalendario();setTimeout(vozIniciar,50)},100)" title="Buscar o añadir evento por voz"
           style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text2);font-size:16px;cursor:pointer;flex-shrink:0">🎤</button>
       </div>
       <div class="nav-section">Principal</div>
@@ -9766,9 +9766,8 @@ function ejecutarBusqueda(q) {
 
 function busquedaIrAlumno(aid) {
   cerrarBusqueda();
-  // Navegar a clases primero, luego abrir ficha cuando el DOM esté listo
   navTo('alumnos');
-  setTimeout(() => abrirFichaAlumno(aid), 100);
+  setTimeout(() => abrirFicha(aid), 150);
 }
 
 function busquedaIrGrupo(gid) {
