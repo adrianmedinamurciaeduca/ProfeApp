@@ -1980,11 +1980,21 @@ function renderAlumnos() {
 
 function cambiarVistaAlumnos(v) {
   if (v === 'plano') {
-    // Comprobar si hay grupos sin plano
     const sinPlano = APP.grupos.filter(g => !g.plano || !g.plano.celdas?.flat().some(Boolean));
     if (sinPlano.length) {
       const nombres = sinPlano.map(g => g.nombre).join(', ');
-      if (!confirm(`Los siguientes grupos no tienen plano configurado:\n${nombres}\n\nEstos grupos se mostrarán en vista miniaturas. ¿Continuar?`)) return;
+      confirmar(
+        'Grupos sin plano configurado',
+        `Los siguientes grupos no tienen plano: ${nombres}.\n\nEstos grupos se mostrarán en vista miniaturas. ¿Continuar?`,
+        () => {
+          vistaAlumnos = 'plano';
+          APP.config.vistaAlumnos = 'plano';
+          guardarDatos();
+          renderPage();
+        },
+        'Continuar'
+      );
+      return;
     }
   }
   vistaAlumnos = v;
@@ -2253,14 +2263,18 @@ function renderVistaMiniaturas(g, als) {
 function renderVistaPlano(g, als) {
   const plano = g.plano;
   if (!plano || !plano.celdas?.flat().some(Boolean)) {
-    // Sin plano: usar miniaturas como fallback
     return `<div style="padding:10px 14px;background:var(--amber-bg);font-size:12px;color:var(--amber);border-bottom:1px solid var(--border)">
       ⚠ Este grupo no tiene plano configurado. Configúralo en 🗺 Plano. Mostrando vista miniaturas.
     </div>${renderVistaMiniaturas(g, als)}`;
   }
   const col = getColorGrupo(g.id);
-  const bgCard  = col ? col.light  : 'var(--surface2)';
-  const brd     = col ? col.border : 'var(--border2)';
+  const bgCard    = col ? col.light  : 'var(--surface2)';
+  const brd       = col ? col.border : 'var(--border2)';
+  const txtColor  = col ? col.dark   : 'var(--text)';
+  const txt2Color = col ? col.bg     : 'var(--text2)';
+  const numColor  = col ? col.bg     : 'var(--text3)';
+  const umbral    = parseFloat(APP.config.redondeoAlza) || 0.5;
+  if (!plano.pasillos) plano.pasillos = [];
 
   let gridHTML = '<div style="padding:14px;overflow-x:auto"><div style="display:inline-block">';
   for (let fi = 0; fi < plano.filas; fi++) {
@@ -4146,13 +4160,13 @@ function renderImportar() {
         <p style="margin-top:6px;font-size:12px;color:var(--text3)">Podrás elegir qué columnas importar y añadir campos extra como el NRE.</p>
       </div>
       <div id="import-config" class="hidden" style="margin-top:20px">
-        <div class="form-row" style="margin-bottom:16px">
-          <div class="form-group">
-            <label>Importar en el grupo</label>
-            <select id="import-grupo">
-              ${APP.grupos.map(g=>`<option value="${g.id}">${g.nombre}</option>`).join('')}
-            </select>
-          </div>
+        <div style="margin-bottom:16px;padding:16px;background:var(--amber-bg);border:2px solid var(--amber);border-radius:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--amber);margin-bottom:10px">⚠️ Elige bien el grupo antes de importar</div>
+          <label style="font-size:13px;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Importar alumnos en:</label>
+          <select id="import-grupo" style="width:100%;padding:10px 14px;font-size:15px;font-weight:700;border:2px solid var(--amber);border-radius:8px;font-family:inherit;background:var(--surface);color:var(--text);outline:none">
+            ${APP.grupos.map(g=>`<option value="${g.id}">${g.nombre}</option>`).join('')}
+          </select>
+          <div style="font-size:11px;color:var(--amber);margin-top:6px">Los alumnos se añadirán a este grupo. Esta acción no se puede deshacer fácilmente.</div>
         </div>
         <div class="mapa-columnas" id="mapa-columnas-area"></div>
         <div style="margin-top:8px;padding:10px 14px;background:var(--accent-bg);border-radius:8px;font-size:12px;color:var(--accent)">
