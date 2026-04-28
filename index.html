@@ -1678,30 +1678,49 @@ function renderInicio() {
     agendaHtml = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Configura tu horario para ver la agenda.</div>`;
   } else {
     const colMap = { clase:{bg:'var(--accent-bg)',text:'var(--accent)',border:'var(--accent)'},
-                     guardia:{bg:'#fef9c3',text:'#854d0e',border:'#fde047'},
-                     recreo:{bg:'#dcfce7',text:'#166534',border:'#86efac'} };
+                     guardia:{bg:'#fef9c3',text:'#854d0e',border:'#ca8a04'},
+                     recreo:{bg:'#dcfce7',text:'#166534',border:'#16a34a'} };
     agendaHtml = franjas.map(f => {
       const cel  = (f.celdas||[])[diIdx]||{};
       const tipo = cel.tipo||'libre';
       if (tipo==='libre') return '';
       const g = cel.grupoId ? APP.grupos.find(x=>x.id===cel.grupoId) : null;
       const grupoCol = (tipo==='clase'&&cel.grupoId) ? getColorGrupo(cel.grupoId) : null;
-      const col = grupoCol ? {bg:grupoCol.bg, text:grupoCol.text, border:grupoCol.border} : (colMap[tipo]||colMap.clase);
-      const sesion = obtenerSesionProgramada(cel.grupoId, dKeyD(hoy));
+      // Usar borde del color del grupo pero texto oscuro siempre legible
+      const borderColor = grupoCol ? grupoCol.border : (colMap[tipo]?.border || 'var(--accent)');
+      const textColor   = grupoCol ? grupoCol.border : (colMap[tipo]?.text || 'var(--accent)');
       const icon = tipo==='guardia'?'👁':tipo==='recreo'?'☕':'📚';
+      const sesion = obtenerSesionProgramada(cel.grupoId, dKeyD(hoy));
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)">
         <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${f.inicio||''}–${f.fin||''}</div>
-        <div style="width:3px;align-self:stretch;background:${col.border};border-radius:2px;flex-shrink:0"></div>
+        <div style="width:3px;align-self:stretch;background:${borderColor};border-radius:2px;flex-shrink:0"></div>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:${col.text}">${icon} ${tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':'Recreo'}</div>
-          ${g?`<div style="font-size:13px;font-weight:600;color:${col.text}">${g.nombre}${cel.ubicacion?' · 📍'+cel.ubicacion:''}</div>`:''}
+          <div style="font-size:13px;font-weight:600;color:${textColor}">${icon} ${tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':'Recreo'}</div>
+          ${g?`<div style="font-size:12px;font-weight:600;color:var(--text2)">${g.nombre}${cel.ubicacion?' · 📍'+cel.ubicacion:''}</div>`:''}
           ${sesion?`<div style="font-size:11px;color:var(--purple);margin-top:2px">📖 ${sesion}</div>`:''}
         </div>
       </div>`;
     }).join('');
     if (!agendaHtml) agendaHtml = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin clases hoy</div>`;
-  }
 
+    // Añadir eventos del calendario de hoy
+    const eventosHoy = (APP.calendario?.eventos||[]).filter(ev => ev.fecha === dKeyD(hoy));
+    if (eventosHoy.length) {
+      agendaHtml += eventosHoy.map(ev => {
+        const tipo = CAL_TIPOS[ev.tipo] || CAL_TIPOS.evento;
+        const g = ev.grupoId ? APP.grupos.find(x=>x.id===ev.grupoId) : null;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)">
+          <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${ev.horaInicio||'Todo el día'}</div>
+          <div style="width:3px;align-self:stretch;background:${tipo.bg};border-radius:2px;flex-shrink:0"></div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:${tipo.bg}">${ev.titulo}</div>
+            ${g?`<div style="font-size:12px;color:var(--text2)">${g.nombre}</div>`:''}
+            ${ev.descripcion?`<div style="font-size:11px;color:var(--text3)">${ev.descripcion}</div>`:''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }
   // ── Recordatorios ────────────────────────────────────────────
   const PALABRAS_AULA = ['práctica','practica','simulación','simulacion','laboratorio','lab'];
   const PALABRAS_EXAM = ['examen','exámenes','examenes','prueba','test','control'];
