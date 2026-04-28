@@ -9785,7 +9785,7 @@ function busquedaIrGrupo(gid) {
 }
 
 // =====================
-// VOZ — AÑADIR EVENTO AL CALENDARIO
+// VOZ — AÑADIR EVENTO AL CALENDARIO / BUSCAR ALUMNO
 // =====================
 let _vozRecognition = null;
 let _vozGrabando = false;
@@ -9797,7 +9797,7 @@ function abrirVozCalendario() {
   const oculto = panel.classList.contains('hidden');
   panel.classList.toggle('hidden', !oculto);
   if (oculto) {
-    document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y di el evento';
+    document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y habla';
     document.getElementById('voz-transcripcion').textContent = '';
     document.getElementById('voz-resultado').classList.add('hidden');
     _vozEventoPendiente = null;
@@ -9835,7 +9835,7 @@ function vozIniciar() {
 
   _vozRecognition.onerror = (e) => {
     vozDetener();
-    document.getElementById('voz-estado').textContent = '⚠ Error: ' + e.error + '. Inténtalo de nuevo.';
+    document.getElementById('voz-estado').textContent = '⚠ Error: ' + (e.error === 'not-allowed' ? 'permiso de micrófono denegado' : e.error) + '. Inténtalo de nuevo.';
   };
 
   _vozRecognition.onend = () => vozDetener();
@@ -9847,57 +9847,158 @@ function vozDetener() {
   if (_vozRecognition) { try { _vozRecognition.stop(); } catch(e){} _vozRecognition = null; }
   const btn = document.getElementById('voz-btn-grabar');
   if (btn) { btn.textContent = '🎤'; btn.style.background = 'var(--accent)'; }
-  if (document.getElementById('voz-estado')?.textContent === '🔴 Escuchando...') {
-    document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y di el evento';
+  const estado = document.getElementById('voz-estado');
+  if (estado?.textContent === '🔴 Escuchando...') {
+    estado.textContent = 'Pulsa el micrófono y habla';
   }
 }
 
-async function vozProcesar(texto) {
+// ── Parser local gratuito ────────────────────────────────────
+function vozProcesar(texto) {
   if (!texto.trim()) return;
-  document.getElementById('voz-estado').textContent = '⏳ Interpretando...';
-  const hoy = new Date();
-  const grupos = APP.grupos.map(g => g.nombre).join(', ');
-  const prompt = `Eres un asistente que extrae información de eventos de calendario para un profesor.
-Hoy es ${hoy.toLocaleDateString('es-ES', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}.
-Los grupos del profesor son: ${grupos||'ninguno'}.
-Tipos disponibles: festivo, vacaciones, excursion, puente, evaluacion, tarea, evento.
-- tarea: exámenes, controles, pruebas, prácticas, trabajos.
-- evaluacion: sesiones de evaluación, junta de evaluación.
-- evento: reuniones, tutorías, claustros.
-- excursion: salidas, visitas.
-El usuario ha dicho: "${texto}"
-Responde SOLO con JSON válido sin texto adicional ni backticks:
-{"titulo":"...","tipo":"...","fecha":"YYYY-MM-DD","horaInicio":"HH:MM o null","horaFin":"HH:MM o null","grupoNombre":"nombre o null","descripcion":"texto o null"}`;
+  const t = texto.toLowerCase().trim();
 
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, messages: [{ role: 'user', content: prompt }] })
-    });
-    const data = await resp.json();
-    const ev = JSON.parse((data.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
-    _vozEventoPendiente = ev;
+  // Palabras clave de evento de calendario
+  const palabrasEvento = ['examen','control','prueba','práctica','práctica','laboratorio',
+    'reunión','reunion','tutoría','tutoria','claustro','evaluación','evaluacion',
+    'excursión','excursion','salida','visita','festivo','vacaciones','puente',
+    'entrega','trabajo','proyecto','repaso','lunes','martes','miércoles','miercoles',
+    'jueves','viernes','enero','febrero','marzo','abril','mayo','junio','julio',
+    'agosto','septiembre','octubre','noviembre','diciembre','mañana','pasado'];
 
-    if (ev.grupoNombre) {
-      const g = APP.grupos.find(g => g.nombre.toLowerCase().includes(ev.grupoNombre.toLowerCase()) || ev.grupoNombre.toLowerCase().includes(g.nombre.toLowerCase()));
-      if (g) ev.grupoId = g.id;
-    }
+  const esEvento = palabrasEvento.some(p => t.includes(p));
 
-    const tipo = CAL_TIPOS[ev.tipo] || CAL_TIPOS.evento;
-    const fechaFmt = ev.fecha ? new Date(ev.fecha + 'T12:00').toLocaleDateString('es-ES', {weekday:'long',day:'numeric',month:'long'}) : '—';
-    document.getElementById('voz-resultado-contenido').innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="background:${tipo.bg};color:#fff;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${tipo.nombre}</span>
-        <span style="font-size:14px;font-weight:700">${ev.titulo}</span>
-      </div>
-      <div style="font-size:12px;color:var(--text2)">📅 ${fechaFmt}${ev.horaInicio?' · ⏰ '+ev.horaInicio+(ev.horaFin?' – '+ev.horaFin:''):''}${ev.grupoNombre?' · 👥 '+ev.grupoNombre:''}</div>
-      ${ev.descripcion?`<div style="font-size:11px;color:var(--text3);margin-top:4px">${ev.descripcion}</div>`:''}`;
-    document.getElementById('voz-resultado').classList.remove('hidden');
-    document.getElementById('voz-estado').textContent = '✓ Evento detectado. ¿Lo añado?';
-  } catch(e) {
-    document.getElementById('voz-estado').textContent = '⚠ No pude interpretar el evento. Inténtalo de nuevo.';
+  if (!esEvento) {
+    // → Búsqueda de alumno/grupo
+    vozBuscar(texto);
+    return;
   }
+
+  // → Evento de calendario — parsear localmente
+  const ev = vozParsearEvento(texto, t);
+  _vozEventoPendiente = ev;
+
+  const tipo = CAL_TIPOS[ev.tipo] || CAL_TIPOS.evento;
+  const fechaFmt = ev.fecha
+    ? new Date(ev.fecha + 'T12:00').toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'})
+    : 'Sin fecha';
+
+  document.getElementById('voz-resultado-contenido').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="background:${tipo.bg};color:#fff;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${tipo.nombre}</span>
+      <span style="font-size:14px;font-weight:700">${ev.titulo}</span>
+    </div>
+    <div style="font-size:12px;color:var(--text2)">
+      📅 ${fechaFmt}
+      ${ev.horaInicio ? ' · ⏰ ' + ev.horaInicio + (ev.horaFin ? ' – ' + ev.horaFin : '') : ''}
+      ${ev.grupoNombre ? ' · 👥 ' + ev.grupoNombre : ''}
+    </div>`;
+  document.getElementById('voz-resultado').classList.remove('hidden');
+  document.getElementById('voz-estado').textContent = '✓ Evento detectado. ¿Lo añado?';
+}
+
+function vozParsearEvento(texto, t) {
+  // ── Tipo ────────────────────────────────────────────────────
+  let tipo = 'evento';
+  if (/examen|control|prueba escrita/.test(t)) tipo = 'tarea';
+  else if (/práctica|practica|laboratorio|informe/.test(t)) tipo = 'tarea';
+  else if (/entrega|trabajo|proyecto/.test(t)) tipo = 'tarea';
+  else if (/evaluación|evaluacion|junta/.test(t)) tipo = 'evaluacion';
+  else if (/excursión|excursion|salida|visita/.test(t)) tipo = 'excursion';
+  else if (/festivo/.test(t)) tipo = 'festivo';
+  else if (/vacaciones/.test(t)) tipo = 'vacaciones';
+  else if (/puente/.test(t)) tipo = 'puente';
+  else if (/reunión|reunion|claustro|tutoría|tutoria/.test(t)) tipo = 'evento';
+
+  // ── Título ──────────────────────────────────────────────────
+  // Quitar palabras de tiempo y grupo para quedarnos con el tema
+  let titulo = texto
+    .replace(/el (lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)/gi, '')
+    .replace(/el (próximo|proximo) (lunes|martes|miércoles|miercoles|jueves|viernes)/gi, '')
+    .replace(/mañana|pasado mañana/gi, '')
+    .replace(/el día \d+/gi, '')
+    .replace(/\d+ de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/gi, '')
+    .replace(/a las? \d+(\:\d+)?( de la (mañana|tarde))?/gi, '')
+    .replace(/de \d+ a \d+/gi, '')
+    .replace(/con (el grupo |la clase )?\d?º?[a-zA-Z]+/gi, '')
+    .replace(/\s+/g, ' ').trim();
+  if (!titulo) titulo = tipo === 'tarea' ? 'Examen' : 'Evento';
+
+  // ── Fecha ───────────────────────────────────────────────────
+  const hoy = new Date();
+  let fecha = null;
+
+  // "el 15 de mayo"
+  const meses = {enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11};
+  const mFecha = t.match(/(\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/);
+  if (mFecha) {
+    const d = new Date(hoy.getFullYear(), meses[mFecha[2]], parseInt(mFecha[1]));
+    if (d < hoy) d.setFullYear(d.getFullYear() + 1);
+    fecha = d.toISOString().slice(0,10);
+  }
+
+  // "el lunes/martes..."
+  if (!fecha) {
+    const dias = {lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,'sábado':6,sabado:6,domingo:0};
+    const mDia = t.match(/el (próximo |proximo )?(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)/);
+    if (mDia) {
+      const diaObj = parseInt(dias[mDia[2]]);
+      const d = new Date(hoy);
+      const diff = (diaObj - d.getDay() + 7) % 7 || 7;
+      d.setDate(d.getDate() + diff);
+      fecha = d.toISOString().slice(0,10);
+    }
+  }
+
+  // "mañana" / "pasado mañana"
+  if (!fecha) {
+    if (/pasado mañana/.test(t)) {
+      const d = new Date(hoy); d.setDate(d.getDate()+2); fecha = d.toISOString().slice(0,10);
+    } else if (/mañana/.test(t)) {
+      const d = new Date(hoy); d.setDate(d.getDate()+1); fecha = d.toISOString().slice(0,10);
+    }
+  }
+
+  // ── Hora ────────────────────────────────────────────────────
+  let horaInicio = null, horaFin = null;
+  const mHoraRango = t.match(/de (\d{1,2})(?::(\d{2}))? a (\d{1,2})(?::(\d{2}))?/);
+  if (mHoraRango) {
+    horaInicio = mHoraRango[1].padStart(2,'0') + ':' + (mHoraRango[2]||'00');
+    horaFin    = mHoraRango[3].padStart(2,'0') + ':' + (mHoraRango[4]||'00');
+  } else {
+    const mHora = t.match(/a las? (\d{1,2})(?::(\d{2}))?/);
+    if (mHora) horaInicio = mHora[1].padStart(2,'0') + ':' + (mHora[2]||'00');
+  }
+
+  // ── Grupo ───────────────────────────────────────────────────
+  let grupoNombre = null, grupoId = null;
+  for (const g of APP.grupos) {
+    if (t.includes(g.nombre.toLowerCase())) {
+      grupoNombre = g.nombre; grupoId = g.id; break;
+    }
+  }
+  // Buscar patrón tipo "3A", "3ºA", "cuarto A"
+  if (!grupoId) {
+    const mGrupo = t.match(/\d+[oºª]?\s*[a-e]/i);
+    if (mGrupo) {
+      const candidato = mGrupo[0].replace(/\s/,'').toUpperCase();
+      const g = APP.grupos.find(g => g.nombre.toUpperCase().replace(/\s/,'').includes(candidato));
+      if (g) { grupoNombre = g.nombre; grupoId = g.id; }
+    }
+  }
+
+  return { tipo, titulo, fecha, horaInicio, horaFin, grupoNombre, grupoId };
+}
+
+function vozBuscar(texto) {
+  // Rellenar el buscador y ejecutar búsqueda
+  const input = document.getElementById('busqueda-input');
+  if (input) {
+    input.value = texto;
+    ejecutarBusqueda(texto);
+  }
+  document.getElementById('voz-panel').classList.add('hidden');
+  document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y habla';
 }
 
 function vozConfirmarEvento() {
@@ -9907,12 +10008,13 @@ function vozConfirmarEvento() {
     id: 'ev_' + Date.now(),
     tipo: ev.tipo || 'evento',
     titulo: ev.titulo || 'Evento',
-    fecha: ev.fecha, fechaFin: ev.fecha,
+    fecha: ev.fecha || new Date().toISOString().slice(0,10),
+    fechaFin: ev.fecha || new Date().toISOString().slice(0,10),
     horaInicio: ev.horaInicio || null,
     horaFin: ev.horaFin || null,
     diaEntero: !ev.horaInicio,
     grupoId: ev.grupoId || null,
-    descripcion: ev.descripcion || '',
+    descripcion: '',
     color: CAL_TIPOS[ev.tipo]?.bg || CAL_TIPOS.evento.bg
   });
   guardarDatos();
@@ -9927,7 +10029,7 @@ function vozCancelar() {
   _vozEventoPendiente = null;
   document.getElementById('voz-resultado').classList.add('hidden');
   document.getElementById('voz-transcripcion').textContent = '';
-  document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y di el evento';
+  document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y habla';
 }
 
 // =====================
