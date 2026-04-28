@@ -921,7 +921,29 @@
           style="flex:1;border:none;background:transparent;font-family:inherit;font-size:14px;outline:none;color:var(--text)"
           oninput="ejecutarBusqueda(this.value)"
           onkeydown="if(event.key==='Escape')cerrarBusqueda()">
+        <button onclick="abrirVozCalendario()" title="Añadir evento por voz"
+          style="background:var(--accent-bg);border:1.5px solid var(--accent);color:var(--accent);border-radius:8px;padding:5px 10px;font-size:16px;cursor:pointer;flex-shrink:0">🎤</button>
         <button class="btn btn-ghost btn-icon" onclick="cerrarBusqueda()">✕</button>
+      </div>
+    </div>
+    <!-- Panel de voz -->
+    <div id="voz-panel" class="hidden" style="padding:16px;border-bottom:1px solid var(--border);background:var(--surface2)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <button id="voz-btn-grabar" onclick="vozToggleGrabacion()"
+          style="width:48px;height:48px;border-radius:50%;border:none;font-size:22px;cursor:pointer;background:var(--accent);color:#fff;flex-shrink:0;transition:all 0.2s">🎤</button>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)" id="voz-estado">Pulsa el micrófono y di el evento</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Ej: "Examen de cinemática el viernes 9 a las 9 con 3ºA"</div>
+        </div>
+      </div>
+      <div id="voz-transcripcion" style="font-size:13px;color:var(--text2);font-style:italic;min-height:20px;margin-bottom:10px"></div>
+      <div id="voz-resultado" class="hidden" style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Evento detectado:</div>
+        <div id="voz-resultado-contenido"></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button onclick="vozConfirmarEvento()" style="flex:1;padding:8px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">✓ Añadir al calendario</button>
+          <button onclick="vozCancelar()" style="padding:8px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-family:inherit;font-size:13px;cursor:pointer">Cancelar</button>
+        </div>
       </div>
     </div>
     <div id="busqueda-resultados" style="max-height:60vh;overflow-y:auto">
@@ -9760,6 +9782,152 @@ function busquedaIrGrupo(gid) {
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   }, 50);
+}
+
+// =====================
+// VOZ — AÑADIR EVENTO AL CALENDARIO
+// =====================
+let _vozRecognition = null;
+let _vozGrabando = false;
+let _vozEventoPendiente = null;
+
+function abrirVozCalendario() {
+  const panel = document.getElementById('voz-panel');
+  if (!panel) return;
+  const oculto = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', !oculto);
+  if (oculto) {
+    document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y di el evento';
+    document.getElementById('voz-transcripcion').textContent = '';
+    document.getElementById('voz-resultado').classList.add('hidden');
+    _vozEventoPendiente = null;
+  }
+}
+
+function vozToggleGrabacion() {
+  if (_vozGrabando) vozDetener(); else vozIniciar();
+}
+
+function vozIniciar() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('Tu navegador no soporta reconocimiento de voz. Usa Chrome.');
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  _vozRecognition = new SR();
+  _vozRecognition.lang = 'es-ES';
+  _vozRecognition.continuous = false;
+  _vozRecognition.interimResults = true;
+
+  _vozRecognition.onstart = () => {
+    _vozGrabando = true;
+    const btn = document.getElementById('voz-btn-grabar');
+    if (btn) { btn.textContent = '⏹'; btn.style.background = 'var(--red)'; }
+    document.getElementById('voz-estado').textContent = '🔴 Escuchando...';
+    document.getElementById('voz-resultado').classList.add('hidden');
+  };
+
+  _vozRecognition.onresult = (e) => {
+    const texto = Array.from(e.results).map(r => r[0].transcript).join('');
+    document.getElementById('voz-transcripcion').textContent = '"' + texto + '"';
+    if (e.results[0].isFinal) vozProcesar(texto);
+  };
+
+  _vozRecognition.onerror = (e) => {
+    vozDetener();
+    document.getElementById('voz-estado').textContent = '⚠ Error: ' + e.error + '. Inténtalo de nuevo.';
+  };
+
+  _vozRecognition.onend = () => vozDetener();
+  _vozRecognition.start();
+}
+
+function vozDetener() {
+  _vozGrabando = false;
+  if (_vozRecognition) { try { _vozRecognition.stop(); } catch(e){} _vozRecognition = null; }
+  const btn = document.getElementById('voz-btn-grabar');
+  if (btn) { btn.textContent = '🎤'; btn.style.background = 'var(--accent)'; }
+  if (document.getElementById('voz-estado')?.textContent === '🔴 Escuchando...') {
+    document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y di el evento';
+  }
+}
+
+async function vozProcesar(texto) {
+  if (!texto.trim()) return;
+  document.getElementById('voz-estado').textContent = '⏳ Interpretando...';
+  const hoy = new Date();
+  const grupos = APP.grupos.map(g => g.nombre).join(', ');
+  const prompt = `Eres un asistente que extrae información de eventos de calendario para un profesor.
+Hoy es ${hoy.toLocaleDateString('es-ES', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}.
+Los grupos del profesor son: ${grupos||'ninguno'}.
+Tipos disponibles: festivo, vacaciones, excursion, puente, evaluacion, tarea, evento.
+- tarea: exámenes, controles, pruebas, prácticas, trabajos.
+- evaluacion: sesiones de evaluación, junta de evaluación.
+- evento: reuniones, tutorías, claustros.
+- excursion: salidas, visitas.
+El usuario ha dicho: "${texto}"
+Responde SOLO con JSON válido sin texto adicional ni backticks:
+{"titulo":"...","tipo":"...","fecha":"YYYY-MM-DD","horaInicio":"HH:MM o null","horaFin":"HH:MM o null","grupoNombre":"nombre o null","descripcion":"texto o null"}`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await resp.json();
+    const ev = JSON.parse((data.content?.[0]?.text||'').replace(/```json|```/g,'').trim());
+    _vozEventoPendiente = ev;
+
+    if (ev.grupoNombre) {
+      const g = APP.grupos.find(g => g.nombre.toLowerCase().includes(ev.grupoNombre.toLowerCase()) || ev.grupoNombre.toLowerCase().includes(g.nombre.toLowerCase()));
+      if (g) ev.grupoId = g.id;
+    }
+
+    const tipo = CAL_TIPOS[ev.tipo] || CAL_TIPOS.evento;
+    const fechaFmt = ev.fecha ? new Date(ev.fecha + 'T12:00').toLocaleDateString('es-ES', {weekday:'long',day:'numeric',month:'long'}) : '—';
+    document.getElementById('voz-resultado-contenido').innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="background:${tipo.bg};color:#fff;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${tipo.nombre}</span>
+        <span style="font-size:14px;font-weight:700">${ev.titulo}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2)">📅 ${fechaFmt}${ev.horaInicio?' · ⏰ '+ev.horaInicio+(ev.horaFin?' – '+ev.horaFin:''):''}${ev.grupoNombre?' · 👥 '+ev.grupoNombre:''}</div>
+      ${ev.descripcion?`<div style="font-size:11px;color:var(--text3);margin-top:4px">${ev.descripcion}</div>`:''}`;
+    document.getElementById('voz-resultado').classList.remove('hidden');
+    document.getElementById('voz-estado').textContent = '✓ Evento detectado. ¿Lo añado?';
+  } catch(e) {
+    document.getElementById('voz-estado').textContent = '⚠ No pude interpretar el evento. Inténtalo de nuevo.';
+  }
+}
+
+function vozConfirmarEvento() {
+  const ev = _vozEventoPendiente; if (!ev) return;
+  if (!APP.calendario) APP.calendario = { eventos: [] };
+  APP.calendario.eventos.push({
+    id: 'ev_' + Date.now(),
+    tipo: ev.tipo || 'evento',
+    titulo: ev.titulo || 'Evento',
+    fecha: ev.fecha, fechaFin: ev.fecha,
+    horaInicio: ev.horaInicio || null,
+    horaFin: ev.horaFin || null,
+    diaEntero: !ev.horaInicio,
+    grupoId: ev.grupoId || null,
+    descripcion: ev.descripcion || '',
+    color: CAL_TIPOS[ev.tipo]?.bg || CAL_TIPOS.evento.bg
+  });
+  guardarDatos();
+  document.getElementById('voz-estado').textContent = '✅ Evento añadido al calendario';
+  document.getElementById('voz-resultado').classList.add('hidden');
+  document.getElementById('voz-transcripcion').textContent = '';
+  _vozEventoPendiente = null;
+  setTimeout(() => document.getElementById('voz-panel')?.classList.add('hidden'), 1500);
+}
+
+function vozCancelar() {
+  _vozEventoPendiente = null;
+  document.getElementById('voz-resultado').classList.add('hidden');
+  document.getElementById('voz-transcripcion').textContent = '';
+  document.getElementById('voz-estado').textContent = 'Pulsa el micrófono y di el evento';
 }
 
 // =====================
