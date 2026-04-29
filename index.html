@@ -1840,8 +1840,38 @@ function renderInicio() {
       <div class="card" style="overflow:hidden">
         <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
           <div style="font-weight:600;font-size:13px">🔔 Recuerda</div>
-          <span style="font-size:11px;color:var(--text3)">Próximos 7 días</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:var(--text3)">Próximos 7 días</span>
+            <button onclick="abrirNuevaNota()" title="Añadir nota"
+              style="width:24px;height:24px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent-bg);color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
+          </div>
         </div>
+        <!-- Formulario nueva nota (oculto por defecto) -->
+        <div id="nota-form" class="hidden" style="padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface2)">
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="nota-input" type="text" placeholder="Escribe una nota..."
+              style="flex:1;padding:6px 10px;border:1.5px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
+              onkeydown="if(event.key==='Enter')guardarNota();if(event.key==='Escape')cerrarNuevaNota()"
+              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
+            <button onclick="notaVoz()" title="Dictar nota"
+              style="padding:6px 8px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text2);font-size:14px;cursor:pointer" id="nota-mic-btn">🎤</button>
+            <button onclick="guardarNota()"
+              style="padding:6px 12px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Añadir</button>
+            <button onclick="cerrarNuevaNota()"
+              style="padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:none;color:var(--text3);font-size:13px;cursor:pointer">✕</button>
+          </div>
+        </div>
+        <!-- Notas manuales -->
+        ${(() => {
+          const notas = APP.config?.notasRecuerda || [];
+          if (!notas.length) return '';
+          return notas.map((n, i) => `
+            <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--accent-bg)">
+              <span style="font-size:14px;flex-shrink:0">📌</span>
+              <div style="flex:1;font-size:13px;color:var(--text);line-height:1.4">${n.texto}</div>
+              <button onclick="borrarNota(${i})" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;flex-shrink:0;padding:0 2px">✕</button>
+            </div>`).join('');
+        })()}
         <div style="padding:10px 12px">${recHtml}</div>
       </div>
 
@@ -2061,6 +2091,73 @@ function setColumnaExtra(gid, trim, iIdx, jIdx, modo) {
   }
   document.querySelectorAll('[id^="col-extra-menu-"]').forEach(m => m.classList.add('hidden'));
   renderPage();
+}
+
+// ── Notas del panel Recuerda ──────────────────────────────────
+function abrirNuevaNota() {
+  const form = document.getElementById('nota-form');
+  if (!form) return;
+  form.classList.remove('hidden');
+  setTimeout(() => document.getElementById('nota-input')?.focus(), 50);
+}
+
+function cerrarNuevaNota() {
+  document.getElementById('nota-form')?.classList.add('hidden');
+  const inp = document.getElementById('nota-input');
+  if (inp) inp.value = '';
+}
+
+function guardarNota() {
+  const inp = document.getElementById('nota-input');
+  const texto = inp?.value?.trim();
+  if (!texto) return;
+  if (!APP.config.notasRecuerda) APP.config.notasRecuerda = [];
+  APP.config.notasRecuerda.unshift({ id: Date.now(), texto, fecha: new Date().toISOString().slice(0,10) });
+  guardarDatos();
+  cerrarNuevaNota();
+  renderPage('inicio');
+}
+
+function borrarNota(idx) {
+  if (!APP.config.notasRecuerda) return;
+  APP.config.notasRecuerda.splice(idx, 1);
+  guardarDatos();
+  renderPage('inicio');
+}
+
+let _notaMicRec = null;
+let _notaMicGrabando = false;
+
+function notaVoz() {
+  if (_notaMicGrabando) {
+    if (_notaMicRec) { try { _notaMicRec.stop(); } catch(e){} }
+    return;
+  }
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('Tu navegador no soporta reconocimiento de voz. Usa Chrome.');
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  _notaMicRec = new SR();
+  _notaMicRec.lang = 'es-ES';
+  _notaMicRec.continuous = false;
+  _notaMicRec.interimResults = false;
+  _notaMicRec.onstart = () => {
+    _notaMicGrabando = true;
+    const btn = document.getElementById('nota-mic-btn');
+    if (btn) { btn.textContent = '⏹'; btn.style.color = 'var(--red)'; }
+  };
+  _notaMicRec.onresult = (e) => {
+    const inp = document.getElementById('nota-input');
+    if (inp) inp.value = e.results[0][0].transcript;
+  };
+  _notaMicRec.onend = () => {
+    _notaMicGrabando = false;
+    const btn = document.getElementById('nota-mic-btn');
+    if (btn) { btn.textContent = '🎤'; btn.style.color = ''; }
+    _notaMicRec = null;
+  };
+  _notaMicRec.start();
 }
 
 function guardarNotaColumnaExtra(aid, trim, iIdx, jIdx, val, inputEl) {
