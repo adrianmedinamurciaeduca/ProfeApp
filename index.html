@@ -2544,14 +2544,14 @@ function renderFicha(a) {
     </div>
     <div>
       <div class="ficha-tabs">
-        <div class="ficha-tab ${fichaTabActual==='datos'?'active':''}" onclick="cambiarTabFicha('datos')">Datos</div>
-        <div class="ficha-tab ${fichaTabActual==='notas'?'active':''}" onclick="cambiarTabFicha('notas')">Notas</div>
-        <div class="ficha-tab ${fichaTabActual==='observaciones'?'active':''}" onclick="cambiarTabFicha('observaciones')">Observaciones</div>
-        <div class="ficha-tab ${fichaTabActual==='reuniones'?'active':''}" onclick="cambiarTabFicha('reuniones')">Reuniones</div>
+        <div class="ficha-tab ${fichaTabActual==='datos'?'active':''}" onclick="cambiarTabFicha('datos')">👤 Datos</div>
+        <div class="ficha-tab ${fichaTabActual==='notas'?'active':''}" onclick="cambiarTabFicha('notas')">📊 Notas</div>
+        <div class="ficha-tab ${fichaTabActual==='observaciones'?'active':''}" onclick="cambiarTabFicha('observaciones')">📝 Observaciones</div>
+        <div class="ficha-tab ${fichaTabActual==='reuniones'?'active':''}" onclick="cambiarTabFicha('reuniones')">🤝 Reuniones</div>
         <div class="ficha-tab ${fichaTabActual==='pendientes'?'active':''}" onclick="cambiarTabFicha('pendientes')" style="position:relative">
           📚 Pendientes${(a.asigPendientes||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--amber);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.asigPendientes||[]).length}</span>`:''}
         </div>
-        ${(()=>{const g=APP.grupos.find(x=>x.id===a.grupoId);return g?.esTutor?`<div class="ficha-tab ${fichaTabActual==='tutoria'?'active':''}" onclick="cambiarTabFicha('tutoria')">★ Tutoría</div>`:''})()}
+        ${(()=>{const g=APP.grupos.find(x=>x.id===a.grupoId);return g?.esTutor?`<div class="ficha-tab ${fichaTabActual==='tutoria'?'active':''}" onclick="cambiarTabFicha('tutoria')">⭐ Tutoría</div>`:''})()}
       </div>
       <div id="ficha-tab-content">
         ${renderTabFicha(a)}
