@@ -2862,8 +2862,9 @@ function renderTabNotas(a) {
             <input type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" style="border:none;background:transparent;font-family:inherit;font-size:13px;width:100%;outline:none;color:var(--text);${(tieneEstrPersonal&&!evalBloq)?'':'pointer-events:none;opacity:0.7'}" placeholder="Nombre..." ${(tieneEstrPersonal&&!evalBloq)?`onchange="cambiarNombreItemPersonal('${a.id}',${iIdx},${jIdx},this.value)"`:''}>
           </div>
           <div class="nota-item-peso">${pesoInput}<span style="font-size:11px;color:var(--text3)">%</span></div>
-          <div class="nota-item-valor">
+          <div class="nota-item-valor" style="display:flex;align-items:center;gap:3px">
             <input type="number" min="0" max="10" step="0.01" value="${valorOriginalMostrar}" placeholder="—" ${inputBloq?'readonly':''} style="${inputStyle}${tieneRec?';text-decoration:line-through;opacity:0.5':''}" onchange="cambiarValorNota(${iIdx},${jIdx},this.value)">
+            ${(()=>{const hist=a.notas?.[trimestreActual]?.[iIdx]?._historial?.[jIdx]; return hist?.length?`<button onclick="deshacerNota(${iIdx},${jIdx})" title="Deshacer (anterior: ${hist[0]})" style="padding:2px 5px;border-radius:5px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:11px;cursor:pointer;flex-shrink:0">↩</button>`:'';})()}
           </div>
           <button class="btn btn-sm" onclick="event.stopPropagation();${evalBloq?'':'abrirRubrica(\''+a.id+'\','+iIdx+','+jIdx+')'}"
             style="padding:3px 8px;font-size:11px;font-weight:600;${tieneRubrica?'background:var(--purple-bg);color:var(--purple);border-color:var(--purple)':'background:var(--bg);color:var(--text2);border:1px solid var(--border2)'};${evalBloq?'opacity:0.5;pointer-events:none;cursor:default':''}">
@@ -2884,11 +2885,12 @@ function renderTabNotas(a) {
         const recInputBloq = recNotaRubrica !== null;
         itemsHtml += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 12px;background:var(--amber-bg);border-left:3px solid var(--amber);border-radius:0 6px 6px 0;margin:-2px 0 4px 20px">
           <span style="font-size:11px;font-weight:700;color:var(--amber);min-width:80px">🔄 Recuperación</span>
-          <div class="nota-item-valor">
+          <div class="nota-item-valor" style="display:flex;align-items:center;gap:3px">
             <input type="number" min="0" max="10" step="0.01" value="${recMostrar}" placeholder="Nota rec."
               ${recInputBloq?'readonly style="pointer-events:none;opacity:0.65;background:var(--surface2)"':''}
               onchange="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this)"
               onkeydown="if(event.key==='Enter'){cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this);event.preventDefault()}">
+            ${(()=>{const hist=a.notas?.[trimestreActual]?.[iIdx]?._historialRec?.[jIdx]; return hist?.length?`<button onclick="deshacerRecuperacion('${a.id}',${iIdx},${jIdx})" title="Deshacer (anterior: ${hist[0]})" style="padding:2px 5px;border-radius:5px;border:1px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:11px;cursor:pointer;flex-shrink:0">↩</button>`:'';})()}
           </div>
           <button class="btn btn-sm" onclick="abrirRubricaRecuperacion('${a.id}',${iIdx},${jIdx})"
             style="padding:3px 8px;font-size:11px;font-weight:600;${recRubrica?'background:var(--purple-bg);color:var(--purple);border-color:var(--purple)':'background:var(--bg);color:var(--text2);border:1px solid var(--border2)'}">
@@ -3196,6 +3198,14 @@ function _initRec(a, trim, iIdx) {
 function cambiarNotaRecuperacion(aid, iIdx, jIdx, val, inputEl) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
   _initRec(a, trimestreActual, iIdx);
+  // Guardar historial si había nota previa
+  const anterior = a.notas[trimestreActual][iIdx].rec[jIdx];
+  if (anterior !== '' && anterior !== null && anterior !== undefined) {
+    if (!a.notas[trimestreActual][iIdx]._historialRec) a.notas[trimestreActual][iIdx]._historialRec = {};
+    if (!a.notas[trimestreActual][iIdx]._historialRec[jIdx]) a.notas[trimestreActual][iIdx]._historialRec[jIdx] = [];
+    a.notas[trimestreActual][iIdx]._historialRec[jIdx].unshift(parseFloat(anterior));
+    if (a.notas[trimestreActual][iIdx]._historialRec[jIdx].length > 5) a.notas[trimestreActual][iIdx]._historialRec[jIdx].pop();
+  }
   a.notas[trimestreActual][iIdx].rec[jIdx] = val === '' ? '' : parseFloat(val);
   guardarDatos();
   if (inputEl) inputEl.blur();
@@ -3265,13 +3275,45 @@ function abrirRubricaRecuperacion(aid, iIdx, jIdx) {
   document.getElementById('modal-rubrica').classList.remove('hidden');
 }
 
+function _guardarHistorialNota(a, trim, iIdx, jIdx, valorAnterior) {
+  if (valorAnterior === '' || valorAnterior === null || valorAnterior === undefined) return;
+  if (!a.notas[trim][iIdx]._historial) a.notas[trim][iIdx]._historial = {};
+  if (!a.notas[trim][iIdx]._historial[jIdx]) a.notas[trim][iIdx]._historial[jIdx] = [];
+  a.notas[trim][iIdx]._historial[jIdx].unshift(parseFloat(valorAnterior));
+  if (a.notas[trim][iIdx]._historial[jIdx].length > 5) a.notas[trim][iIdx]._historial[jIdx].pop();
+}
+
 function cambiarValorNota(iIdx, jIdx, val) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   if (trimestreActual !== 'final' && isEvalBloqueada(a.grupoId, trimestreActual)) return;
   if (!a.notas) a.notas = {};
   if (!a.notas[trimestreActual]) a.notas[trimestreActual] = {};
   if (!a.notas[trimestreActual][iIdx]) a.notas[trimestreActual][iIdx] = {};
+  // Guardar historial solo si había nota previa
+  const anterior = a.notas[trimestreActual][iIdx][jIdx];
+  if (anterior !== '' && anterior !== null && anterior !== undefined) {
+    _guardarHistorialNota(a, trimestreActual, iIdx, jIdx, anterior);
+  }
   a.notas[trimestreActual][iIdx][jIdx] = val === '' ? '' : parseFloat(val);
+  guardarDatos();
+  cambiarTabFicha('notas');
+}
+
+function deshacerNota(iIdx, jIdx) {
+  const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
+  const hist = a.notas?.[trimestreActual]?.[iIdx]?._historial?.[jIdx];
+  if (!hist || !hist.length) return;
+  a.notas[trimestreActual][iIdx][jIdx] = hist.shift();
+  guardarDatos();
+  cambiarTabFicha('notas');
+}
+
+function deshacerRecuperacion(aid, iIdx, jIdx) {
+  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+  const hist = a.notas?.[trimestreActual]?.[iIdx]?._historialRec?.[jIdx];
+  if (!hist || !hist.length) return;
+  if (!a.notas[trimestreActual][iIdx].rec) a.notas[trimestreActual][iIdx].rec = {};
+  a.notas[trimestreActual][iIdx].rec[jIdx] = hist.shift();
   guardarDatos();
   cambiarTabFicha('notas');
 }
