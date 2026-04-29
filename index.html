@@ -2863,7 +2863,7 @@ function renderTabNotas(a) {
           </div>
           <div class="nota-item-peso">${pesoInput}<span style="font-size:11px;color:var(--text3)">%</span></div>
           <div class="nota-item-valor" style="display:flex;align-items:center;gap:3px">
-            <input type="number" min="0" max="10" step="0.01" value="${valorOriginalMostrar}" placeholder="—" ${inputBloq?'readonly':''} style="${inputStyle}${tieneRec?';text-decoration:line-through;opacity:0.5':''}" onchange="cambiarValorNota(${iIdx},${jIdx},this.value)">
+            <input type="number" min="0" max="10" step="0.01" value="${valorOriginalMostrar}" placeholder="—" ${inputBloq?'readonly':''} style="${inputStyle}${tieneRec?';text-decoration:line-through;opacity:0.5':''}" onchange="cambiarValorNota(${iIdx},${jIdx},this.value,this)">
             ${(()=>{const hist=a.notas?.[trimestreActual]?.[iIdx]?._historial?.[jIdx]; return hist?.length?`<button onclick="deshacerNota(${iIdx},${jIdx})" title="Deshacer (anterior: ${hist[0]})" style="padding:2px 5px;border-radius:5px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:11px;cursor:pointer;flex-shrink:0">↩</button>`:'';})()}
           </div>
           <button class="btn btn-sm" onclick="event.stopPropagation();${evalBloq?'':'abrirRubrica(\''+a.id+'\','+iIdx+','+jIdx+')'}"
@@ -3198,18 +3198,33 @@ function _initRec(a, trim, iIdx) {
 function cambiarNotaRecuperacion(aid, iIdx, jIdx, val, inputEl) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
   _initRec(a, trimestreActual, iIdx);
-  // Guardar historial si había nota previa
   const anterior = a.notas[trimestreActual][iIdx].rec[jIdx];
-  if (anterior !== '' && anterior !== null && anterior !== undefined) {
-    if (!a.notas[trimestreActual][iIdx]._historialRec) a.notas[trimestreActual][iIdx]._historialRec = {};
-    if (!a.notas[trimestreActual][iIdx]._historialRec[jIdx]) a.notas[trimestreActual][iIdx]._historialRec[jIdx] = [];
-    a.notas[trimestreActual][iIdx]._historialRec[jIdx].unshift(parseFloat(anterior));
-    if (a.notas[trimestreActual][iIdx]._historialRec[jIdx].length > 5) a.notas[trimestreActual][iIdx]._historialRec[jIdx].pop();
+  const tieneNota = anterior !== '' && anterior !== null && anterior !== undefined;
+
+  const _guardar = () => {
+    if (tieneNota) {
+      if (!a.notas[trimestreActual][iIdx]._historialRec) a.notas[trimestreActual][iIdx]._historialRec = {};
+      if (!a.notas[trimestreActual][iIdx]._historialRec[jIdx]) a.notas[trimestreActual][iIdx]._historialRec[jIdx] = [];
+      a.notas[trimestreActual][iIdx]._historialRec[jIdx].unshift(parseFloat(anterior));
+      if (a.notas[trimestreActual][iIdx]._historialRec[jIdx].length > 5) a.notas[trimestreActual][iIdx]._historialRec[jIdx].pop();
+    }
+    a.notas[trimestreActual][iIdx].rec[jIdx] = val === '' ? '' : parseFloat(val);
+    guardarDatos();
+    if (inputEl) inputEl.blur();
+    cambiarTabFicha('notas');
+  };
+
+  if (tieneNota && val !== '' && parseFloat(val) !== parseFloat(anterior)) {
+    confirmar(
+      'Sobreescribir nota de recuperación',
+      `Este apartado ya tiene recuperación con ${anterior}. ¿Deseas cambiarlo por ${val}? Podrás deshacer el cambio con el botón ↩.`,
+      _guardar,
+      'Sobreescribir',
+      () => { if (inputEl) { inputEl.value = anterior; inputEl.blur(); } }
+    );
+  } else {
+    _guardar();
   }
-  a.notas[trimestreActual][iIdx].rec[jIdx] = val === '' ? '' : parseFloat(val);
-  guardarDatos();
-  if (inputEl) inputEl.blur();
-  cambiarTabFicha('notas');
 }
 
 function cambiarFechaRecuperacion(aid, iIdx, jIdx, val) {
@@ -3283,20 +3298,33 @@ function _guardarHistorialNota(a, trim, iIdx, jIdx, valorAnterior) {
   if (a.notas[trim][iIdx]._historial[jIdx].length > 5) a.notas[trim][iIdx]._historial[jIdx].pop();
 }
 
-function cambiarValorNota(iIdx, jIdx, val) {
+function cambiarValorNota(iIdx, jIdx, val, inputEl) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   if (trimestreActual !== 'final' && isEvalBloqueada(a.grupoId, trimestreActual)) return;
   if (!a.notas) a.notas = {};
   if (!a.notas[trimestreActual]) a.notas[trimestreActual] = {};
   if (!a.notas[trimestreActual][iIdx]) a.notas[trimestreActual][iIdx] = {};
-  // Guardar historial solo si había nota previa
   const anterior = a.notas[trimestreActual][iIdx][jIdx];
-  if (anterior !== '' && anterior !== null && anterior !== undefined) {
-    _guardarHistorialNota(a, trimestreActual, iIdx, jIdx, anterior);
+  const tieneNota = anterior !== '' && anterior !== null && anterior !== undefined;
+
+  const _guardar = () => {
+    if (tieneNota) _guardarHistorialNota(a, trimestreActual, iIdx, jIdx, anterior);
+    a.notas[trimestreActual][iIdx][jIdx] = val === '' ? '' : parseFloat(val);
+    guardarDatos();
+    cambiarTabFicha('notas');
+  };
+
+  if (tieneNota && val !== '' && parseFloat(val) !== parseFloat(anterior)) {
+    confirmar(
+      'Sobreescribir nota',
+      `Este apartado ya tiene ${anterior}. ¿Deseas cambiarlo por ${val}? Podrás deshacer el cambio con el botón ↩.`,
+      _guardar,
+      'Sobreescribir',
+      () => { if (inputEl) { inputEl.value = anterior; inputEl.blur(); } }
+    );
+  } else {
+    _guardar();
   }
-  a.notas[trimestreActual][iIdx][jIdx] = val === '' ? '' : parseFloat(val);
-  guardarDatos();
-  cambiarTabFicha('notas');
 }
 
 function deshacerNota(iIdx, jIdx) {
