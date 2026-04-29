@@ -1039,6 +1039,17 @@
 
 <!-- MODAL EDITAR COLOR GRUPO -->
 <!-- MODAL CONFIRMAR -->
+<!-- MODAL TUTORÍA DE GRUPO -->
+<div class="modal-overlay hidden" id="modal-tutoria-grupo" onclick="event.target===this&&document.getElementById('modal-tutoria-grupo').classList.add('hidden')">
+  <div class="modal" style="max-width:680px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="tutoria-grupo-titulo">⭐ Tutoría</h3>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-tutoria-grupo').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body" id="tutoria-grupo-body" style="max-height:75vh;overflow-y:auto;padding:16px"></div>
+  </div>
+</div>
+
 <!-- MODAL EXPORTAR PLANO -->
 <div class="modal-overlay hidden" id="modal-exportar-plano" style="z-index:300" onclick="event.target===this&&document.getElementById('modal-exportar-plano').classList.add('hidden')">
   <div class="modal" style="max-width:360px" onclick="event.stopPropagation()">
@@ -1979,50 +1990,38 @@ function renderAlumnos() {
       gruposExpandidos[g.id] = exp;
       return `
       <div class="card" style="margin-bottom:16px">
-        <div class="grupo-header" data-grupo-id="${g.id}" onclick="toggleGrupo('${g.id}')">
-          <div class="grupo-badge">
-            ${(()=>{const col=getColorGrupo(g.id);return col?`<span style="width:12px;height:12px;border-radius:3px;background:${col.bg};border:2px solid ${col.border};display:inline-block;flex-shrink:0"></span>`:''})()}
-            <span>${g.nombre}</span>
-            <span class="grupo-pill">${als.length} alumnos</span>
-            ${g.asignatura ? `<span style="font-size:12px;color:var(--text2);font-weight:400">${g.asignatura}</span>` : ''}
-            ${g.esTutor ? `<span style="background:var(--accent-bg);color:var(--accent);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">★ Tutor</span>` : ''}
+        <div class="grupo-header" data-grupo-id="${g.id}" style="flex-direction:column;align-items:stretch;gap:10px;cursor:default">
+          <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleGrupo('${g.id}')">
+            <div>
+              <div style="display:flex;align-items:center;gap:10px">
+                ${(()=>{const c=getColorGrupo(g.id);return c?`<span style="width:14px;height:14px;border-radius:4px;background:${c.bg};border:2px solid ${c.border};display:inline-block;flex-shrink:0"></span>`:''})()}
+                <span style="font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.5px">${g.nombre}</span>
+                ${g.esTutor?'<span style="background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700">⭐ TUTOR</span>':''}
+              </div>
+              ${g.asignatura?`<div style="font-size:12px;color:var(--text3);margin-left:24px;margin-top:1px">${g.asignatura}</div>`:''}
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:12px;color:var(--text3)">${als.length} al.</span>
+              <span style="color:var(--text3);font-size:18px">${exp?'▾':'▸'}</span>
+            </div>
           </div>
-          <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
-            <!-- Siempre visibles -->
-            <button onclick="event.stopPropagation();abrirModalNuevo('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0b8e8;background:#e8f0fc;color:#1a4a9a;font-size:12px;font-weight:600;cursor:pointer">+ Alumno</button>
-            <button onclick="event.stopPropagation();abrirEstructuraGrupo('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #2d5be3;background:#2d5be3;color:#fff;font-size:12px;font-weight:600;cursor:pointer">⚙ Notas</button>
-            ${window.innerWidth > 700 ? `
-            <button onclick="event.stopPropagation();abrirModalReordenar('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0c8a0;background:#e8f5e8;color:#1a6a1a;font-size:12px;font-weight:600;cursor:pointer">↕ Reordenar</button>
-            <button onclick="event.stopPropagation();abrirCuaderno('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #c0a8e0;background:#f0e8fc;color:#5a1a9a;font-size:12px;font-weight:600;cursor:pointer">📓 Cuaderno</button>
-            <button onclick="event.stopPropagation();abrirPlanoGrupo('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #a0c0d8;background:#e0f0f8;color:#0a4a6a;font-size:12px;font-weight:600;cursor:pointer">🗺 Plano</button>
-            <button onclick="event.stopPropagation();abrirEditarColorGrupo('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #e0b880;background:#fdf0d8;color:#7a4a00;font-size:12px;font-weight:600;cursor:pointer">🎨 Color</button>
-            <button onclick="event.stopPropagation();toggleTutor('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid ${g.esTutor?'#e8a020':'#d0c8a0'};background:${g.esTutor?'#fff8e0':'#f8f4e0'};color:${g.esTutor?'#8a5000':'#6a5800'};font-size:12px;font-weight:600;cursor:pointer">${g.esTutor?'★':'☆'} Tutor</button>
-            <button onclick="event.stopPropagation();duplicarGrupo('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #b8c8d8;background:#eef4f8;color:#2a4a6a;font-size:12px;font-weight:600;cursor:pointer">Duplicar</button>
-            <button onclick="event.stopPropagation();iniciarArchivar('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #c8b8a0;background:#f4ede0;color:#6a4a20;font-size:12px;font-weight:600;cursor:pointer">🗄 Archivar</button>
-            <button onclick="event.stopPropagation();eliminarGrupo('${g.id}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid #e0a0a0;background:#fce8e8;color:#9a1a1a;font-size:12px;font-weight:600;cursor:pointer">✕ Eliminar</button>
-            ` : `
-            <div class="grupo-menu-wrap" onclick="event.stopPropagation()">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
+            <button onclick="abrirEstructuraGrupo('${g.id}')"
+              style="padding:5px 12px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer">⚙ Notas</button>
+            <button onclick="abrirPlanoGrupo('${g.id}')"
+              style="padding:5px 12px;border-radius:8px;border:1.5px solid #a0c0d8;background:#e0f0f8;color:#0a4a6a;font-size:12px;font-weight:600;cursor:pointer">🗺 Plano</button>
+            <button onclick="abrirModalNuevo('${g.id}')"
+              style="padding:5px 12px;border-radius:8px;border:1.5px solid #a0b8e8;background:#e8f0fc;color:#1a4a9a;font-size:12px;font-weight:600;cursor:pointer">+ Alumno</button>
+            ${g.esTutor?`<button onclick="abrirTutoriaGrupo('${g.id}')"
+              style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:12px;font-weight:600;cursor:pointer">⭐ Tutoría</button>`:''}
+            <div class="grupo-menu-wrap" style="margin-left:auto">
               <button onclick="toggleGrupoMenu('${g.id}')"
-                style="padding:4px 12px;border-radius:7px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:16px;font-weight:700;cursor:pointer;letter-spacing:2px;line-height:1">···</button>
+                style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:14px;cursor:pointer;letter-spacing:2px">···</button>
               <div class="grupo-menu" id="grupo-menu-${g.id}">
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirModalNuevo('${g.id}')">
-                  <span style="width:8px;height:8px;border-radius:50%;background:#2d5be3;display:inline-block"></span> + Alumno</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirModalReordenar('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#2a7a2a;display:inline-block"></span> ↕ Reordenar lista</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirCuaderno('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#7a2ab0;display:inline-block"></span> 📓 Cuaderno</button>
-                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirPlanoGrupo('${g.id}')">
-                  <span style="width:8px;height:8px;border-radius:50%;background:#0a6a8a;display:inline-block"></span> 🗺 Plano de clase</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirEditarColorGrupo('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#c07800;display:inline-block"></span> 🎨 Color</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();toggleTutor('${g.id}')">
@@ -2035,8 +2034,6 @@ function renderAlumnos() {
                 <button class="grupo-menu-item danger" onclick="cerrarGrupoMenus();eliminarGrupo('${g.id}')">✕ Eliminar grupo</button>
               </div>
             </div>
-            `}
-            <span style="color:var(--text3);font-size:18px">${exp?'▾':'▸'}</span>
           </div>
         </div>
         <div id="grupo-body-${g.id}" ${exp?'':'class="hidden"'}>
@@ -2552,7 +2549,7 @@ function renderFicha(a) {
         <div class="ficha-tab ${fichaTabActual==='pendientes'?'active':''}" onclick="cambiarTabFicha('pendientes')" style="position:relative">
           📚 Pendientes${(a.asigPendientes||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--amber);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.asigPendientes||[]).length}</span>`:''}
         </div>
-        ${(()=>{const g=APP.grupos.find(x=>x.id===a.grupoId);return g?.esTutor?`<div class="ficha-tab ${fichaTabActual==='tutoria'?'active':''}" onclick="cambiarTabFicha('tutoria')">⭐ Tutoría</div>`:''})()}
+        ${(()=>{const g=APP.grupos.find(x=>x.id===a.grupoId);return '';})()}
       </div>
       <div id="ficha-tab-content">
         ${renderTabFicha(a)}
@@ -3736,6 +3733,16 @@ function cerrarGrupoMenus() {
 }
 // Cerrar menú al pulsar fuera
 document.addEventListener('click', cerrarGrupoMenus);
+
+function abrirTutoriaGrupo(gid) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  if (!g.tutoria) g.tutoria = { horarioAlumnos: [], profesores: [] };
+  document.getElementById('tutoria-grupo-titulo').textContent = `⭐ Tutoría — ${g.nombre}`;
+  // Reutilizar renderTabTutoria pero con un alumno ficticio para el contexto de grupo
+  const alumnoFicticio = { grupoId: gid };
+  document.getElementById('tutoria-grupo-body').innerHTML = renderTabTutoria(alumnoFicticio);
+  document.getElementById('modal-tutoria-grupo').classList.remove('hidden');
+}
 
 function toggleTutor(gid) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
@@ -5418,6 +5425,7 @@ function renderEstructuraModal() {
   insts.forEach((inst, iIdx) => {
     const isOpen = instAbiertasGrupo.has(iIdx);
     const sumaItems = inst.items.length > 0 ? sumaPesos(inst.items, 'peso') : null;
+    const esAritmetica = inst.mediaAritmetica !== false;
     let itemsHtml = '';
     inst.items.forEach((item, jIdx) => {
       itemsHtml += `<div class="nota-item">
@@ -5425,23 +5433,39 @@ function renderEstructuraModal() {
           <input type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" style="border:none;background:transparent;font-family:inherit;font-size:13px;width:100%;outline:none;color:var(--text)" placeholder="Nombre..." onchange="editarNombreItemGrupo(${iIdx},${jIdx},this.value)">
         </div>
         <div class="nota-item-peso">
-          <input type="number" min="0" max="100" step="5" value="${item.peso||''}" placeholder="%" onchange="editarPesoItemGrupo(${iIdx},${jIdx},this.value)">
+          <input type="number" min="0" max="100" step="5" value="${item.peso||''}" placeholder="%" 
+            ${esAritmetica ? 'readonly style="opacity:0.5;pointer-events:none;background:var(--surface2)"' : ''}
+            onchange="editarPesoItemGrupo(${iIdx},${jIdx},this.value)">
           <span style="font-size:11px;color:var(--text3)">%</span>
         </div>
         <input type="date" value="${item.fecha||''}" title="Fecha" style="padding:3px 6px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:11px;color:var(--text2);outline:none" onchange="editarFechaItemGrupo(${iIdx},${jIdx},this.value)">
         <button class="btn btn-delete" onclick="borrarItemGrupo(${iIdx},${jIdx})">✕</button>
       </div>`;
     });
+
+    // Switch aritmética/ponderada
+    const switchHtml = `<div onclick="event.stopPropagation();toggleModoInstrumento(${iIdx})" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:auto;padding:3px 8px;border-radius:20px;border:1px solid var(--border2);background:var(--surface2)">
+      <span style="font-size:10px;font-weight:600;color:${esAritmetica?'var(--accent)':'var(--text3)'}">≡</span>
+      <div style="width:28px;height:14px;border-radius:7px;background:${esAritmetica?'var(--accent)':'var(--border2)'};position:relative;transition:background 0.2s">
+        <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;top:2px;${esAritmetica?'left:16px':'left:2px'};transition:left 0.2s"></div>
+      </div>
+      <span style="font-size:10px;font-weight:600;color:${!esAritmetica?'var(--accent)':'var(--text3)'}">%</span>
+    </div>`;
+
     html += `<div class="instrumento-card" style="margin-bottom:10px">
       <div class="instrumento-header" onclick="toggleGrupoInst(${iIdx})">
         <input type="text" value="${(inst.nombre||'').replace(/"/g,'&quot;')}" style="border:none;background:transparent;font-family:inherit;font-size:13.5px;font-weight:600;min-width:80px;max-width:200px;outline:none;color:var(--text)" onclick="event.stopPropagation()" onchange="editarNombreInstGrupo(${iIdx},this.value)">
         <span class="instrumento-peso-info">Peso: <input type="number" min="0" max="100" step="5" value="${inst.peso||0}" style="width:52px;padding:2px 6px;border:1px solid var(--border2);border-radius:5px;font-family:'DM Mono',monospace;font-size:12px;text-align:right;outline:none" onclick="event.stopPropagation()" onchange="editarPesoInstGrupo(${iIdx},this.value)">%</span>
-        <span style="font-size:12px;color:var(--text2)">${inst.items.length} apartado${inst.items.length!==1?'s':''}</span>
+        <span style="font-size:10px;color:${esAritmetica?'var(--accent)':'var(--text3)'};font-weight:600">${esAritmetica?'≡ Media':'% Ponderada'}</span>
+        ${switchHtml}
         <button class="btn btn-delete" onclick="event.stopPropagation();borrarInstGrupo(${iIdx})" title="Eliminar instrumento">✕</button>
         <span style="color:var(--text3);margin-left:4px">${isOpen?'▾':'▸'}</span>
       </div>
       <div class="instrumento-body ${isOpen?'':'hidden'}">
-        ${sumaItems !== null ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--text2)">Suma apartados: ${badgeSuma(sumaItems)}</div>` : ''}
+        ${sumaItems !== null ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--text2)">
+          Suma apartados: ${badgeSuma(sumaItems)}
+          ${esAritmetica ? '<span style="font-size:11px;color:var(--accent)">— Media aritmética (pesos automáticos)</span>' : ''}
+        </div>` : ''}
         ${itemsHtml}
         <div style="margin-top:8px">
           <button class="btn btn-secondary btn-sm" onclick="agregarItemGrupo(${iIdx})">+ Añadir apartado</button>
@@ -5472,6 +5496,28 @@ function renderEstructuraModal() {
 
   document.getElementById('estructura-modal-body').innerHTML = html;
   document.getElementById('estructura-modal-titulo').textContent = `Notas: ${g.nombre}`;
+}
+
+function recalcularPesosAritmetica(iIdx) {
+  const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
+  const inst = g.estructura[trimEstructura]?.[iIdx]; if(!inst) return;
+  if (!inst.mediaAritmetica) return; // Solo en modo aritmética
+  const n = inst.items.length;
+  if (!n) return;
+  const pesoBase = Math.floor(100 / n);
+  const resto = 100 - pesoBase * n;
+  inst.items.forEach((item, i) => {
+    item.peso = pesoBase + (i === n - 1 ? resto : 0);
+  });
+}
+
+function toggleModoInstrumento(iIdx) {
+  const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
+  const inst = g.estructura[trimEstructura]?.[iIdx]; if(!inst) return;
+  inst.mediaAritmetica = !inst.mediaAritmetica;
+  if (inst.mediaAritmetica) recalcularPesosAritmetica(iIdx);
+  guardarDatos();
+  renderEstructuraModal();
 }
 
 function toggleGrupoInst(iIdx) {
@@ -5523,8 +5569,12 @@ function editarPesoItemGrupo(iIdx, jIdx, val) {
 }
 function agregarItemGrupo(iIdx) {
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
-  const items = g.estructura[trimEstructura][iIdx].items;
-  items.push({nombre:'Apartado '+(items.length+1), peso: 0});
+  const inst = g.estructura[trimEstructura][iIdx];
+  inst.items.push({nombre:'Apartado '+(inst.items.length+1), peso: 0});
+  if (inst.mediaAritmetica !== false) {
+    inst.mediaAritmetica = true;
+    recalcularPesosAritmetica(iIdx);
+  }
   instAbiertasGrupo.add(iIdx);
   guardarDatos(); renderEstructuraModal();
 }
@@ -5554,7 +5604,9 @@ function borrarItemGrupo(iIdx, jIdx) {
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
   const nombre = g.estructura[trimEstructura][iIdx]?.items[jIdx]?.nombre || 'este apartado';
   confirmar('Eliminar apartado', `¿Eliminar "${nombre}" y sus notas en todos los alumnos?`, () => {
-    g.estructura[trimEstructura][iIdx].items.splice(jIdx, 1);
+    const inst = g.estructura[trimEstructura][iIdx];
+    inst.items.splice(jIdx, 1);
+    if (inst.mediaAritmetica !== false) recalcularPesosAritmetica(iIdx);
     APP.alumnos.filter(a=>a.grupoId===g.id).forEach(a => {
       if (!a.notas?.[trimEstructura]?.[iIdx]) return;
       const bloque = a.notas[trimEstructura][iIdx];
@@ -5570,7 +5622,7 @@ function borrarItemGrupo(iIdx, jIdx) {
 function agregarInstGrupo() {
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
   const newIdx = g.estructura[trimEstructura].length;
-  g.estructura[trimEstructura].push({nombre:'Nuevo instrumento', peso:10, items:[]});
+  g.estructura[trimEstructura].push({nombre:'Nuevo instrumento', peso:10, items:[], mediaAritmetica:true});
   instAbiertasGrupo.add(newIdx);
   guardarDatos(); renderEstructuraModal();
 }
@@ -7733,6 +7785,16 @@ function renderTabTutoria(a) {
   </div>`;
 }
 
+function refrescarTutoria(gid) {
+  // Si el modal de tutoría de grupo está abierto, actualizarlo
+  const modal = document.getElementById('modal-tutoria-grupo');
+  if (modal && !modal.classList.contains('hidden')) {
+    abrirTutoriaGrupo(gid);
+  } else {
+    cambiarTabFicha('tutoria');
+  }
+}
+
 function añadirProfesor(gid) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
   if (!g.tutoria) g.tutoria = {profesores:[], horarioAlumnos:[]};
@@ -7744,13 +7806,13 @@ function añadirProfesor(gid) {
     materia: document.getElementById('prof-materia')?.value.trim()||'',
     email: document.getElementById('prof-email')?.value.trim()||''
   });
-  guardarDatos(); cambiarTabFicha('tutoria');
+  guardarDatos(); refrescarTutoria(gid);
 }
 
 function eliminarProfesor(gid, idx) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
   g.tutoria.profesores.splice(idx,1);
-  guardarDatos(); cambiarTabFicha('tutoria');
+  guardarDatos(); refrescarTutoria(gid);
 }
 
 function copiarEmailsProfes(gid) {
