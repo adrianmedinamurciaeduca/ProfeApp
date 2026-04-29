@@ -2541,25 +2541,6 @@ function renderFicha(a) {
         </div>
       </div>
 
-      <!-- Asignaturas pendientes (desplegable) -->
-      <div style="margin-top:8px">
-        <div onclick="toggleSidePanel('pendientes')" style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text2)">
-          <span>📚 Asig. pendientes</span>
-          <span>${(a.asigPendientes||[]).length>0?'<span style="background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:1px 6px;font-size:10px">'+(a.asigPendientes||[]).length+'</span>':''} ▸</span>
-        </div>
-        <div id="panel-pendientes" class="hidden" style="padding:6px 0 0">
-          ${(a.asigPendientes||[]).map((p,i) => `
-          <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--amber-bg);border-radius:6px;margin-bottom:4px">
-            <span style="flex:1;color:var(--amber);font-size:12px;word-break:break-word">${p.nivel ? '<strong>'+p.nivel+'</strong> – ' : ''}${p.asig}</span>
-            <button class="btn btn-delete" onclick="eliminarPendiente(${i})" style="min-width:20px;min-height:20px;padding:1px 5px;font-size:11px;border-radius:4px;flex-shrink:0">✕</button>
-          </div>`).join('')}
-          <div style="margin-top:6px;display:flex;flex-direction:column;gap:5px">
-            <input type="text" id="pend-nivel" placeholder="Nivel (ej: 1º ESO)" style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:12px;outline:none;box-sizing:border-box">
-            <input type="text" id="pend-asig" placeholder="Asignatura (ej: Matemáticas)" style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:12px;outline:none;box-sizing:border-box">
-            <button class="btn btn-secondary btn-sm" style="width:100%;justify-content:center" onclick="añadirPendiente()">+ Añadir asignatura</button>
-          </div>
-        </div>
-      </div>
     </div>
     <div>
       <div class="ficha-tabs">
@@ -2567,6 +2548,9 @@ function renderFicha(a) {
         <div class="ficha-tab ${fichaTabActual==='notas'?'active':''}" onclick="cambiarTabFicha('notas')">Notas</div>
         <div class="ficha-tab ${fichaTabActual==='observaciones'?'active':''}" onclick="cambiarTabFicha('observaciones')">Observaciones</div>
         <div class="ficha-tab ${fichaTabActual==='reuniones'?'active':''}" onclick="cambiarTabFicha('reuniones')">Reuniones</div>
+        <div class="ficha-tab ${fichaTabActual==='pendientes'?'active':''}" onclick="cambiarTabFicha('pendientes')" style="position:relative">
+          📚 Pendientes${(a.asigPendientes||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--amber);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.asigPendientes||[]).length}</span>`:''}
+        </div>
         ${(()=>{const g=APP.grupos.find(x=>x.id===a.grupoId);return g?.esTutor?`<div class="ficha-tab ${fichaTabActual==='tutoria'?'active':''}" onclick="cambiarTabFicha('tutoria')">★ Tutoría</div>`:''})()}
       </div>
       <div id="ficha-tab-content">
@@ -2584,6 +2568,7 @@ function renderTabFicha(a) {
     case 'observaciones': return renderTabObs(a);
     case 'reuniones': return renderTabReuniones(a);
     case 'tutoria': return renderTabTutoria(a);
+    case 'pendientes': return renderTabPendientes(a);
   }
   return '';
 }
@@ -2658,6 +2643,64 @@ function mostrarAvisoPesoFicha(msg) {
   // Mostrar banner
   const banner = document.getElementById('notas-peso-banner');
   if (banner) { banner.style.display = 'flex'; banner.textContent = '⚠ ' + msg; banner.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+}
+
+function renderTabPendientes(a) {
+  const pends = a.asigPendientes || [];
+
+  // Agrupar por nivel
+  const porNivel = {};
+  pends.forEach((p, i) => {
+    const nivel = p.nivel || 'Sin nivel';
+    if (!porNivel[nivel]) porNivel[nivel] = [];
+    porNivel[nivel].push({ ...p, idx: i });
+  });
+
+  const nivelesHtml = Object.entries(porNivel).map(([nivel, asigs]) => `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;padding:0 2px">${nivel}</div>
+      ${asigs.map(p => `
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;margin-bottom:6px">
+          <span style="font-size:16px">📗</span>
+          <span style="flex:1;font-size:13px;font-weight:600;color:var(--amber)">${p.asig}</span>
+          <button onclick="eliminarPendiente(${p.idx})"
+            style="background:none;border:none;color:var(--amber);font-size:16px;cursor:pointer;padding:0 4px;opacity:0.7" title="Eliminar">✕</button>
+        </div>`).join('')}
+    </div>`).join('');
+
+  return `<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div>
+        <div style="font-size:14px;font-weight:600">📚 Materias pendientes</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${pends.length === 0 ? 'Sin materias pendientes' : pends.length + ' materia' + (pends.length !== 1 ? 's' : '')}</div>
+      </div>
+    </div>
+
+    ${pends.length === 0
+      ? `<div style="text-align:center;padding:24px;color:var(--text3)">
+          <div style="font-size:32px;margin-bottom:8px">✅</div>
+          <div style="font-size:13px">Sin materias pendientes</div>
+        </div>`
+      : nivelesHtml}
+
+    <!-- Formulario añadir -->
+    <div style="border:1.5px solid var(--border2);border-radius:10px;padding:14px;margin-top:8px;background:var(--surface2)">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">+ Añadir materia pendiente</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input type="text" id="pend-nivel" placeholder="Nivel (ej: 1º ESO, 2º ESO...)"
+          style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
+        <input type="text" id="pend-asig" placeholder="Asignatura (ej: Matemáticas, Inglés...)"
+          style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'"
+          onkeydown="if(event.key==='Enter')añadirPendiente()">
+        <button onclick="añadirPendiente()"
+          style="padding:8px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-start">
+          + Añadir
+        </button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderTabDatos(a) {
@@ -3340,22 +3383,15 @@ function añadirPendiente() {
   if (!asig) { alert('Añade al menos el nombre de la asignatura'); return; }
   if (!a.asigPendientes) a.asigPendientes = [];
   a.asigPendientes.push({ nivel: nivel||'', asig });
-  guardarDatos(); renderFicha(a);
-  // Reabrir el panel tras re-render
-  setTimeout(() => {
-    const p = document.getElementById('panel-pendientes');
-    if (p) p.classList.remove('hidden');
-  }, 30);
+  guardarDatos();
+  cambiarTabFicha('pendientes');
 }
 
 function eliminarPendiente(idx) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   a.asigPendientes.splice(idx, 1);
-  guardarDatos(); renderFicha(a);
-  setTimeout(() => {
-    const p = document.getElementById('panel-pendientes');
-    if (p) p.classList.remove('hidden');
-  }, 30);
+  guardarDatos();
+  cambiarTabFicha('pendientes');
 }
 
 function cambiarRetrasos(delta) { cambiarIncidencia('retrasos', delta); }
@@ -7307,6 +7343,59 @@ function planoSeleccionarAlumno(aid) {
 // =====================
 // MÓDULO: TUTORÍA
 // =====================
+function renderTabPendientes(a) {
+  const pendientes = a.asigPendientes || [];
+
+  // Agrupar por nivel
+  const porNivel = {};
+  pendientes.forEach((p, i) => {
+    const key = p.nivel || 'Sin nivel';
+    if (!porNivel[key]) porNivel[key] = [];
+    porNivel[key].push({ ...p, idx: i });
+  });
+
+  const listaHtml = Object.keys(porNivel).length === 0
+    ? `<div style="padding:28px;text-align:center;color:var(--text3)">
+        <div style="font-size:32px;margin-bottom:8px">✅</div>
+        <div style="font-size:13px">Sin materias pendientes</div>
+      </div>`
+    : Object.entries(porNivel).map(([nivel, items]) => `
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:6px">${nivel}</div>
+        ${items.map(p => `
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;margin-bottom:6px">
+            <span style="font-size:16px">📚</span>
+            <span style="flex:1;font-size:13px;font-weight:600;color:var(--amber)">${p.asig}</span>
+            <button onclick="eliminarPendiente(${p.idx})"
+              style="background:none;border:none;color:var(--amber);font-size:16px;cursor:pointer;padding:0 4px;opacity:0.7" title="Eliminar">✕</button>
+          </div>`).join('')}
+      </div>`).join('');
+
+  return `<div style="padding:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600">Materias pendientes de evaluaciones anteriores</div>
+      ${pendientes.length > 0 ? `<span style="background:var(--amber);color:#fff;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:700">${pendientes.length}</span>` : ''}
+    </div>
+
+    ${listaHtml}
+
+    <!-- Formulario para añadir -->
+    <div style="margin-top:14px;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">➕ Añadir materia pendiente</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input type="text" id="pend-nivel" placeholder="Nivel / Curso (ej: 1º ESO, 2º Bachillerato...)"
+          style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
+        <input type="text" id="pend-asig" placeholder="Asignatura (ej: Matemáticas, Física y Química...)"
+          style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'"
+          onkeydown="if(event.key==='Enter')añadirPendiente()">
+        <button class="btn btn-secondary" onclick="añadirPendiente()" style="justify-content:center">+ Añadir asignatura pendiente</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderTabTutoria(a) {
   const g = APP.grupos.find(x=>x.id===a.grupoId);
   if (!g?.esTutor) return `<div class="empty-state"><div class="es-icon">★</div><h4>Este grupo no es tu tutoría</h4><p>Marca el grupo como tutoría en "Clases".</p></div>`;
