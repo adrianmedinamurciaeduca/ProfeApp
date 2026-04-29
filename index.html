@@ -1039,6 +1039,66 @@
 
 <!-- MODAL EDITAR COLOR GRUPO -->
 <!-- MODAL CONFIRMAR -->
+<!-- MODAL OPCIONES INFORME -->
+<div class="modal-overlay hidden" id="modal-informe-opciones" onclick="event.target===this&&document.getElementById('modal-informe-opciones').classList.add('hidden')">
+  <div class="modal" style="max-width:400px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>📄 Exportar informe del alumno</h3>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-informe-opciones').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Elige qué apartados incluir:</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2)">
+          <input type="checkbox" id="inf-datos" checked style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
+          <span style="font-size:13px;font-weight:500">👤 Datos personales</span>
+        </label>
+
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2)" onclick="setTimeout(()=>{const c=document.getElementById('inf-notas');const d=document.getElementById('inf-notas-trim');if(d)d.style.display=c.checked?'':'none'},10)">
+          <input type="checkbox" id="inf-notas" checked style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
+          <span style="font-size:13px;font-weight:500">📊 Notas</span>
+        </label>
+
+        <div id="inf-notas-trim" style="padding:10px 12px 10px 38px;margin-top:-4px;border:1px solid var(--border2);border-top:none;border-radius:0 0 8px 8px;background:var(--accent-bg)">
+          <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px">¿Qué evaluaciones?</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="inf-T1" checked style="accent-color:var(--accent)"> 1ª Evaluación
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="inf-T2" checked style="accent-color:var(--accent)"> 2ª Evaluación
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="inf-T3" checked style="accent-color:var(--accent)"> 3ª Evaluación
+            </label>
+          </div>
+        </div>
+
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2)">
+          <input type="checkbox" id="inf-obs" checked style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
+          <span style="font-size:13px;font-weight:500">📝 Observaciones <span style="font-size:11px;color:var(--text3);font-weight:400">(solo las no privadas)</span></span>
+        </label>
+
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2)">
+          <input type="checkbox" id="inf-reuniones" checked style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
+          <span style="font-size:13px;font-weight:500">🤝 Reuniones con la familia</span>
+        </label>
+
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2)">
+          <input type="checkbox" id="inf-pendientes" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
+          <span style="font-size:13px;font-weight:500">📚 Materias pendientes</span>
+        </label>
+
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-informe-opciones').classList.add('hidden')">Cancelar</button>
+      <button class="btn btn-primary" onclick="ejecutarExportarInforme()">📄 Exportar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL TUTORÍA DE GRUPO -->
 <div class="modal-overlay hidden" id="modal-tutoria-grupo" onclick="event.target===this&&document.getElementById('modal-tutoria-grupo').classList.add('hidden')">
   <div class="modal" style="max-width:680px" onclick="event.stopPropagation()">
@@ -3035,22 +3095,32 @@ function renderNotaFinal(a, cfg, umbral, nr, nf, redOn) {
 
 function renderTabObs(a) {
   const obs = a.observaciones || [];
+  const hayPrivadas = obs.some(o => o.privada);
   return `
   <div style="margin-bottom:12px;display:flex;gap:8px">
     <textarea id="nueva-obs" placeholder="Nueva observación..." style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;outline:none;resize:none" rows="2"></textarea>
     <button class="btn btn-primary" style="align-self:flex-end" onclick="añadirObservacion()">Añadir</button>
   </div>
+  ${hayPrivadas ? `<div style="font-size:11px;color:var(--text3);background:var(--surface2);border-radius:6px;padding:6px 10px;margin-bottom:10px">🔒 Las observaciones marcadas como <strong>Privada</strong> no se exportan en el informe del alumno.</div>` : ''}
   ${obs.length === 0 ? `<div class="empty-state" style="padding:24px"><div class="es-icon">📝</div><h4>Sin observaciones</h4></div>` :
-    obs.slice().reverse().map((o,i)=>`
-    <div class="obs-entry">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-        <div>
-          <div class="obs-fecha">${new Date(o.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-          <div style="margin-top:4px;white-space:pre-wrap">${o.texto}</div>
+    obs.slice().reverse().map((o,i)=>{
+      const idx = obs.length-1-i;
+      return `
+      <div class="obs-entry" style="${o.privada?'border-left:3px solid var(--text3);opacity:0.8':''}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span class="obs-fecha">${new Date(o.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+              <span onclick="toggleObsPrivada(${idx})" style="cursor:pointer;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;border:1.5px solid ${o.privada?'var(--text3)':'var(--border2)'};background:${o.privada?'var(--surface2)':'transparent'};color:${o.privada?'var(--text2)':'var(--text3)'};user-select:none">
+                ${o.privada?'🔒 Privada':'Privada'}
+              </span>
+            </div>
+            <div style="white-space:pre-wrap">${o.texto}</div>
+          </div>
+          <button class="btn btn-delete" onclick="eliminarObservacion(${idx})" title="Eliminar">✕</button>
         </div>
-        <button class="btn btn-delete" onclick="eliminarObservacion(${obs.length-1-i})" title="Eliminar">✕</button>
-      </div>
-    </div>`).join('')}`;
+      </div>`;
+    }).join('')}`;
 }
 
 function renderTabReuniones(a) {
@@ -3384,6 +3454,14 @@ function añadirObservacion() {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   if (!a.observaciones) a.observaciones = [];
   a.observaciones.push({fecha: new Date().toISOString(), texto});
+  guardarDatos();
+  cambiarTabFicha('observaciones');
+}
+
+function toggleObsPrivada(idx) {
+  const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
+  if (!a.observaciones[idx]) return;
+  a.observaciones[idx].privada = !a.observaciones[idx].privada;
   guardarDatos();
   cambiarTabFicha('observaciones');
 }
@@ -10027,17 +10105,48 @@ function driveGuardar() {
 // =====================
 // INFORME DEL ALUMNO
 // =====================
-function generarInformeAlumno(aid) {
+function abrirInformeOpciones(aid) {
+  window._informeAid = aid;
+  // Mostrar/ocultar selector de trimestres según checkbox de notas
+  const modal = document.getElementById('modal-informe-opciones');
+  modal.classList.remove('hidden');
+  setTimeout(() => {
+    const chkNotas = document.getElementById('inf-notas');
+    const trimDiv = document.getElementById('inf-notas-trim');
+    if (chkNotas && trimDiv) {
+      chkNotas.onchange = () => trimDiv.style.display = chkNotas.checked ? '' : 'none';
+    }
+  }, 50);
+}
+
+function ejecutarExportarInforme() {
+  document.getElementById('modal-informe-opciones').classList.add('hidden');
+  const opciones = {
+    datos:      document.getElementById('inf-datos')?.checked,
+    notas:      document.getElementById('inf-notas')?.checked,
+    obs:        document.getElementById('inf-obs')?.checked,
+    reuniones:  document.getElementById('inf-reuniones')?.checked,
+    pendientes: document.getElementById('inf-pendientes')?.checked,
+    trims:      ['T1','T2','T3'].filter(t => document.getElementById('inf-'+t)?.checked),
+  };
+  generarInformeAlumno(window._informeAid, opciones);
+}
+
+function generarInformeAlumno(aid, opciones) {
   const a = APP.alumnos.find(x => x.id === aid); if (!a) return;
+  // Si no vienen opciones abrir el modal
+  if (!opciones) { abrirInformeOpciones(aid); return; }
+
   const g = APP.grupos.find(x => x.id === a.grupoId);
   const fecha = new Date().toLocaleDateString('es-ES', {day:'2-digit',month:'long',year:'numeric'});
   const umbral = getUmbral(a);
   const redOn = APP.config.redondeoActivo !== false;
 
+  const trimsSeleccionados = opciones.trims || ['T1','T2','T3'];
   // Notas por trimestre
-  const trimestres = ['T1','T2','T3'];
   const labTrim = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'};
-  let notasHTML = trimestres.map(t => {
+  let notasHTML = '';
+  if (opciones.notas) { notasHTML = trimsSeleccionados.map(t => {
     const insts = getInstAlumnoConValores(a, t);
     if (!insts || !insts.length) return '';
     const notaTrim = calcNotaTrimestre(a, t);
@@ -10073,20 +10182,21 @@ function generarInformeAlumno(aid) {
         <tbody>${instHTML}</tbody>
       </table>
     </div>`;
-  }).filter(Boolean).join('');
+  }).filter(Boolean).join(''); }
 
   const notaFinal = calcNotaFinal(a);
   const notaFinalRed = redOn && umbral && notaFinal !== null ? redondear(notaFinal, umbral) : null;
 
-  // Observaciones
-  const obsHTML = (a.observaciones||[]).length
-    ? `<ul style="margin:0;padding-left:18px">${(a.observaciones||[]).map(o=>
+  // Observaciones — solo las no privadas
+  const obsPublicas = (a.observaciones||[]).filter(o => !o.privada);
+  const obsHTML = opciones.obs ? (obsPublicas.length
+    ? `<ul style="margin:0;padding-left:18px">${obsPublicas.map(o=>
         `<li style="font-size:12px;margin-bottom:4px;color:#333">${o.texto||o} ${o.fecha?`<span style="color:#888;font-size:11px">(${o.fecha})</span>`:''}</li>`
       ).join('')}</ul>`
-    : '<p style="color:#aaa;font-size:12px;font-style:italic">Sin observaciones registradas.</p>';
+    : '<p style="color:#aaa;font-size:12px;font-style:italic">Sin observaciones registradas.</p>') : '';
 
   // Reuniones
-  const reunHTML = (a.reuniones||[]).length
+  const reunHTML = opciones.reuniones ? ((a.reuniones||[]).length
     ? `<table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:#f0f0f0">
           <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px;text-align:left">Fecha</th>
@@ -10097,7 +10207,21 @@ function generarInformeAlumno(aid) {
           <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px">${r.texto||r.asunto||''}</td>
         </tr>`).join('')}</tbody>
       </table>`
-    : '<p style="color:#aaa;font-size:12px;font-style:italic">Sin reuniones registradas.</p>';
+    : '<p style="color:#aaa;font-size:12px;font-style:italic">Sin reuniones registradas.</p>') : '';
+
+  // Pendientes
+  const pends = a.asigPendientes || [];
+  const pendHTML = opciones.pendientes && pends.length ? `
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#f0f0f0">
+        <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px;text-align:left">Nivel</th>
+        <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px;text-align:left">Asignatura</th>
+      </tr></thead>
+      <tbody>${pends.map(p=>`<tr>
+        <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px">${p.nivel||'—'}</td>
+        <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;font-weight:600">${p.asig}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : (opciones.pendientes ? '<p style="color:#aaa;font-size:12px;font-style:italic">Sin materias pendientes.</p>' : '');
 
   // Tags ACNEE/PAP/PEP
   const tags = [a.acnee&&'ACNEE', a.pap&&'PAP', a.pep&&'PEP'].filter(Boolean);
