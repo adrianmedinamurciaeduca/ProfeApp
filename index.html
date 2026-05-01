@@ -9958,11 +9958,55 @@ function driveIniciarAuth() {
 async function driveReconectarSilencioso() {
   const token = localStorage.getItem('profeapp_drive_token');
   const exp   = parseInt(localStorage.getItem('profeapp_drive_exp') || '0');
-  if (!token || Date.now() > exp) return false; // token expirado
-  _driveToken = token;
-  _driveInited = true;
-  driveSetStatus('ok');
-  return true;
+
+  // Token válido → usar directamente
+  if (token && Date.now() < exp) {
+    _driveToken = token;
+    _driveInited = true;
+    driveSetStatus('ok');
+    return true;
+  }
+
+  // Token expirado pero el usuario ya dio permisos → renovar silenciosamente
+  // Solo si hay token guardado (indica que en algún momento autorizó)
+  if (token && navigator.onLine) {
+    return new Promise(resolve => {
+      const cargarGIS = () => {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: DRIVE_CLIENT_ID,
+          scope: DRIVE_SCOPE,
+          prompt: 'none', // sin pantalla de login ni permisos
+          callback: async (resp) => {
+            if (resp.error) {
+              // No se pudo renovar silenciosamente — el usuario tendrá que pulsar ☁️
+              driveSetStatus('off');
+              resolve(false);
+              return;
+            }
+            _driveToken = resp.access_token;
+            localStorage.setItem('profeapp_drive_token', _driveToken);
+            localStorage.setItem('profeapp_drive_exp', Date.now() + (resp.expires_in - 60) * 1000);
+            _driveInited = true;
+            driveSetStatus('ok');
+            resolve(true);
+          }
+        });
+        client.requestAccessToken({ prompt: 'none' });
+      };
+
+      if (window.google?.accounts?.oauth2) {
+        cargarGIS();
+      } else {
+        const s = document.createElement('script');
+        s.src = 'https://accounts.google.com/gsi/client';
+        s.onload = cargarGIS;
+        s.onerror = () => { driveSetStatus('off'); resolve(false); };
+        document.head.appendChild(s);
+      }
+    });
+  }
+
+  return false;
 }
 
 // ── Desconectar ───────────────────────────────────────────────
