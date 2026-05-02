@@ -1761,13 +1761,13 @@ function renderInicio() {
       // Usar borde del color del grupo pero texto oscuro siempre legible
       const borderColor = grupoCol ? grupoCol.border : (colMap[tipo]?.border || 'var(--accent)');
       const textColor   = grupoCol ? grupoCol.border : (colMap[tipo]?.text || 'var(--accent)');
-      const icon = tipo==='guardia'?'👁':tipo==='recreo'?'☕':'📚';
+      const icon = tipo==='guardia'?'👁':tipo==='recreo'?'☕':tipo==='reunion'?'🤝':tipo==='personalizado'?'✏️':'📚';
       const sesion = obtenerSesionProgramada(cel.grupoId, dKeyD(hoy));
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)">
         <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${f.inicio||''}–${f.fin||''}</div>
         <div style="width:3px;align-self:stretch;background:${borderColor};border-radius:2px;flex-shrink:0"></div>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:${textColor}">${icon} ${tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':'Recreo'}</div>
+          <div style="font-size:13px;font-weight:600;color:${textColor}">${icon} ${tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
           ${g?`<div style="font-size:12px;font-weight:600;color:var(--text2)">${g.nombre}${cel.ubicacion?' · 📍'+cel.ubicacion:''}</div>`:''}
           ${sesion?`<div style="font-size:11px;color:var(--purple);margin-top:2px">📖 ${sesion}</div>`:''}
         </div>
@@ -5903,8 +5903,8 @@ function exportarHorario() {
       const col = getColorGrupo(cel.grupoId);
       const bg = col ? col.bg : (colores[tipo] || '#f8f8f8');
       const txt = col ? col.text : (tipo !== 'libre' ? '#fff' : '#333');
-      const icono = tipo==='guardia'?'👁 ':tipo==='recreo'?'☕ ':'';
-      const linea1 = tipo==='libre' ? '' : tipo==='clase' ? (cel.materia||'Clase') : tipo==='guardia' ? 'Guardia' : 'Recreo/Descanso';
+      const icono = tipo==='guardia'?'👁 ':tipo==='recreo'?'☕ ':tipo==='reunion'?'🤝 ':tipo==='personalizado'?'✏️ ':'';
+      const linea1 = tipo==='libre' ? '' : tipo==='clase' ? (cel.materia||'Clase') : tipo==='guardia' ? 'Guardia' : tipo==='recreo' ? 'Recreo' : tipo==='reunion' ? (cel.descripcion||'Reunión') : tipo==='personalizado' ? (cel.descripcion||'Personalizado') : 'Libre';
       const linea2 = g ? g.nombre : '';
       const linea3 = cel.ubicacion ? '📍'+cel.ubicacion : '';
       return `<td style="background:${bg};color:${txt};padding:8px 10px;border:1px solid #ddd;vertical-align:middle;text-align:center;min-width:100px">
@@ -6070,15 +6070,17 @@ function hAbrirCelda(fi, di) {
 }
 
 function hRenderCeldaBody() {
-  const { tipo, materia, grupoId, ubicacion } = _celdaEstado;
+  const { tipo, materia, grupoId, ubicacion, descripcion } = _celdaEstado;
   const grupos = APP.grupos;
   const materias = [...new Set(grupos.map(g => g.asignatura).filter(Boolean))];
 
   const tiposBtns = [
-    ['libre',   '— Libre'],
-    ['clase',   '📚 Clase'],
-    ['guardia', '👁 Guardia'],
-    ['recreo',  '☕ Recreo'],
+    ['libre',        '— Libre'],
+    ['clase',        '📚 Clase'],
+    ['guardia',      '👁 Guardia'],
+    ['recreo',       '☕ Recreo'],
+    ['reunion',      '🤝 Reunión'],
+    ['personalizado','✏️ Personalizado'],
   ].map(([t, lbl]) => {
     const active = tipo === t;
     return `<button class="btn ${active ? 'btn-primary' : 'btn-secondary'}"
@@ -6112,15 +6114,28 @@ function hRenderCeldaBody() {
         </select>
       </div>`;
   }
-  if (tipo === 'clase' || tipo === 'guardia') {
+
+  if (tipo === 'reunion' || tipo === 'personalizado') {
+    camposExtra = `
+      <div class="form-group" style="margin-bottom:12px">
+        <label>${tipo === 'reunion' ? 'Tipo de reunión' : 'Descripción'}</label>
+        <input type="text" id="h-c-descripcion"
+          value="${descripcion||''}"
+          placeholder="${tipo === 'reunion' ? 'Ej: Reunión de departamento, Con familias…' : 'Ej: Permanencia, Formación…'}"
+          style="width:100%"
+          oninput="_celdaEstado.descripcion=this.value">
+      </div>`;
+  }
+
+  if (tipo === 'clase' || tipo === 'guardia' || tipo === 'reunion' || tipo === 'personalizado') {
     camposExtra += `
       <div class="form-group">
         <label>Aula / Ubicación</label>
         <input type="text" id="h-c-ubicacion"
-          value="${ubicacion}"
-          placeholder="Ej: Aula 12, Lab. Física…"
+          value="${ubicacion||''}"
+          placeholder="Ej: Sala de reuniones, Aula 12…"
           style="width:100%"
-          onchange="_celdaEstado.ubicacion=this.value">
+          oninput="_celdaEstado.ubicacion=this.value">
       </div>`;
   }
 
@@ -6142,20 +6157,23 @@ function hGuardarCelda() {
   if (!APP.horario.franjas[fi].celdas)
     APP.horario.franjas[fi].celdas = Array(5).fill(null).map(() => ({}));
 
-  // Leer valores actuales de los inputs si existen
-  const mat = document.getElementById('h-c-materia')?.value || _celdaEstado.materia;
-  const gId = document.getElementById('h-c-grupo')?.value || _celdaEstado.grupoId;
-  const ubi = document.getElementById('h-c-ubicacion')?.value || _celdaEstado.ubicacion;
+  const mat  = document.getElementById('h-c-materia')?.value || _celdaEstado.materia;
+  const gId  = document.getElementById('h-c-grupo')?.value || _celdaEstado.grupoId;
+  const ubi  = document.getElementById('h-c-ubicacion')?.value || _celdaEstado.ubicacion || '';
+  const desc = document.getElementById('h-c-descripcion')?.value || _celdaEstado.descripcion || '';
 
   const tipo = _celdaEstado.tipo;
   const cel = { tipo };
   if (tipo === 'clase') {
-    cel.materia = mat;
-    cel.grupoId = gId;
-    cel.grupo = APP.grupos.find(x => x.id === gId)?.nombre || '';
+    cel.materia  = mat;
+    cel.grupoId  = gId;
+    cel.grupo    = APP.grupos.find(x => x.id === gId)?.nombre || '';
     cel.ubicacion = ubi;
   } else if (tipo === 'guardia') {
     cel.ubicacion = ubi;
+  } else if (tipo === 'reunion' || tipo === 'personalizado') {
+    cel.descripcion = desc;
+    cel.ubicacion   = ubi;
   }
   APP.horario.franjas[fi].celdas[di] = cel;
   guardarDatos();
@@ -6467,7 +6485,7 @@ function calRenderSemana() {
         const icon=tipo==='guardia'?'👁 ':tipo==='recreo'?'☕ ':'';
         const sp=obtenerSesionProgramada(cel.grupoId,dKey(d));
         bloqHtml+=`<div style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box">
-          <div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icon}${colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':'Recreo'}</div>
+          <div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icon}${colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
           ${h>22&&g?`<div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nombre}</div>`:''}
           ${h>36&&sp?`<div style="font-size:9px;color:var(--purple);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📖 ${sp}</div>`:''}
         </div>`;
