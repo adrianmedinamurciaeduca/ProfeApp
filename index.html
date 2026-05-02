@@ -827,6 +827,14 @@
 <!-- Overlay para cerrar sidebar en móvil -->
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="cerrarSidebar()"></div>
 
+<!-- Botón flotante sincronización -->
+<div id="drive-float-btn" onclick="driveConectar()"
+  style="position:fixed;top:12px;right:12px;z-index:600;width:36px;height:36px;border-radius:50%;background:var(--surface);border:1.5px solid var(--border2);box-shadow:0 2px 8px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;transition:transform 0.15s"
+  onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform=''"
+  id="drive-float-btn">
+  <span id="drive-status-float">☁️</span>
+</div>
+
 <div class="app-shell" id="app-shell">
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
@@ -9927,8 +9935,12 @@ function driveSetStatus(estado) {
   const s = map[estado] || map.off;
   el.textContent = s.icon;
   el.title = s.title;
+  // Actualizar también el botón flotante
+  const fl = document.getElementById('drive-status-float');
+  if (fl) fl.textContent = s.icon;
+  const btn = document.getElementById('drive-float-btn');
+  if (btn) btn.title = s.title;
   localStorage.setItem('profeapp_drive_status', estado);
-  // Mostrar banner offline si no hay conexión con Drive
   if (estado === 'off' || estado === 'error') {
     mostrarBannerOffline();
   } else {
