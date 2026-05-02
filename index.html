@@ -5732,10 +5732,12 @@ function borrarInstGrupo(iIdx) {
 let _celdaEstado = { fi: -1, di: -1, tipo: 'libre', materia: '', grupoId: '', ubicacion: '' };
 
 const H_TIPOS_COLOR = {
-  clase:   { bg:'#eef1fd', text:'#1e3fa8', border:'#bfcffa' },
-  guardia: { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
-  recreo:  { bg:'#dcfce7', text:'#166534', border:'#86efac' },
-  libre:   { bg:'var(--surface2)', text:'var(--text3)', border:'var(--border)' },
+  clase:        { bg:'#eef1fd', text:'#1e3fa8', border:'#bfcffa' },
+  guardia:      { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+  recreo:       { bg:'#dcfce7', text:'#166534', border:'#86efac' },
+  reunion:      { bg:'#ede9fe', text:'#5b21b6', border:'#a78bfa' },
+  personalizado:{ bg:'#cffafe', text:'#0e7490', border:'#67e8f9' },
+  libre:        { bg:'var(--surface2)', text:'var(--text3)', border:'var(--border)' },
 };
 const DIAS_NOMBRE = ['Lunes','Martes','Miércoles','Jueves','Viernes'];
 
@@ -5798,6 +5800,12 @@ function renderHorario() {
         html += `<div style="color:${col.text};font-size:12px;font-weight:600">${cel.materia || 'Clase'}</div>`;
         html += `<div style="font-size:12px;font-weight:600;color:${col.text}">${g ? g.nombre : ''}</div>`;
         if (cel.ubicacion) html += `<div style="font-size:12px;font-weight:600;color:${col.text}">📍${cel.ubicacion}</div>`;
+      } else if (tipo === 'reunion') {
+        html += `<div style="color:${col.text};font-size:12px;font-weight:600">🤝 ${cel.descripcion||'Reunión'}</div>`;
+        if (cel.ubicacion) html += `<div style="font-size:12px;font-weight:600;color:${col.text}">📍${cel.ubicacion}</div>`;
+      } else if (tipo === 'personalizado') {
+        html += `<div style="color:${col.text};font-size:12px;font-weight:600">✏️ ${cel.descripcion||'Personalizado'}</div>`;
+        if (cel.ubicacion) html += `<div style="font-size:12px;font-weight:600;color:${col.text}">📍${cel.ubicacion}</div>`;
       } else {
         html += `<div style="color:var(--text3);font-size:20px;text-align:center;margin-top:10px">+</div>`;
       }
@@ -5813,7 +5821,7 @@ function renderHorario() {
 
   // Leyenda
   html += `<div style="margin-top:12px;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text2)">
-    ${Object.entries({ clase:'Clase', guardia:'Guardia', recreo:'Recreo/Descanso' }).map(([k, v]) =>
+    ${Object.entries({ clase:'Clase', guardia:'Guardia', recreo:'Recreo', reunion:'Reunión', personalizado:'Personalizado' }).map(([k, v]) =>
       `<span style="display:flex;align-items:center;gap:5px">
         <span style="width:12px;height:12px;border-radius:3px;background:${H_TIPOS_COLOR[k].bg};border:1px solid ${H_TIPOS_COLOR[k].border};display:inline-block"></span>${v}
       </span>`
