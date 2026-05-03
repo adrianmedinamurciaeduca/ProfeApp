@@ -9939,7 +9939,12 @@ function driveSetStatus(estado) {
   const fl = document.getElementById('drive-status-float');
   if (fl) fl.textContent = s.icon;
   const btn = document.getElementById('drive-float-btn');
-  if (btn) btn.title = s.title;
+  if (btn) {
+    btn.title = s.title;
+    btn.style.background = (estado === 'off' || estado === 'error') ? '#92400e' : 'var(--surface)';
+    btn.style.borderColor = (estado === 'off' || estado === 'error') ? '#d97706' : 'var(--border2)';
+    if (fl) fl.style.filter = (estado === 'off' || estado === 'error') ? 'brightness(10)' : '';
+  }
   localStorage.setItem('profeapp_drive_status', estado);
   if (estado === 'off' || estado === 'error') {
     mostrarBannerOffline();
@@ -10005,45 +10010,10 @@ async function driveReconectarSilencioso() {
     return true;
   }
 
-  // Token expirado pero el usuario ya dio permisos → renovar silenciosamente
-  // Solo si hay token guardado (indica que en algún momento autorizó)
-  if (token && navigator.onLine) {
-    return new Promise(resolve => {
-      const cargarGIS = () => {
-        const client = google.accounts.oauth2.initTokenClient({
-          client_id: DRIVE_CLIENT_ID,
-          scope: DRIVE_SCOPE,
-          prompt: 'none', // sin pantalla de login ni permisos
-          callback: async (resp) => {
-            if (resp.error) {
-              // No se pudo renovar silenciosamente — el usuario tendrá que pulsar ☁️
-              driveSetStatus('off');
-              resolve(false);
-              return;
-            }
-            _driveToken = resp.access_token;
-            localStorage.setItem('profeapp_drive_token', _driveToken);
-            localStorage.setItem('profeapp_drive_exp', Date.now() + (resp.expires_in - 60) * 1000);
-            _driveInited = true;
-            driveSetStatus('ok');
-            resolve(true);
-          }
-        });
-        client.requestAccessToken({ prompt: 'none' });
-      };
-
-      if (window.google?.accounts?.oauth2) {
-        cargarGIS();
-      } else {
-        const s = document.createElement('script');
-        s.src = 'https://accounts.google.com/gsi/client';
-        s.onload = cargarGIS;
-        s.onerror = () => { driveSetStatus('off'); resolve(false); };
-        document.head.appendChild(s);
-      }
-    });
-  }
-
+  // Token expirado o ausente → mostrar botón naranja para que el usuario pulse manualmente
+  // No intentamos renovar con popup automático porque en móvil con varias cuentas
+  // Google abre un popup que Chrome bloquea o usa la cuenta equivocada
+  driveSetStatus('off');
   return false;
 }
 
