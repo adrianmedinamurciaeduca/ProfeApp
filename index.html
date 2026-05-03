@@ -1107,6 +1107,27 @@
   </div>
 </div>
 
+<!-- MODAL SELECTOR ALEATORIO -->
+<div class="modal-overlay hidden" id="modal-aleatorio" onclick="event.target===this&&cerrarAleatorio()">
+  <div class="modal" style="max-width:340px;text-align:center" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>🎲 Selector aleatorio</h3>
+      <button class="btn btn-ghost btn-icon" onclick="cerrarAleatorio()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:24px 20px">
+      <div id="aleatorio-grupo" style="font-size:12px;color:var(--text3);margin-bottom:16px"></div>
+      <div id="aleatorio-avatar" style="width:80px;height:80px;border-radius:10px;margin:0 auto 14px;overflow:hidden;border:3px solid var(--accent);background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--accent)"></div>
+      <div id="aleatorio-nombre" style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px"></div>
+      <div id="aleatorio-veces" style="font-size:12px;color:var(--text3);margin-bottom:20px"></div>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button onclick="abrirFichaDesdeAleatorio()" class="btn btn-secondary">Ver ficha</button>
+        <button onclick="repetirAleatorio()" class="btn btn-primary">🎲 Otro</button>
+      </div>
+      <button onclick="resetearContadorGrupo()" style="margin-top:14px;background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline">Resetear contadores del grupo</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL TUTORÍA DE GRUPO -->
 <div class="modal-overlay hidden" id="modal-tutoria-grupo" onclick="event.target===this&&document.getElementById('modal-tutoria-grupo').classList.add('hidden')">
   <div class="modal" style="max-width:680px" onclick="event.stopPropagation()">
@@ -2080,6 +2101,8 @@ function renderAlumnos() {
               style="padding:5px 12px;border-radius:8px;border:1.5px solid #a0c0d8;background:#e0f0f8;color:#0a4a6a;font-size:12px;font-weight:600;cursor:pointer">🗺 Plano</button>
             <button onclick="abrirModalNuevo('${g.id}')"
               style="padding:5px 12px;border-radius:8px;border:1.5px solid #a0b8e8;background:#e8f0fc;color:#1a4a9a;font-size:12px;font-weight:600;cursor:pointer">+ Alumno</button>
+            <button onclick="selectorAleatorio('${g.id}')" title="Seleccionar alumno al azar (ponderado por participación)"
+              style="padding:5px 12px;border-radius:8px;border:1.5px solid #c0a8e0;background:#f0e8fc;color:#5a1a9a;font-size:12px;font-weight:600;cursor:pointer">🎲 Aleatorio</button>
             ${g.esTutor?`<button onclick="abrirTutoriaGrupo('${g.id}')"
               style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:12px;font-weight:600;cursor:pointer">⭐ Tutoría</button>`:''}
             <div class="grupo-menu-wrap" style="margin-left:auto">
@@ -3828,6 +3851,88 @@ function abrirTutoriaGrupo(gid) {
   const alumnoFicticio = { grupoId: gid };
   document.getElementById('tutoria-grupo-body').innerHTML = renderTabTutoria(alumnoFicticio);
   document.getElementById('modal-tutoria-grupo').classList.remove('hidden');
+}
+
+// ── Selector aleatorio ponderado ─────────────────────────────
+let _aleatorioGid = null;
+let _aleatorioAid = null;
+
+function selectorAleatorio(gid) {
+  _aleatorioGid = gid;
+  document.getElementById('modal-aleatorio').classList.remove('hidden');
+  elegirAlumnoAleatorio(gid);
+}
+
+function elegirAlumnoAleatorio(gid) {
+  const g = APP.grupos.find(x => x.id === gid); if (!g) return;
+  const als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
+  if (!als.length) { alert('No hay alumnos en este grupo.'); return; }
+
+  // Calcular peso inverso: menos veces participado = más probabilidad
+  const maxVeces = Math.max(...als.map(a => a.vecesSeleccionado || 0));
+  const pesos = als.map(a => maxVeces - (a.vecesSeleccionado || 0) + 1);
+  const totalPeso = pesos.reduce((s, p) => s + p, 0);
+
+  // Selección ponderada
+  let r = Math.random() * totalPeso;
+  let elegido = als[als.length - 1];
+  for (let i = 0; i < als.length; i++) {
+    r -= pesos[i];
+    if (r <= 0) { elegido = als[i]; break; }
+  }
+
+  _aleatorioAid = elegido.id;
+
+  // Incrementar contador
+  if (!elegido.vecesSeleccionado) elegido.vecesSeleccionado = 0;
+  elegido.vecesSeleccionado++;
+  guardarDatos();
+
+  // Mostrar resultado
+  const col = getColorGrupo(gid);
+  const brd = col ? col.border : 'var(--accent)';
+  const av = document.getElementById('aleatorio-avatar');
+  av.style.borderColor = brd;
+  av.style.color = brd;
+  if (elegido.foto) {
+    av.innerHTML = `<img src="${elegido.foto}" style="width:100%;height:100%;object-fit:cover">`;
+  } else {
+    av.innerHTML = iniciales(elegido);
+    av.style.background = col ? col.light : 'var(--accent-bg)';
+  }
+  document.getElementById('aleatorio-grupo').textContent = g.nombre;
+  document.getElementById('aleatorio-nombre').textContent = `${elegido.apellidos||''}, ${elegido.nombre||''}`;
+  document.getElementById('aleatorio-veces').textContent =
+    `Ha participado ${elegido.vecesSeleccionado} vez${elegido.vecesSeleccionado !== 1 ? 'ces' : ''}`;
+}
+
+function repetirAleatorio() {
+  elegirAlumnoAleatorio(_aleatorioGid);
+}
+
+function cerrarAleatorio() {
+  document.getElementById('modal-aleatorio').classList.add('hidden');
+  _aleatorioGid = null;
+  _aleatorioAid = null;
+}
+
+function abrirFichaDesdeAleatorio() {
+  cerrarAleatorio();
+  if (_aleatorioAid) {
+    navTo('alumnos');
+    const a = APP.alumnos.find(x => x.id === _aleatorioAid);
+    if (a) gruposExpandidos[a.grupoId] = true;
+    setTimeout(() => busquedaIrAlumno(_aleatorioAid), 150);
+  }
+}
+
+function resetearContadorGrupo() {
+  if (!_aleatorioGid) return;
+  confirmar('Resetear contadores', '¿Resetear el contador de participaciones de todos los alumnos de este grupo?', () => {
+    APP.alumnos.filter(a => a.grupoId === _aleatorioGid).forEach(a => { a.vecesSeleccionado = 0; });
+    guardarDatos();
+    elegirAlumnoAleatorio(_aleatorioGid);
+  }, 'Resetear');
 }
 
 function toggleTutor(gid) {
