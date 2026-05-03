@@ -3917,12 +3917,13 @@ function cerrarAleatorio() {
 }
 
 function abrirFichaDesdeAleatorio() {
+  const aid = _aleatorioAid;
   cerrarAleatorio();
-  if (_aleatorioAid) {
-    navTo('alumnos');
-    const a = APP.alumnos.find(x => x.id === _aleatorioAid);
+  if (aid) {
+    const a = APP.alumnos.find(x => x.id === aid);
     if (a) gruposExpandidos[a.grupoId] = true;
-    setTimeout(() => busquedaIrAlumno(_aleatorioAid), 150);
+    navTo('alumnos');
+    setTimeout(() => busquedaIrAlumno(aid), 150);
   }
 }
 
