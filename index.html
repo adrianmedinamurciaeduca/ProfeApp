@@ -7209,6 +7209,10 @@ function renderProgramacion() {
       <div class="toggle ${prog.activa ? 'on' : ''}"></div>
       <span style="font-size:13px;font-weight:500">${prog.activa ? 'Activa' : 'Desactivada'}</span>
     </label>
+    <label class="btn btn-secondary btn-sm" style="cursor:pointer" title="Importar programación desde JSON">
+      📥 Importar
+      <input type="file" accept=".json" style="display:none" onchange="importarProgramacion(this)">
+    </label>
     ${prog.activa ? `<button class="btn btn-primary btn-sm" onclick="abrirModalNivel()">+ Nivel / Materia</button>` : ''}
   </div>`;
 
@@ -7334,6 +7338,44 @@ function renderProgramacion() {
   }).join('');
 
   return topbar + `<div class="page">${body}</div>` + renderModalesProg();
+}
+
+function importarProgramacion(input) {
+  const file = input.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const datos = JSON.parse(ev.target.result);
+      // Acepta tanto un JSON de programación directa como un backup completo
+      const prog = datos.programacion || datos;
+      if (!prog.niveles || !Array.isArray(prog.niveles)) {
+        alert('El archivo no contiene una programación válida.');
+        return;
+      }
+      if (!APP.programacion) APP.programacion = { activa: true, niveles: [] };
+      // Añadir los niveles importados (sin borrar los existentes)
+      const existentes = APP.programacion.niveles.map(n => n.nombre);
+      let añadidos = 0;
+      prog.niveles.forEach(niv => {
+        if (existentes.includes(niv.nombre)) {
+          if (!confirm(`Ya existe un nivel llamado "${niv.nombre}". ¿Sobreescribirlo?`)) return;
+          const idx = APP.programacion.niveles.findIndex(n => n.nombre === niv.nombre);
+          APP.programacion.niveles[idx] = niv;
+        } else {
+          APP.programacion.niveles.push(niv);
+        }
+        añadidos++;
+      });
+      APP.programacion.activa = true;
+      guardarDatos();
+      renderPage();
+      alert(`✅ Programación importada correctamente (${añadidos} nivel${añadidos !== 1 ? 'es' : ''}).\n\nAsigna tus grupos al nivel desde el botón de edición.`);
+    } catch(e) {
+      alert('Error al leer el archivo. Asegúrate de que es un JSON válido.');
+    }
+    input.value = '';
+  };
+  r.readAsText(file);
 }
 
 function toggleProg() { APP.programacion.activa = !APP.programacion.activa; guardarDatos(); renderPage(); }
