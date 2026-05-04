@@ -1791,7 +1791,7 @@ function renderInicio() {
       const borderColor = grupoCol ? grupoCol.border : (colMap[tipo]?.border || 'var(--accent)');
       const textColor   = grupoCol ? grupoCol.border : (colMap[tipo]?.text || 'var(--accent)');
       const icon = tipo==='guardia'?'👁':tipo==='recreo'?'☕':tipo==='reunion'?'🤝':tipo==='personalizado'?'✏️':'📚';
-      const sesion = obtenerSesionProgramada(cel.grupoId, dKeyD(hoy));
+      const sesion = obtenerSesionProgramada(cel.grupoId, dKey(hoy));
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)">
         <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${f.inicio||''}–${f.fin||''}</div>
         <div style="width:3px;align-self:stretch;background:${borderColor};border-radius:2px;flex-shrink:0"></div>
@@ -1805,7 +1805,7 @@ function renderInicio() {
     if (!agendaHtml) agendaHtml = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin clases hoy</div>`;
 
     // Añadir eventos del calendario de hoy
-    const eventosHoy = (APP.calendario?.eventos||[]).filter(ev => ev.fecha === dKeyD(hoy));
+    const eventosHoy = (APP.calendario?.eventos||[]).filter(ev => ev.fecha === dKey(hoy));
     if (eventosHoy.length) {
       agendaHtml += eventosHoy.map(ev => {
         const tipo = CAL_TIPOS[ev.tipo] || CAL_TIPOS.evento;
@@ -1834,7 +1834,7 @@ function renderInicio() {
     for (let d = 1; d <= 7; d++) {
       const fecha = new Date(hoy); fecha.setDate(hoy.getDate() + d);
       if (fecha.getDay()===0||fecha.getDay()===6) continue;
-      const fKey = dKeyD(fecha);
+      const fKey = dKey(fecha);
       const diaSemF = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][fecha.getDay()];
       const diaMes = fecha.getDate();
       APP.grupos.forEach(g => {
@@ -6605,10 +6605,10 @@ function calRenderSemana() {
         const col=colorDia?{bg:colorDia.bg,text:colorDia.text,border:colorDia.border}:grupoCol||colMap[tipo]||{bg:'var(--surface2)',text:'var(--text3)',border:'var(--border)'};
         const top=(ini-minH)*PX, h=Math.max((fin-ini)*PX,18);
         const icon=tipo==='guardia'?'👁 ':tipo==='recreo'?'☕ ':'';
-        const sp=obtenerSesionProgramada(cel.grupoId,dKey(d));
-        const spData = sp ? obtenerSesionProgramadaCompleta(cel.grupoId,dKey(d)) : null;
-        const spAttrs = spData ? `data-sp-ni="${spData.ni}" data-sp-bi="${spData.bi}" data-sp-si="${spData.si}" style="cursor:pointer"` : '';
-        bloqHtml+=`<div ${spAttrs} style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box">
+        let _spInfo=null; try{_spInfo=obtenerInfoSesion(cel.grupoId,dKey(d));}catch(e){}
+        const sp = _spInfo ? `S${_spInfo.sesNum} – ${_spInfo.sesion?.titulo||_spInfo.bloque?.titulo||'Sesión'}` : null;
+        const spAttrs = _spInfo ? `data-sp-grupo="${cel.grupoId}" data-sp-fecha="${dKey(d)}"` : '';
+        bloqHtml+=`<div ${spAttrs} style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box;cursor:${_spInfo?'pointer':'default'}">
           <div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icon}${colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
           ${h>22&&g?`<div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nombre}</div>`:''}
           ${h>36&&sp?`<div style="font-size:9px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📖 ${sp}</div>`:''}
@@ -6799,13 +6799,14 @@ function calRenderDia() {
       const titulo = icon+(colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado'));
 
       // Sesión programada
-      const sp = obtenerSesionProgramada(cel.grupoId, dKeyD(calFecha));
-      const spData = sp ? obtenerSesionProgramadaCompleta(cel.grupoId, dKeyD(calFecha)) : null;
-      const spAttrs = spData ? `data-sp-ni="${spData.ni}" data-sp-bi="${spData.bi}" data-sp-si="${spData.si}"` : '';
+      let _spInfoDia = null;
+      try { _spInfoDia = obtenerInfoSesion(cel.grupoId, dKey(calFecha)); } catch(e) {}
+      const sp = _spInfoDia ? `S${_spInfoDia.sesNum} – ${_spInfoDia.sesion?.titulo||_spInfoDia.bloque?.titulo||'Sesión'}` : null;
+      const spAttrs = _spInfoDia ? `data-sp-grupo="${cel.grupoId}" data-sp-fecha="${dKey(calFecha)}"` : '';
 
       const h = Math.max((fin-ini)*PX_MIN, 22);
       const top = (ini-minHora)*PX_MIN;
-      bloquesHtml += `<div ${spAttrs} style="position:absolute;top:${top.toFixed(1)}px;left:0;right:0;height:${h.toFixed(1)}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 5px 5px 0;padding:3px 6px;box-sizing:border-box;overflow:hidden;cursor:${spData?'pointer':'default'};z-index:2">
+      bloquesHtml += `<div ${spAttrs} style="position:absolute;top:${top.toFixed(1)}px;left:0;right:0;height:${h.toFixed(1)}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 5px 5px 0;padding:3px 6px;box-sizing:border-box;overflow:hidden;cursor:${_spInfoDia?'pointer':'default'};z-index:2">
         <div style="font-size:11px;font-weight:700;color:${col.text};line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${titulo}</div>
         ${h>28?`<div style="font-size:10px;color:${col.text};opacity:0.8;line-height:1.3;overflow:hidden">${sub}</div>`:''}
         ${h>44&&sp?`<div style="font-size:10px;color:#fff;font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📖 ${sp}</div>`:''}
@@ -7486,35 +7487,30 @@ function calcProgreso(niv) {
 
 // Para el calendario: qué sesión toca en un día y grupo concreto
 function obtenerSesionProgramadaCompleta(grupoId, fechaKey) {
-  if (!APP.programacion?.activa || !APP.programacion.niveles) return null;
-  for (let ni = 0; ni < APP.programacion.niveles.length; ni++) {
-    const nivel = APP.programacion.niveles[ni];
-    if (!nivel.grupos?.includes(grupoId)) continue;
-    for (let bi = 0; bi < nivel.bloques.length; bi++) {
-      const bloque = nivel.bloques[bi];
-      for (let si = 0; si < bloque.sesiones.length; si++) {
-        if (bloque.sesiones[si].fechaProg === fechaKey) return { ni, bi, si };
-      }
-    }
-  }
-  return null;
+  return obtenerInfoSesion(grupoId, fechaKey);
 }
 
 // Delegación de clicks para sesiones programadas en el calendario
 document.addEventListener('click', e => {
-  const el = e.target.closest('[data-sp-ni]');
+  const el = e.target.closest('[data-sp-grupo]');
   if (!el) return;
-  const ni = parseInt(el.dataset.spNi);
-  const bi = parseInt(el.dataset.spBi);
-  const si = parseInt(el.dataset.spSi);
-  calAbrirSesionDesdeCalendario(ni, bi, si);
+  const grupoId = el.dataset.spGrupo;
+  const fechaKey = el.dataset.spFecha;
+  if (!grupoId || !fechaKey) return;
+  try {
+    const info = obtenerInfoSesion(grupoId, fechaKey);
+    if (!info) return;
+    const ni = APP.programacion.niveles.indexOf(info.nivel);
+    calAbrirSesionDesdeCalendario(ni, info.bi, info.si);
+  } catch(e) { console.warn('Error abriendo sesión:', e); }
 });
 
 function calAbrirSesionDesdeCalendario(ni, bi, si) {
   ni = parseInt(ni); bi = parseInt(bi); si = parseInt(si);
-  const nivel = APP.programacion.niveles[ni];
+  const nivel = APP.programacion.niveles.find((n,i) => i === ni) || APP.programacion.niveles[ni];
+  if (!nivel) return;
   const bloque = nivel.bloques[bi];
-  const sesion = bloque.sesiones[si];
+  const sesion = bloque?.sesiones[si];
   if (!sesion) return;
   _calSesionContext = { nivel, bloque, sesion, ni, bi, si };
   const tipoIcon = { explicacion:'📘', practica:'🔬', examen:'📝', correccion:'✔️', mixta:'📚' }[sesion.tipo] || '📘';
