@@ -7270,6 +7270,7 @@ function renderProgramacion() {
           </div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-secondary btn-sm" onclick="duplicarNivel(${ni})" title="Duplicar este nivel">⧉ Duplicar</button>
           <button class="btn btn-secondary btn-sm" onclick="abrirEditarNivel(${ni})">✏</button>
           <button class="btn btn-primary btn-sm" onclick="abrirModalBloque(${ni})">+ Bloque</button>
           <button class="btn btn-delete" onclick="eliminarNivel(${ni})">✕</button>
@@ -7703,6 +7704,33 @@ function guardarNivel() {
   document.getElementById('modal-nivel').classList.add('hidden');
   renderPage();
 }
+function duplicarNivel(ni) {
+  const original = APP.programacion.niveles[ni];
+  const nuevoNombre = prompt(`Nombre para la copia:`, original.nombre + ' (copia)');
+  if (!nuevoNombre?.trim()) return;
+
+  // Copia profunda — nuevo id, nuevo nombre, sin grupos asignados, sesiones reseteadas a pendiente
+  const copia = JSON.parse(JSON.stringify(original));
+  copia.id = uid();
+  copia.nombre = nuevoNombre.trim();
+  copia.grupos = []; // Sin grupos — el usuario asigna los suyos
+  // Resetear progreso de sesiones (estado y notas de clase)
+  copia.bloques.forEach(b => {
+    b.id = uid();
+    b.sesiones.forEach(s => {
+      s.id = uid();
+      s.estado = 'pendiente';
+      s.notaReal = '';
+      s.audioNota = '';
+      s.fechaProg = ''; // Sin fecha programada — se reasignará según el horario
+    });
+  });
+
+  APP.programacion.niveles.splice(ni + 1, 0, copia);
+  guardarDatos();
+  renderPage();
+}
+
 function eliminarNivel(ni) {
   if (!confirm('¿Eliminar este nivel y toda su programación?')) return;
   APP.programacion.niveles.splice(ni, 1);
