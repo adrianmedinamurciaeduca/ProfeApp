@@ -6607,8 +6607,8 @@ function calRenderSemana() {
         const icon=tipo==='guardia'?'👁 ':tipo==='recreo'?'☕ ':'';
         const sp=obtenerSesionProgramada(cel.grupoId,dKey(d));
         const spData = sp ? obtenerSesionProgramadaCompleta(cel.grupoId,dKey(d)) : null;
-        const clickSp = spData ? `onclick="calAbrirSesionDesdeCalendario('${spData.ni}','${spData.bi}','${spData.si}')" style="cursor:pointer"` : '';
-        bloqHtml+=`<div ${clickSp} style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box">
+        const spAttrs = spData ? `data-sp-ni="${spData.ni}" data-sp-bi="${spData.bi}" data-sp-si="${spData.si}" style="cursor:pointer"` : '';
+        bloqHtml+=`<div ${spAttrs} style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box">
           <div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icon}${colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
           ${h>22&&g?`<div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nombre}</div>`:''}
           ${h>36&&sp?`<div style="font-size:9px;color:#111;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📖 ${sp}</div>`:''}
@@ -7484,6 +7484,16 @@ function obtenerSesionProgramadaCompleta(grupoId, fechaKey) {
   }
   return null;
 }
+
+// Delegación de clicks para sesiones programadas en el calendario
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-sp-ni]');
+  if (!el) return;
+  const ni = parseInt(el.dataset.spNi);
+  const bi = parseInt(el.dataset.spBi);
+  const si = parseInt(el.dataset.spSi);
+  calAbrirSesionDesdeCalendario(ni, bi, si);
+});
 
 function calAbrirSesionDesdeCalendario(ni, bi, si) {
   ni = parseInt(ni); bi = parseInt(bi); si = parseInt(si);
