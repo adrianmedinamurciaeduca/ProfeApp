@@ -1778,46 +1778,57 @@ function renderInicio() {
   } else if (!franjas.length) {
     agendaHtml = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Configura tu horario para ver la agenda.</div>`;
   } else {
-    const colMap = { clase:{bg:'var(--accent-bg)',text:'var(--accent)',border:'var(--accent)'},
-                     guardia:{bg:'#fef9c3',text:'#854d0e',border:'#ca8a04'},
-                     recreo:{bg:'#dcfce7',text:'#166534',border:'#16a34a'} };
     agendaHtml = franjas.map(f => {
       const cel  = (f.celdas||[])[diIdx]||{};
       const tipo = cel.tipo||'libre';
       if (tipo==='libre') return '';
       const g = cel.grupoId ? APP.grupos.find(x=>x.id===cel.grupoId) : null;
       const grupoCol = (tipo==='clase'&&cel.grupoId) ? getColorGrupo(cel.grupoId) : null;
-      // Usar borde del color del grupo pero texto oscuro siempre legible
-      const borderColor = grupoCol ? grupoCol.border : (colMap[tipo]?.border || 'var(--accent)');
-      const textColor   = grupoCol ? grupoCol.border : (colMap[tipo]?.text || 'var(--accent)');
+      const borderColor = grupoCol ? grupoCol.border : ({guardia:'#ca8a04',recreo:'#16a34a',reunion:'#7c3aed',personalizado:'#0891b2'}[tipo]||'var(--accent)');
+      const textColor   = grupoCol ? grupoCol.border : ({guardia:'#854d0e',recreo:'#166534',reunion:'#5b21b6',personalizado:'#0e7490'}[tipo]||'var(--accent)');
       const icon = tipo==='guardia'?'👁':tipo==='recreo'?'☕':tipo==='reunion'?'🤝':tipo==='personalizado'?'✏️':'📚';
-      const sesion = obtenerSesionProgramada(cel.grupoId, dKey(hoy));
-      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)">
+
+      // Sesión programada — clicable
+      let spInfo = null;
+      try { spInfo = obtenerInfoSesion(cel.grupoId, dKey(hoy)); } catch(e) {}
+      const spText = spInfo ? `S${spInfo.sesNum} – ${spInfo.sesion?.titulo||spInfo.bloque?.titulo||'Sesión'}` : null;
+      const spClick = spInfo ? `onclick="(()=>{navTo('calendario');setTimeout(()=>{const ni=APP.programacion.niveles.indexOf(obtenerInfoSesion('${cel.grupoId}','${dKey(hoy)}')?.nivel);calAbrirSesionDesdeCalendario(ni,${spInfo.bi},${spInfo.si});},200);})()"` : '';
+      const grupoClick = !spInfo && cel.grupoId ? `onclick="navTo('alumnos');setTimeout(()=>{gruposExpandidos['${cel.grupoId}']=true;renderPage('alumnos');},100)"` : '';
+      const clickAttr = spClick || grupoClick;
+
+      return `<div ${clickAttr} style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);${clickAttr?'cursor:pointer':''}">
         <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${f.inicio||''}–${f.fin||''}</div>
         <div style="width:3px;align-self:stretch;background:${borderColor};border-radius:2px;flex-shrink:0"></div>
         <div style="flex:1">
           <div style="font-size:13px;font-weight:600;color:${textColor}">${icon} ${tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
           ${g?`<div style="font-size:12px;font-weight:600;color:var(--text2)">${g.nombre}${cel.ubicacion?' · 📍'+cel.ubicacion:''}</div>`:''}
-          ${sesion?`<div style="font-size:11px;color:var(--purple);margin-top:2px">📖 ${sesion}</div>`:''}
+          ${spText?`<div style="font-size:11px;color:var(--purple);margin-top:2px">📖 ${spText}</div>`:''}
         </div>
+        ${clickAttr?`<span style="font-size:12px;color:var(--text3)">›</span>`:''}
       </div>`;
     }).join('');
+
     if (!agendaHtml) agendaHtml = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin clases hoy</div>`;
 
-    // Añadir eventos del calendario de hoy
-    const eventosHoy = (APP.calendario?.eventos||[]).filter(ev => ev.fecha === dKey(hoy));
+    // Eventos del calendario que incluyen hoy (soporte para eventos de varios días)
+    const eventosHoy = calEvsDia(hoy);
     if (eventosHoy.length) {
       agendaHtml += eventosHoy.map(ev => {
         const tipo = CAL_TIPOS[ev.tipo] || CAL_TIPOS.evento;
         const g = ev.grupoId ? APP.grupos.find(x=>x.id===ev.grupoId) : null;
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)">
-          <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${ev.horaInicio||'Todo el día'}</div>
+        const esRango = ev.fechaFin && ev.fechaFin !== ev.fecha;
+        const horaLabel = ev.diaEntero ? 'Todo el día' : (ev.horaInicio || '');
+        const rangoLabel = esRango ? ` (hasta ${new Date(ev.fechaFin+'T12:00').toLocaleDateString('es-ES',{day:'numeric',month:'short'})})` : '';
+        return `<div onclick="navTo('calendario');setTimeout(()=>calEditarEvento('${ev.id}'),200)"
+          style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);cursor:pointer">
+          <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${horaLabel}</div>
           <div style="width:3px;align-self:stretch;background:${tipo.bg};border-radius:2px;flex-shrink:0"></div>
           <div style="flex:1">
-            <div style="font-size:13px;font-weight:600;color:${tipo.bg}">${ev.titulo}</div>
+            <div style="font-size:13px;font-weight:600;color:${tipo.bg}">${ev.titulo}${rangoLabel}</div>
             ${g?`<div style="font-size:12px;color:var(--text2)">${g.nombre}</div>`:''}
             ${ev.descripcion?`<div style="font-size:11px;color:var(--text3)">${ev.descripcion}</div>`:''}
           </div>
+          <span style="font-size:12px;color:var(--text3)">›</span>
         </div>`;
       }).join('');
     }
@@ -7105,14 +7116,15 @@ function calRenderFormEvento(fechaDefault, ev) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>${hayRango ? 'Fecha inicio' : 'Fecha'}</label>
+        <label>Fecha inicio</label>
         <input type="date" id="cal-ev-fecha" value="${ev?.fecha || fechaDefault}"
-          ${hayRango ? `onchange="const fin=document.getElementById('cal-ev-fechafin');if(fin&&fin.value<this.value)fin.value=this.value;"` : ''}>
+          onchange="const fin=document.getElementById('cal-ev-fechafin');if(fin&&fin.value<this.value)fin.value=this.value;">
       </div>
-      ${hayRango ? `<div class="form-group">
+      <div class="form-group">
         <label>Fecha fin</label>
-        <input type="date" id="cal-ev-fechafin" value="${ev?.fechaFin || ev?.fecha || fechaDefault}" min="${ev?.fecha || fechaDefault}">
-      </div>` : ''}
+        <input type="date" id="cal-ev-fechafin" value="${ev?.fechaFin || ev?.fecha || fechaDefault}"
+          min="${ev?.fecha || fechaDefault}">
+      </div>
     </div>
     ${horaFields}
     <div class="form-group" style="margin-top:10px">
@@ -7157,18 +7169,16 @@ function calGuardarEvento() {
   const titulo = document.getElementById('cal-ev-tituloinput')?.value?.trim();
   if (!titulo) { alert('Añade un título'); return; }
   if (!APP.calendario) APP.calendario = { eventos: [] };
-  const hayRango = CAL_TIPOS[_calTipoEvento]?.diaCompleto;
   const fechaInicio = document.getElementById('cal-ev-fecha')?.value || dKey(calFecha);
   const fechaFinRaw = document.getElementById('cal-ev-fechafin')?.value || '';
-  const diaEntero = hayRango ? true : (window._calDiaEntero !== false);
-  let fechaFin = fechaInicio;
-  if (hayRango && fechaFinRaw && fechaFinRaw >= fechaInicio) fechaFin = fechaFinRaw;
+  const fechaFin = (fechaFinRaw && fechaFinRaw >= fechaInicio) ? fechaFinRaw : fechaInicio;
+  const diaEntero = window._calDiaEntero !== false;
   const datos = {
     titulo, tipo: _calTipoEvento, fecha: fechaInicio, fechaFin,
     descripcion: document.getElementById('cal-ev-desc')?.value || '',
     diaEntero,
-    horaInicio: (!hayRango && !diaEntero) ? (document.getElementById('cal-ev-hinicio')?.value || '') : '',
-    horaFin:    (!hayRango && !diaEntero) ? (document.getElementById('cal-ev-hfin')?.value    || '') : '',
+    horaInicio: !diaEntero ? (document.getElementById('cal-ev-hinicio')?.value || '') : '',
+    horaFin:    !diaEntero ? (document.getElementById('cal-ev-hfin')?.value    || '') : '',
   };
   if (_calEditandoId) {
     const idx = APP.calendario.eventos.findIndex(e => e.id === _calEditandoId);
