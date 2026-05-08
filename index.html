@@ -1838,7 +1838,7 @@ function renderInicio() {
       // Sesión programada — clicable
       let spInfo = null;
       try { spInfo = obtenerInfoSesion(cel.grupoId, dKey(hoy)); } catch(e) {}
-      const spText = spInfo ? `S${spInfo.sesNum} – ${spInfo.sesion?.titulo||spInfo.bloque?.titulo||'Sesión'}` : null;
+      const spText = spInfo ? `${spInfo.bloque?.titulo||'Sesión'} · S${spInfo.sesNum}` : null;
       const spClick = spInfo ? `onclick="(()=>{navTo('calendario');setTimeout(()=>{const ni=APP.programacion.niveles.indexOf(obtenerInfoSesion('${cel.grupoId}','${dKey(hoy)}')?.nivel);calAbrirSesionDesdeCalendario(ni,${spInfo.bi},${spInfo.si});},200);})()"` : '';
       const grupoClick = !spInfo && cel.grupoId ? `onclick="navTo('alumnos');setTimeout(()=>{gruposExpandidos['${cel.grupoId}']=true;renderPage('alumnos');},100)"` : '';
       const clickAttr = spClick || grupoClick;
@@ -7298,7 +7298,7 @@ function calRenderSemana() {
         const top=(ini-minH)*PX, h=Math.max((fin-ini)*PX,18);
         const icon=tipo==='guardia'?'👁 ':tipo==='recreo'?'☕ ':'';
         let _spInfo=null; try{_spInfo=obtenerInfoSesion(cel.grupoId,dKey(d));}catch(e){}
-        const sp = _spInfo ? `S${_spInfo.sesNum} – ${_spInfo.sesion?.titulo||_spInfo.bloque?.titulo||'Sesión'}` : null;
+        const sp = _spInfo ? `${_spInfo.bloque?.titulo||'Sesión'} · S${_spInfo.sesNum}` : null;
         const spAttrs = _spInfo ? `data-sp-grupo="${cel.grupoId}" data-sp-fecha="${dKey(d)}"` : '';
         bloqHtml+=`<div ${spAttrs} style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box;cursor:${_spInfo?'pointer':'default'}">
           <div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icon}${colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
@@ -7493,7 +7493,7 @@ function calRenderDia() {
       // Sesión programada
       let _spInfoDia = null;
       try { _spInfoDia = obtenerInfoSesion(cel.grupoId, dKey(calFecha)); } catch(e) {}
-      const sp = _spInfoDia ? `S${_spInfoDia.sesNum} – ${_spInfoDia.sesion?.titulo||_spInfoDia.bloque?.titulo||'Sesión'}` : null;
+      const sp = _spInfoDia ? `${_spInfoDia.bloque?.titulo||'Sesión'} · S${_spInfoDia.sesNum}` : null;
       const spAttrs = _spInfoDia ? `data-sp-grupo="${cel.grupoId}" data-sp-fecha="${dKey(calFecha)}"` : '';
 
       const h = Math.max((fin-ini)*PX_MIN, 22);
@@ -7661,7 +7661,7 @@ function calVerSesion(grupoId, fechaKey) {
     : {bg:'var(--bg)',text:'var(--text3)',lbl:'Pendiente'};
 
   document.getElementById('cal-ses-titulo').textContent =
-    `S${sesNum} · ${sesion?.titulo || bloque.titulo}`;
+    `${bloque.titulo} · S${sesNum}`;
 
   document.getElementById('cal-ses-body').innerHTML = `
     <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;margin-bottom:14px;font-size:13px">
@@ -7998,7 +7998,7 @@ function renderProgramacion() {
       <div class="es-icon">📚</div><h4>Sin niveles todavía</h4>
       <p>Crea un nivel como "4º ESO Física" y añade los bloques de contenido con su nº de sesiones.</p>
       <button class="btn btn-primary" style="margin-top:12px" onclick="abrirModalNivel()">+ Crear primer nivel</button>
-    </div></div></div>` + renderModalesProg();
+    </div></div></div>`;
 
   const body = prog.niveles.map((niv, ni) => {
     const bloques = niv.bloques || [];
@@ -8109,7 +8109,7 @@ function renderProgramacion() {
     </div>`;
   }).join('');
 
-  return topbar + `<div class="page">${body}</div>` + renderModalesProg();
+  return topbar + `<div class="page">${body}</div>`;
 }
 
 function exportarProgramacion() {
@@ -8537,7 +8537,7 @@ function calAbrirSesionDesdeCalendario(ni, bi, si) {
 function obtenerSesionProgramada(grupoId, fechaKey) {
   const info = obtenerInfoSesion(grupoId, fechaKey);
   if (!info) return null;
-  return `S${info.sesNum} – ${info.sesion?.titulo || info.bloque?.titulo || 'Sesión'}`;
+  return `${info.bloque?.titulo || 'Sesión'} · S${info.sesNum}`;
 }
 
 // Devuelve el objeto completo con nivel, bloque, sesion y número
@@ -12128,6 +12128,13 @@ renderPage('inicio');
 applyBottomNav();
 driveSetStatus('off');
 registrarServiceWorker();
+// Inject programacion modals into body so they're accessible from any page
+(function() {
+  const div = document.createElement('div');
+  div.id = 'prog-modales-global';
+  div.innerHTML = renderModalesProg();
+  document.body.appendChild(div);
+})();
 
 // Atajo de teclado Ctrl+K / Cmd+K para búsqueda global
 document.addEventListener('keydown', e => {
