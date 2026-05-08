@@ -2524,12 +2524,14 @@ function renderVistaLista(g, als) {
 let _cuadernoTrim = {};      // { gid: 'T1' }
 let _cuadernoFotos = {};     // { gid: true/false }
 let _cuadernoEdicion = {};   // { gid: true/false }
+let _cuadernoRec = {};       // { gid: true/false } — mostrar fila recuperación
 
 function renderVistaCuaderno(g, als) {
   const gid = g.id;
   const trim = _cuadernoTrim[gid] || 'T1';
   const mostrarFotos = _cuadernoFotos[gid] !== false;
   const edicion = _cuadernoEdicion[gid] === true;
+  const mostrarRec = _cuadernoRec[gid] === true;
   const insts = g.estructura?.[trim] || [];
   const umbral = parseFloat(APP.config.redondeoAlza) || 0.5;
   const redOn = APP.config.redondeoActivo !== false;
@@ -2575,8 +2577,14 @@ function renderVistaCuaderno(g, als) {
           ? `<button onclick="cuadernoEliminarItem('${gid}','${trim}',${iIdx},${jIdx})"
               style="margin-left:2px;padding:0 4px;border-radius:3px;border:1px solid var(--border2);background:var(--red-bg);color:var(--red);font-size:9px;cursor:pointer">✕</button>`
           : '';
+        const nombreItemHtml = edicion
+          ? `<input type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}"
+              style="border:none;background:transparent;font-family:inherit;font-size:10px;font-weight:600;color:var(--accent);text-align:center;width:100%;min-width:60px;max-width:110px;outline:none;padding:0"
+              onclick="event.stopPropagation()"
+              onchange="cuadernoEditarNombreItem('${gid}','${trim}',${iIdx},${jIdx},this.value)">`
+          : item.nombre;
         thItems += `<th style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--border2);padding:3px 5px;font-size:10px;white-space:nowrap;text-align:center;min-width:${edicion?'90px':'70px'}">
-          ${item.nombre}<br>${pesoItemInput}${delBtn}
+          ${nombreItemHtml}<br>${pesoItemInput}${delBtn}
         </th>`;
       });
     }
@@ -2630,15 +2638,18 @@ function renderVistaCuaderno(g, als) {
           ? `<button onclick="abrirRubrica('${a.id}',${iIdx},${jIdx},false)" style="padding:1px 4px;border-radius:3px;border:1px solid var(--purple-bg,#e9d5ff);background:var(--purple-bg,#f3e8ff);color:var(--purple,#7c3aed);font-size:9px;cursor:pointer" title="Rúbrica">📋</button>`
           : '';
 
-        const recHtml = edicion
-          ? `<div style="margin-top:3px;display:flex;align-items:center;gap:2px">
-              <span style="font-size:9px;color:var(--amber);font-weight:600">Rec:</span>
-              <input type="number" min="0" max="10" step="0.01" value="${valRec!==undefined&&valRec!==''?valRec:''}" placeholder="—"
-                style="width:40px;text-align:center;border:1px solid var(--amber);border-radius:3px;padding:1px 2px;font-size:10px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--amber)"
-                onchange="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this)">
-              ${histRec?.length?`<button onclick="deshacerRecuperacion('${a.id}',${iIdx},${jIdx})" title="↩ ${histRec[0]}" style="padding:1px 3px;border-radius:3px;border:1px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:9px;cursor:pointer">↩</button>`:''}
-            </div>`
-          : (tieneRec ? `<div style="font-size:10px;color:var(--amber);font-family:'DM Mono',monospace;margin-top:2px">Rec: ${parseFloat(valRec).toFixed(2)}</div>` : '');
+        const notaBaja = val !== undefined && val !== '' && parseFloat(val) < 5;
+        const recHtml = mostrarRec && (edicion ? notaBaja || tieneRec : tieneRec && notaBaja)
+          ? (edicion
+            ? `<div style="margin-top:3px;display:flex;align-items:center;gap:2px">
+                <span style="font-size:9px;color:var(--amber);font-weight:600">Rec:</span>
+                <input type="number" min="0" max="10" step="0.01" value="${valRec!==undefined&&valRec!==''?valRec:''}" placeholder="—"
+                  style="width:40px;text-align:center;border:1px solid var(--amber);border-radius:3px;padding:1px 2px;font-size:10px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--amber)"
+                  onchange="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this)">
+                ${histRec?.length?`<button onclick="deshacerRecuperacion('${a.id}',${iIdx},${jIdx})" title="↩ ${histRec[0]}" style="padding:1px 3px;border-radius:3px;border:1px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:9px;cursor:pointer">↩</button>`:''}
+              </div>`
+            : `<div style="font-size:10px;color:var(--amber);font-family:'DM Mono',monospace;margin-top:2px">Rec: ${parseFloat(valRec).toFixed(2)}</div>`)
+          : '';
 
         return `<td style="background:${bg};border:1px solid var(--border2);padding:3px 4px;text-align:center;min-width:${edicion?'95px':'65px'}">
           <div style="display:flex;align-items:center;justify-content:center;gap:2px;flex-wrap:wrap">
@@ -2699,6 +2710,9 @@ function renderVistaCuaderno(g, als) {
       </label>
       <label onclick="_cuadernoEdicion['${gid}']=!_cuadernoEdicion['${gid}'];renderPage()" style="cursor:pointer">
         <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${edicion?'#d97706':'var(--border2)'};background:${edicion?'#fef9c3':'transparent'};color:${edicion?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${edicion?'✏ Editando':'○ Editar'}</span>
+      </label>
+      <label onclick="_cuadernoRec['${gid}']=!_cuadernoRec['${gid}'];renderPage()" style="cursor:pointer">
+        <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${mostrarRec?'var(--amber)':'var(--border2)'};background:${mostrarRec?'#fef9c3':'transparent'};color:${mostrarRec?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${mostrarRec?'● Rec':'○ Rec'}</span>
       </label>
       ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo</span>` : ''}
       <div style="margin-left:auto;display:flex;gap:6px">
@@ -2798,6 +2812,16 @@ function cuadernoEliminarItem(gid, trim, iIdx, jIdx) {
     });
     guardarDatos(); renderPage();
   });
+}
+
+function cuadernoEditarNombreItem(gid, trim, iIdx, jIdx, val) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  const item = g.estructura?.[trim]?.[iIdx]?.items?.[jIdx];
+  if (!item) return;
+  const nombre = val.trim();
+  if (!nombre) return;
+  item.nombre = nombre;
+  guardarDatos();
 }
 
 function cuadernoGuardarNota(aid, iIdx, jIdx, val, inputEl) {
@@ -2905,6 +2929,9 @@ function exportarCuadernoExcel(gid, trim) {
   const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
   const insts = g.estructura?.[trim]||[];
   const trimLabel = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'}[trim]||trim;
+  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
+  const redOn = APP.config.redondeoActivo !== false;
+
   if (!window.XLSX) {
     const s=document.createElement('script');
     s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
@@ -2912,30 +2939,86 @@ function exportarCuadernoExcel(gid, trim) {
     s.onerror=()=>alert('No se pudo cargar Excel.');
     document.head.appendChild(s); return;
   }
-  const row1=['Alumno'], row2=[''];
-  insts.forEach(inst=>{
-    const n=Math.max(inst.items.length,1);
-    row1.push(inst.nombre+' ('+inst.peso+'%)');
-    for(let i=1;i<n;i++) row1.push('');
-    if(!inst.items.length){row2.push('Nota');}
-    else inst.items.forEach(it=>row2.push(it.nombre+' '+it.peso+'%'));
+
+  // Cabecera fila 1: instrumento (merged) + Final
+  const row1 = ['Alumno'];
+  // Cabecera fila 2: apartados + Rec + Final
+  const row2 = [''];
+
+  insts.forEach(inst => {
+    const nCols = inst.items.length || 1;
+    row1.push(inst.nombre + ' (' + inst.peso + '%)');
+    for (let i = 1; i < nCols; i++) row1.push('');
+    if (!inst.items.length) {
+      row2.push('Nota');
+    } else {
+      inst.items.forEach(it => row2.push(it.nombre + ' ' + it.peso + '%'));
+    }
+    // Columna recuperación por cada apartado
+    if (!inst.items.length) {
+      row1.push(''); row2.push('Rec.');
+    } else {
+      inst.items.forEach(() => { row1.push(''); row2.push('Rec.'); });
+    }
   });
-  row1.push('Nota Final'); row2.push('');
-  const dataRows=als.map(a=>{
-    const row=[`${a.apellidos||''}, ${a.nombre||''}`];
-    insts.forEach((inst,iIdx)=>{
-      if(!inst.items.length){const v=a.notas?.[trim]?.[iIdx]?.['0'];row.push(v!==undefined&&v!==''?parseFloat(v):'');}
-      else inst.items.forEach((_,jIdx)=>{const v=a.notas?.[trim]?.[iIdx]?.[jIdx];row.push(v!==undefined&&v!==''?parseFloat(v):'');});
+  row1.push('Nota Final');
+  row2.push(redOn ? 'Redondeada' : '');
+
+  const dataRows = als.map(a => {
+    const row = [a.apellidos || '' + (a.nombre ? ', ' + a.nombre : '')];
+    insts.forEach((inst, iIdx) => {
+      const renderApartado = (jIdx) => {
+        const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
+        row.push(v !== undefined && v !== '' ? parseFloat(v) : '');
+        const vRec = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+        row.push(vRec !== undefined && vRec !== '' ? parseFloat(vRec) : '');
+      };
+      if (!inst.items.length) {
+        renderApartado(0);
+      } else {
+        inst.items.forEach((_, jIdx) => renderApartado(jIdx));
+      }
     });
-    const nt=calcNotaTrimestre(a,trim); row.push(nt!==null?nt:null);
+    const nt = calcNotaTrimestre(a, trim);
+    row.push(nt !== null ? parseFloat(nt.toFixed(2)) : '');
     return row;
   });
-  const ws=XLSX.utils.aoa_to_sheet([row1,row2,...dataRows]);
-  XLSX.utils.book_append_sheet(XLSX.utils.book_new(),ws,trimLabel.slice(0,31));
-  XLSX.writeFile(XLSX.utils.book_new(),'cuaderno_error.xlsx'); // placeholder
-  const wb2=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb2,ws,trimLabel.slice(0,31));
-  XLSX.writeFile(wb2,`cuaderno_${g.nombre.replace(/\s/g,'_')}_${trim}.xlsx`);
+
+  // Fila de medias
+  const mediaRow = ['Media clase'];
+  insts.forEach((inst, iIdx) => {
+    const calcMedia = (jIdx) => {
+      const vals = als.map(a => a.notas?.[trim]?.[iIdx]?.[jIdx]).filter(v => v !== undefined && v !== '');
+      return vals.length ? parseFloat((vals.reduce((s,v) => s + parseFloat(v), 0) / vals.length).toFixed(2)) : '';
+    };
+    const calcMediaRec = (jIdx) => {
+      const vals = als.map(a => a.notas?.[trim]?.[iIdx]?.rec?.[jIdx]).filter(v => v !== undefined && v !== '');
+      return vals.length ? parseFloat((vals.reduce((s,v) => s + parseFloat(v), 0) / vals.length).toFixed(2)) : '';
+    };
+    if (!inst.items.length) {
+      mediaRow.push(calcMedia(0)); mediaRow.push(calcMediaRec(0));
+    } else {
+      inst.items.forEach((_, jIdx) => { mediaRow.push(calcMedia(jIdx)); mediaRow.push(calcMediaRec(jIdx)); });
+    }
+  });
+  const mediasFinales = als.map(a => calcNotaTrimestre(a, trim)).filter(n => n !== null);
+  mediaRow.push(mediasFinales.length ? parseFloat((mediasFinales.reduce((s,n) => s+n, 0) / mediasFinales.length).toFixed(2)) : '');
+
+  const ws = XLSX.utils.aoa_to_sheet([row1, row2, ...dataRows, mediaRow]);
+
+  // Merge celdas cabecera instrumento
+  const merges = [];
+  let col = 1;
+  insts.forEach(inst => {
+    const nCols = (inst.items.length || 1) * 2; // *2 por la col Rec
+    if (nCols > 1) merges.push({ s:{r:0,c:col}, e:{r:0,c:col+nCols-1} });
+    col += nCols;
+  });
+  if (merges.length) ws['!merges'] = merges;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, trimLabel.slice(0,31));
+  XLSX.writeFile(wb, `cuaderno_${g.nombre.replace(/\s/g,'_')}_${trim}.xlsx`);
 }
 
 
@@ -3435,7 +3518,7 @@ function renderTabNotas(a) {
           </div>
           <button class="btn btn-sm" onclick="event.stopPropagation();${evalBloq?'':'abrirRubrica(\''+a.id+'\','+iIdx+','+jIdx+')'}"
             style="padding:3px 8px;font-size:11px;font-weight:600;${tieneRubrica?'background:var(--purple-bg);color:var(--purple);border-color:var(--purple)':'background:var(--bg);color:var(--text2);border:1px solid var(--border2)'};${evalBloq?'opacity:0.5;pointer-events:none;cursor:default':''}">
-            📊${tieneRubrica?' Rúbrica ✓':' Rúbrica'}
+            📋${tieneRubrica?' Rúbrica ✓':' Rúbrica'}
           </button>
           <div style="flex:0 0 auto">
             <input type="date" value="${fechaVal}" title="Fecha" style="padding:3px 6px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:11px;color:var(--text2);outline:none;width:130px;${evalBloq?'pointer-events:none;opacity:0.55':''}" ${evalBloq?'':'onchange="cambiarFechaNota('+iIdx+','+jIdx+',this.value)"'}>
@@ -3461,7 +3544,7 @@ function renderTabNotas(a) {
           </div>
           <button class="btn btn-sm" onclick="abrirRubricaRecuperacion('${a.id}',${iIdx},${jIdx})"
             style="padding:3px 8px;font-size:11px;font-weight:600;${recRubrica?'background:var(--purple-bg);color:var(--purple);border-color:var(--purple)':'background:var(--bg);color:var(--text2);border:1px solid var(--border2)'}">
-            📊${recRubrica?' Rúbrica ✓':' Rúbrica'}
+            📋${recRubrica?' Rúbrica ✓':' Rúbrica'}
           </button>
           <input type="date" value="${recFecha}" title="Fecha recuperación"
             style="padding:3px 6px;border:1px solid var(--amber);border-radius:6px;font-family:inherit;font-size:11px;color:var(--text2);outline:none;width:130px"
@@ -3712,6 +3795,7 @@ function eliminarInstGrupo(iIdx) {
   instAbiertas.clear();
   guardarDatos();
   cambiarTabFicha('notas');
+  renderPage();
 }
 
 function añadirItemGrupo(iIdx) {
@@ -3789,6 +3873,7 @@ function cambiarNotaRecuperacion(aid, iIdx, jIdx, val, inputEl) {
     guardarDatos();
     if (inputEl) inputEl.blur();
     cambiarTabFicha('notas');
+    renderPage();
   };
 
   if (tieneNota && val !== '' && parseFloat(val) !== parseFloat(anterior)) {
@@ -7805,6 +7890,25 @@ function renderProgramacion() {
             ${info.siguienteLabel ? `<span style="background:var(--purple-bg);color:var(--purple);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">Próxima: ${info.siguienteLabel}</span>` : ''}
             ${info.siguienteFecha ? `<span style="background:var(--bg);color:var(--text2);border-radius:20px;padding:2px 10px;font-size:11px">📅 ${info.siguienteFecha}</span>` : ''}
           </div>
+          <!-- Instrumentos de evaluación detectados desde Anota -->
+          ${(()=>{
+            const instr = niv._instruccionesEval;
+            if (!instr || !Object.keys(instr).length) return '';
+            const instT1 = instr.T1 || [];
+            if (!instT1.length) return '';
+            const pills = instT1.map(inst => {
+              const criteriosHtml = inst.criterios ? `<div style="font-size:9px;color:var(--text3);margin-top:1px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${inst.criterios.replace(/"/g,'&quot;')}">${inst.criterios}</div>` : '';
+              return `<div style="background:var(--accent-bg);border:1px solid #bfcffa;border-radius:8px;padding:4px 8px;font-size:11px">
+                <span style="font-weight:600;color:var(--accent)">${inst.nombre}</span>
+                <span style="color:var(--text3);margin-left:4px">${inst.peso}%</span>
+                ${criteriosHtml}
+              </div>`;
+            }).join('');
+            return `<div style="margin-top:10px">
+              <div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.04em">📊 Instrumentos de evaluación</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">${pills}</div>
+            </div>`;
+          })()}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-secondary btn-sm" onclick="duplicarNivel(${ni})" title="Duplicar este nivel">⧉ Duplicar</button>
@@ -8146,7 +8250,7 @@ function anotaConfirmarImport() {
     id: uid(),
     nombre,
     grupos: [],
-    fechaInicio: _anotaUnidades[0]?.fechaIni || '',
+    fechaInicio: (()=>{ const f = _anotaUnidades[0]?.fechaIni || ''; return f && f >= dKey(new Date()) ? f : dKey(new Date()); })(),
     activo: true,
     bloques,
     _instruccionesEval: instruccionesEval // para aplicar al grupo al asignarlo
@@ -8489,7 +8593,7 @@ function abrirModalNivel() {
   _nivEdit = { ni: -1 };
   document.getElementById('nivel-modal-titulo').textContent = 'Nuevo nivel / materia';
   document.getElementById('niv-nombre').value = '';
-  document.getElementById('niv-inicio').value = '';
+  document.getElementById('niv-inicio').value = dKey(new Date());
   document.querySelectorAll('.niv-grupo-cb').forEach(cb => cb.checked = false);
   document.getElementById('modal-nivel').classList.remove('hidden');
 }
@@ -8508,13 +8612,42 @@ function guardarNivel() {
   const grupos = Array.from(document.querySelectorAll('.niv-grupo-cb:checked')).map(cb => cb.value);
   const fechaInicio = document.getElementById('niv-inicio').value;
   if (_nivEdit.ni >= 0) {
-    Object.assign(APP.programacion.niveles[_nivEdit.ni], { nombre, grupos, fechaInicio });
+    const niv = APP.programacion.niveles[_nivEdit.ni];
+    const gruposAntes = niv.grupos || [];
+    const gruposNuevos = grupos.filter(gid => !gruposAntes.includes(gid));
+    Object.assign(niv, { nombre, grupos, fechaInicio });
+    if (niv._instruccionesEval && Object.keys(niv._instruccionesEval).length) {
+      gruposNuevos.forEach(gid => _aplicarInstruccionesEvalGrupo(gid, niv._instruccionesEval));
+    }
   } else {
     APP.programacion.niveles.push({ id: uid(), nombre, grupos, fechaInicio, bloques: [] });
   }
   guardarDatos();
   document.getElementById('modal-nivel').classList.add('hidden');
   renderPage();
+}
+
+function _aplicarInstruccionesEvalGrupo(gid, instruccionesEval) {
+  const g = APP.grupos.find(x => x.id === gid); if (!g) return;
+  if (!g.estructura) g.estructura = {};
+  const defecto = getInstrumentosDefecto();
+  ['T1','T2','T3'].forEach(t => {
+    const insts = instruccionesEval[t];
+    if (!insts || !insts.length) return;
+    const actual = g.estructura[t];
+    const esDefecto = !actual || actual.length === 0 ||
+      (actual.length === defecto.length &&
+       actual.every((inst, i) => inst.nombre === defecto[i]?.nombre && (!inst.items || inst.items.length === 0)));
+    if (esDefecto) {
+      g.estructura[t] = insts.map(inst => ({
+        nombre: inst.nombre,
+        peso: inst.peso,
+        items: inst.items ? [...inst.items] : [],
+        mediaAritmetica: inst.mediaAritmetica !== false,
+        ...(inst.criterios !== undefined ? { criterios: inst.criterios } : {})
+      }));
+    }
+  });
 }
 function duplicarNivel(ni) {
   const original = APP.programacion.niveles[ni];
