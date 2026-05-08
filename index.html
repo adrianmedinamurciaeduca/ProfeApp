@@ -7718,7 +7718,7 @@ function calModales() {
       <div class="modal-body" id="cal-ses-body"></div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="document.getElementById('cal-modal-sesion').classList.add('hidden')">Cerrar</button>
-        <button class="btn btn-primary" id="cal-ses-btn-nota" onclick="calAbrirNotaSesion()">✎ Añadir nota</button>
+        <button class="btn btn-primary" id="cal-ses-btn-nota" onclick="calGuardarNotaSesion()">💾 Guardar</button>
       </div>
     </div>
   </div>
@@ -8528,31 +8528,106 @@ document.addEventListener('click', e => {
 
 function calAbrirSesionDesdeCalendario(ni, bi, si) {
   ni = parseInt(ni); bi = parseInt(bi); si = parseInt(si);
-  const nivel = APP.programacion.niveles.find((n,i) => i === ni) || APP.programacion.niveles[ni];
+  const nivel = APP.programacion.niveles[ni];
   if (!nivel) return;
   const bloque = nivel.bloques[bi];
   const sesion = bloque?.sesiones[si];
   if (!sesion) return;
   _calSesionContext = { nivel, bloque, sesion, ni, bi, si };
+  window._estadoSesionCal = sesion.estado || 'pendiente';
+  window._audioSesionTemp = undefined;
   const tipoIcon = { explicacion:'📘', practica:'🔬', examen:'📝', correccion:'✔️', mixta:'📚' }[sesion.tipo] || '📘';
-  const colEst = sesion.estado==='realizada' ? { bg:'#dcfce7', text:'#166534', lbl:'Realizada' }
-    : sesion.estado==='en-curso' ? { bg:'#fef9c3', text:'#854d0e', lbl:'En curso' }
-    : { bg:'var(--surface2)', text:'var(--text3)', lbl:'Pendiente' };
-  const sesNum = nivel.bloques.slice(0,bi).reduce((a,b)=>a+(b.sesiones?.length||0),0)+si+1;
+  const sesNum = nivel.bloques.slice(0,bi).reduce((a,bb)=>a+(bb.sesiones?.length||0),0)+si+1;
+  document.getElementById('cal-ses-titulo').textContent = 'S'+sesNum+' — '+bloque.titulo;
 
-  document.getElementById('cal-ses-titulo').textContent = `${bloque.titulo} — S${sesNum}`;
-  document.getElementById('cal-ses-body').innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-      <span style="background:${colEst.bg};color:${colEst.text};border-radius:12px;padding:2px 10px;font-size:11px;font-weight:600">${colEst.lbl}</span>
-      <span style="background:var(--purple-bg);color:var(--purple);border-radius:12px;padding:2px 10px;font-size:12px;font-weight:600">S${sesNum}</span>
-    </div>
-    <div style="font-weight:600;font-size:15px;margin-bottom:8px">${tipoIcon} ${sesion.titulo}</div>
-    ${sesion.explicacion?`<div style="margin-bottom:10px"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px">Contenido</span><div style="margin-top:4px;font-size:13px;color:var(--text2)">${sesion.explicacion}</div></div>`:''}
-    ${sesion.tarea?`<div style="margin-bottom:10px;padding:8px 12px;background:var(--accent-bg);border-radius:8px"><span style="font-size:11px;font-weight:600;color:var(--accent)">📋 TAREA</span><div style="margin-top:3px;font-size:13px">${sesion.tarea}</div></div>`:''}
-    ${sesion.enlaceUrl?`<div style="margin-bottom:10px"><a href="${sesion.enlaceUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--accent);font-size:13px;font-weight:600;text-decoration:none">📎 ${sesion.enlaceTitulo||'Ver material'} ↗</a></div>`:''}
-    ${sesion.notaReal?`<div style="padding:8px 12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--border2)"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px">Tu nota de clase</span><div style="margin-top:3px;font-size:13px;font-style:italic">${sesion.notaReal}</div></div>`:''}
-    ${!sesion.explicacion&&!sesion.tarea&&!sesion.notaReal?'<p style="color:var(--text3);font-size:13px">Esta sesión no tiene descripción todavía.</p>':''}`;
+  let enlaceHtml = '';
+  if (sesion.enlaceUrl) {
+    const url = sesion.enlaceUrl;
+    const label = sesion.enlaceTitulo || 'Ver material';
+    enlaceHtml = '<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      + '<a href="'+url+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--accent);font-size:13px;font-weight:600;text-decoration:none">📎 '+label+' ↗</a>'
+      + '<button id="cal-copy-link-btn" onclick="navigator.clipboard.writeText(document.getElementById(\'cal-copy-link-btn\').dataset.url).then(()=>{this.textContent=\'✓ Copiado\';setTimeout(()=>this.textContent=\'📋 Copiar enlace\',1500)})" data-url="'+url.replace(/"/g,'&quot;')+'" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;color:var(--text2)">📋 Copiar enlace</button>'
+      + '</div>';
+  }
+
+  const estadoBtns = [['pendiente','⏳ Pendiente'],['realizada','✓ Realizada']].map(function(pair) {
+    const est = pair[0], lbl = pair[1];
+    const active = (sesion.estado||'pendiente') === est;
+    return '<button class="btn btn-sm '+(active?'btn-primary':'btn-secondary')+' est-sesion-cal-btn" data-est="'+est+'" onclick="setEstadoSesionCal(this.dataset.est,this)" style="flex:1">'+lbl+'</button>';
+  }).join('');
+
+  document.getElementById('cal-ses-body').innerHTML =
+    '<div style="font-weight:600;font-size:15px;margin-bottom:10px">'+tipoIcon+' '+sesion.titulo+'</div>'
+    +(sesion.explicacion ? '<div style="margin-bottom:10px"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px">Contenido</span><div style="margin-top:4px;font-size:13px;color:var(--text2)">'+sesion.explicacion+'</div></div>' : '')
+    +(sesion.tarea ? '<div style="margin-bottom:10px;padding:8px 12px;background:var(--accent-bg);border-radius:8px"><span style="font-size:11px;font-weight:600;color:var(--accent)">📋 TAREA</span><div style="margin-top:3px;font-size:13px">'+sesion.tarea+'</div></div>' : '')
+    +enlaceHtml
+    +'<div style="margin-bottom:14px">'
+    +'<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">Estado</div>'
+    +'<div style="display:flex;gap:8px">'+estadoBtns+'</div>'
+    +'</div>'
+    +'<div class="form-group" style="margin-bottom:0">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+    +'<label style="margin:0;font-size:12px;font-weight:600;color:var(--text2)">Nota de clase</label>'
+    +'<div style="display:flex;gap:6px">'+btnDictar('cal-nota-sesion-real')+'<button type="button" onclick="grabarAudioSesionCal(this)" style="padding:3px 10px;font-size:11px;font-weight:600;border:1.5px solid var(--purple);background:var(--purple-bg);color:var(--purple);border-radius:20px;cursor:pointer">🎙 Audio</button>'
+    +'</div></div>'
+    +'<textarea id="cal-nota-sesion-real" rows="4" style="width:100%;box-sizing:border-box" placeholder="Ej: No dio tiempo al último ejercicio…">'+(sesion.notaReal||'')+'</textarea>'
+    +'<div id="cal-audio-sesion-wrap" style="margin-top:6px">'
+    +(sesion.audioNota ? '<audio controls src="'+sesion.audioNota+'" style="width:100%;height:36px"></audio><button onclick="borrarAudioSesionCal()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px">✕ Eliminar</button>' : '')
+    +'</div></div>'
+    +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'
+    +'<button onclick="calIrASesionProg('+ni+','+bi+','+si+')" style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;font-weight:600">📖 Ver en Programación ↗</button>'
+    +'</div>';
+
   document.getElementById('cal-modal-sesion').classList.remove('hidden');
+}
+
+function setEstadoSesionCal(est, btn) {
+  window._estadoSesionCal = est;
+  document.querySelectorAll('.est-sesion-cal-btn').forEach(function(b) {
+    b.classList.remove('btn-primary'); b.classList.add('btn-secondary');
+  });
+  if (btn) { btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary'); }
+}
+
+function grabarAudioSesionCal(btnEl) {
+  grabarAudio(function(base64) {
+    window._audioSesionTemp = base64;
+    const wrap = document.getElementById('cal-audio-sesion-wrap');
+    if (wrap) wrap.innerHTML = '<audio controls src="'+base64+'" style="width:100%;height:36px"></audio>'
+      +'<button onclick="borrarAudioSesionCal()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px">✕ Eliminar</button>';
+  }, btnEl);
+}
+
+function borrarAudioSesionCal() {
+  window._audioSesionTemp = null;
+  const wrap = document.getElementById('cal-audio-sesion-wrap');
+  if (wrap) wrap.innerHTML = '';
+}
+
+function calGuardarNotaSesion() {
+  if (!_calSesionContext) return;
+  const ni = _calSesionContext.ni, bi = _calSesionContext.bi, si = _calSesionContext.si;
+  const s = APP.programacion.niveles[ni].bloques[bi].sesiones[si];
+  if (window._estadoSesionCal) s.estado = window._estadoSesionCal;
+  s.notaReal = document.getElementById('cal-nota-sesion-real')?.value || '';
+  if (window._audioSesionTemp !== undefined) {
+    if (window._audioSesionTemp) s.audioNota = window._audioSesionTemp;
+    else delete s.audioNota;
+    window._audioSesionTemp = undefined;
+  }
+  guardarDatos();
+  document.getElementById('cal-modal-sesion').classList.add('hidden');
+  renderPage();
+}
+
+function calIrASesionProg(ni, bi, si) {
+  document.getElementById('cal-modal-sesion').classList.add('hidden');
+  navTo('programacion');
+  setTimeout(function() {
+    if (!window._bloqAbiertos) window._bloqAbiertos = new Set();
+    window._bloqAbiertos.add(ni+'-'+bi);
+    renderPage('programacion');
+  }, 50);
 }
 
 function obtenerSesionProgramada(grupoId, fechaKey) {
