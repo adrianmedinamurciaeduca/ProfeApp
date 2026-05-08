@@ -1128,6 +1128,53 @@
   </div>
 </div>
 
+<!-- MODAL IMPORTAR ANOTA -->
+<div class="modal-overlay hidden" id="modal-anota" onclick="event.target===this&&cerrarModalAnota()">
+  <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>📥 Importar desde Anota</h3>
+      <button class="btn btn-ghost btn-icon" onclick="cerrarModalAnota()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <div id="anota-paso1">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Elige cómo proporcionar la programación:</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+          <label style="display:flex;align-items:center;gap:12px;padding:12px;border:1.5px solid var(--border2);border-radius:10px;background:var(--surface2);cursor:pointer">
+            <span style="font-size:24px">📄</span>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600">Subir archivo Word (.docx)</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">Exporta desde Anota o convierte el PDF a Word</div>
+            </div>
+            <input type="file" accept=".docx" onchange="anotaLeerWord(this)" style="display:none">
+            <span style="font-size:12px;color:var(--accent);font-weight:600">Seleccionar →</span>
+          </label>
+          <div style="padding:12px;border:1.5px solid var(--border2);border-radius:10px;background:var(--surface2)">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+              <span style="font-size:24px">📋</span>
+              <div>
+                <div style="font-size:13px;font-weight:600">Pegar texto del PDF</div>
+                <div style="font-size:11px;color:var(--text3)">Abre el PDF, selecciona todo (Ctrl+A) y pégalo aquí</div>
+              </div>
+            </div>
+            <textarea id="anota-texto" rows="6" placeholder="Pega aquí el texto copiado del PDF de Anota..."
+              style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:12px;resize:vertical;background:var(--surface);color:var(--text);outline:none;box-sizing:border-box"></textarea>
+            <button onclick="anotaProcesarTexto(document.getElementById('anota-texto').value)" class="btn btn-primary btn-sm" style="margin-top:8px">Analizar →</button>
+          </div>
+        </div>
+        <div id="anota-error" class="hidden" style="padding:10px;background:var(--red-bg);border-radius:8px;color:var(--red);font-size:12px"></div>
+      </div>
+      <div id="anota-paso2" class="hidden">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px" id="anota-nivel-preview"></div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Asigna cada unidad a su evaluación:</p>
+        <div id="anota-unidades-lista" style="display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow-y:auto"></div>
+      </div>
+    </div>
+    <div class="modal-footer" id="anota-footer">
+      <button class="btn btn-secondary" onclick="cerrarModalAnota()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL TUTORÍA DE GRUPO -->
 <div class="modal-overlay hidden" id="modal-tutoria-grupo" onclick="event.target===this&&document.getElementById('modal-tutoria-grupo').classList.add('hidden')">
   <div class="modal" style="max-width:680px" onclick="event.stopPropagation()">
@@ -2020,7 +2067,7 @@ function verGrupo(gid) {
 let filtroTexto = '';
 let filtroGrupo = 'todos';
 let incluirArchivados = false;
-let vistaAlumnos = 'lista'; // 'lista' | 'miniaturas' | 'plano'
+let vistaAlumnos = 'cuaderno'; // 'lista' | 'miniaturas' | 'plano'
 
 function renderAlumnos() {
   const alFiltrados = APP.alumnos.filter(a => {
@@ -2070,7 +2117,7 @@ function renderAlumnos() {
     </label>
     <!-- Selector de vista -->
     <div style="display:flex;border:1.5px solid var(--border2);border-radius:8px;overflow:hidden;flex-shrink:0">
-      ${[['lista','☰','Lista'],['miniaturas','⊞','Miniaturas'],['plano','🗺','Plano']].map(([v,ico,lbl])=>`
+      ${[['cuaderno','📒','Cuaderno'],['miniaturas','⊞','Miniaturas'],['plano','🗺','Plano'],['lista','☰','Lista']].map(([v,ico,lbl])=>`
       <button onclick="cambiarVistaAlumnos('${v}')" title="${lbl}"
         style="padding:5px 10px;border:none;cursor:pointer;font-size:14px;background:${vistaAlumnos===v?'var(--accent)':'var(--surface)'};color:${vistaAlumnos===v?'#fff':'var(--text2)'};transition:all 0.15s">${ico}</button>`).join('')}
     </div>
@@ -2143,6 +2190,7 @@ function renderAlumnos() {
             ? `<div class="empty-state" style="padding:28px"><div class="es-icon">👤</div><h4>Sin alumnos en este grupo</h4></div>`
             : vistaAlumnos === 'miniaturas' ? renderVistaMiniaturas(g, als)
             : vistaAlumnos === 'plano'      ? renderVistaPlano(g, als)
+            : vistaAlumnos === 'cuaderno'   ? renderVistaCuaderno(g, als)
             : renderVistaLista(g, als)
           }
         </div>
@@ -2471,6 +2519,425 @@ function renderVistaLista(g, als) {
     }).join('')}
     </tbody></table></div>`;
 }
+
+// ── Vista Cuaderno ────────────────────────────────────────────
+let _cuadernoTrim = {};      // { gid: 'T1' }
+let _cuadernoFotos = {};     // { gid: true/false }
+let _cuadernoEdicion = {};   // { gid: true/false }
+
+function renderVistaCuaderno(g, als) {
+  const gid = g.id;
+  const trim = _cuadernoTrim[gid] || 'T1';
+  const mostrarFotos = _cuadernoFotos[gid] !== false;
+  const edicion = _cuadernoEdicion[gid] === true;
+  const insts = g.estructura?.[trim] || [];
+  const umbral = parseFloat(APP.config.redondeoAlza) || 0.5;
+  const redOn = APP.config.redondeoActivo !== false;
+
+  if (!insts.length) return `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">No hay instrumentos para esta evaluación.<br><button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="abrirEstructuraGrupo('${gid}')">⚙ Configurar notas</button></div>`;
+
+  // ── Cabecera de dos niveles ──────────────────────────────────
+  let thInst = '';
+  let thItems = '';
+
+  insts.forEach((inst, iIdx) => {
+    const esArit = inst.mediaAritmetica !== false;
+    const nCols = Math.max(inst.items.length, 1);
+
+    // Cabecera instrumento
+    const pesoInput = edicion
+      ? `<input type="number" min="0" max="100" step="5" value="${inst.peso||0}"
+          style="width:42px;text-align:center;border:1px solid rgba(255,255,255,0.4);border-radius:4px;background:rgba(255,255,255,0.15);color:#fff;font-size:10px;font-family:'DM Mono',monospace;padding:1px 3px"
+          onchange="cuadernoEditarPesoInst('${gid}','${trim}',${iIdx},this.value)">%`
+      : `${inst.peso}%`;
+
+    const addItemBtn = edicion
+      ? `<button onclick="cuadernoAgregarItem('${gid}','${trim}',${iIdx})"
+          style="margin-left:4px;padding:1px 5px;border-radius:3px;border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:#fff;font-size:10px;cursor:pointer">+ apt.</button>`
+      : '';
+
+    thInst += `<th colspan="${nCols}" style="background:var(--accent);color:#fff;border:1px solid var(--border2);padding:5px 8px;font-size:11px;font-weight:700;white-space:nowrap;text-align:center">
+      ${inst.nombre}&nbsp;
+      <span style="font-weight:400;font-size:10px">(${pesoInput})</span>
+      ${addItemBtn}
+    </th>`;
+
+    // Cabecera apartados
+    if (inst.items.length === 0) {
+      thItems += `<th style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--border2);padding:4px 6px;font-size:10px;white-space:nowrap;text-align:center;min-width:80px">Nota</th>`;
+    } else {
+      inst.items.forEach((item, jIdx) => {
+        const pesoItemInput = edicion
+          ? `<input type="number" min="0" max="100" step="5" value="${item.peso||0}"
+              ${esArit ? 'readonly style="opacity:0.5;pointer-events:none;width:36px;text-align:center;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);font-size:9px;font-family:\'DM Mono\',monospace;padding:1px 2px"' : `style="width:36px;text-align:center;border:1px solid var(--border2);border-radius:3px;background:var(--surface);font-size:9px;font-family:'DM Mono',monospace;padding:1px 2px" onchange="cuadernoEditarPesoItem('${gid}','${trim}',${iIdx},${jIdx},this.value)"`}>%`
+          : `${item.peso}%`;
+        const delBtn = edicion
+          ? `<button onclick="cuadernoEliminarItem('${gid}','${trim}',${iIdx},${jIdx})"
+              style="margin-left:2px;padding:0 4px;border-radius:3px;border:1px solid var(--border2);background:var(--red-bg);color:var(--red);font-size:9px;cursor:pointer">✕</button>`
+          : '';
+        thItems += `<th style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--border2);padding:3px 5px;font-size:10px;white-space:nowrap;text-align:center;min-width:${edicion?'90px':'70px'}">
+          ${item.nombre}<br>${pesoItemInput}${delBtn}
+        </th>`;
+      });
+    }
+  });
+
+  // ── Filas de alumnos ─────────────────────────────────────────
+  const filas = als.map((a, rowIdx) => {
+    const bg = rowIdx % 2 === 0 ? 'var(--surface)' : 'var(--surface2)';
+
+    // Celda alumno
+    const fotoHtml = mostrarFotos
+      ? `<div style="width:30px;height:30px;border-radius:5px;overflow:hidden;flex-shrink:0;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent)">${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}</div>`
+      : '';
+
+    const tdAlumno = `<td style="background:${bg};border:1px solid var(--border2);padding:4px 8px;white-space:nowrap;position:sticky;left:0;z-index:2;min-width:${mostrarFotos?'155px':'125px'}">
+      <div style="display:flex;align-items:center;gap:5px">
+        ${fotoHtml}
+        <div>
+          <div style="font-size:12px;font-weight:600;line-height:1.2">${a.apellidos||''}, ${a.nombre||''}</div>
+          <div style="display:flex;gap:3px;margin-top:1px">
+            ${a.acnee?'<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">ACNEE</span>':''}
+            ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PAP</span>':''}
+            ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PEP</span>':''}
+          </div>
+        </div>
+      </div>
+    </td>`;
+
+    // Celdas notas
+    let tdsNotas = '';
+    insts.forEach((inst, iIdx) => {
+      const renderCelda = (jIdx, esDirecta) => {
+        const val = a.notas?.[trim]?.[iIdx]?.[jIdx];
+        const hist = a.notas?.[trim]?.[iIdx]?._historial?.[jIdx];
+        const tieneRec = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx] !== undefined && a.notas?.[trim]?.[iIdx]?.rec?.[jIdx] !== '';
+        const valRec = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+        const histRec = a.notas?.[trim]?.[iIdx]?._historialRec?.[jIdx];
+        const tieneRubrica = inst.items?.[jIdx]?.rubrica;
+
+        const inputNota = edicion
+          ? `<input type="number" min="0" max="10" step="0.01" value="${val!==undefined&&val!==''?val:''}" placeholder="—"
+              style="width:46px;text-align:center;border:1px solid var(--border2);border-radius:4px;padding:2px 3px;font-size:12px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--text);${tieneRec?'text-decoration:line-through;opacity:0.5':''}"
+              onchange="cuadernoGuardarNota('${a.id}',${iIdx},${jIdx},this.value,this)">`
+          : `<span style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${val===undefined||val===''?'var(--text3)':parseFloat(val)<5?'var(--red)':'var(--text)'}">${val!==undefined&&val!==''?parseFloat(val).toFixed(2):'—'}</span>`;
+
+        const undoBtn = edicion && hist?.length
+          ? `<button onclick="cuadernoDeshacerNota('${a.id}',${iIdx},${jIdx})" title="↩ ${hist[0]}" style="padding:1px 3px;border-radius:3px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:9px;cursor:pointer">↩</button>`
+          : '';
+
+        const rubricaBtn = edicion && !esDirecta
+          ? `<button onclick="abrirRubrica('${a.id}',${iIdx},${jIdx},false)" style="padding:1px 4px;border-radius:3px;border:1px solid var(--purple-bg,#e9d5ff);background:var(--purple-bg,#f3e8ff);color:var(--purple,#7c3aed);font-size:9px;cursor:pointer" title="Rúbrica">📋</button>`
+          : '';
+
+        const recHtml = edicion
+          ? `<div style="margin-top:3px;display:flex;align-items:center;gap:2px">
+              <span style="font-size:9px;color:var(--amber);font-weight:600">Rec:</span>
+              <input type="number" min="0" max="10" step="0.01" value="${valRec!==undefined&&valRec!==''?valRec:''}" placeholder="—"
+                style="width:40px;text-align:center;border:1px solid var(--amber);border-radius:3px;padding:1px 2px;font-size:10px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--amber)"
+                onchange="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this)">
+              ${histRec?.length?`<button onclick="deshacerRecuperacion('${a.id}',${iIdx},${jIdx})" title="↩ ${histRec[0]}" style="padding:1px 3px;border-radius:3px;border:1px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:9px;cursor:pointer">↩</button>`:''}
+            </div>`
+          : (tieneRec ? `<div style="font-size:10px;color:var(--amber);font-family:'DM Mono',monospace;margin-top:2px">Rec: ${parseFloat(valRec).toFixed(2)}</div>` : '');
+
+        return `<td style="background:${bg};border:1px solid var(--border2);padding:3px 4px;text-align:center;min-width:${edicion?'95px':'65px'}">
+          <div style="display:flex;align-items:center;justify-content:center;gap:2px;flex-wrap:wrap">
+            ${inputNota}${undoBtn}${rubricaBtn}
+          </div>
+          ${recHtml}
+        </td>`;
+      };
+
+      if (inst.items.length === 0) {
+        tdsNotas += renderCelda(0, true);
+      } else {
+        inst.items.forEach((_, jIdx) => { tdsNotas += renderCelda(jIdx, false); });
+      }
+    });
+
+    // Nota final
+    const notaTrim = calcNotaTrimestre(a, trim);
+    const notaRed = redOn && notaTrim !== null ? redondear(notaTrim, umbral) : null;
+    const nc = notaTrim !== null ? (notaTrim < 5 ? 'var(--red)' : notaTrim >= 9 ? 'var(--green)' : 'var(--text)') : 'var(--text3)';
+    const tdFinal = `<td style="background:${bg};border:1px solid var(--border2);padding:4px 6px;text-align:center;font-weight:700;font-size:13px;color:${nc};font-family:'DM Mono',monospace;position:sticky;right:0;z-index:2;min-width:65px">
+      ${notaTrim !== null ? notaTrim.toFixed(2) : '—'}
+      ${notaRed !== null && notaRed !== notaTrim ? `<div style="font-size:10px;color:var(--accent);font-weight:600">${notaRed}</div>` : ''}
+    </td>`;
+
+    return `<tr>${tdAlumno}${tdsNotas}${tdFinal}</tr>`;
+  }).join('');
+
+  // ── Fila medias ──────────────────────────────────────────────
+  let tdsMedias = '';
+  insts.forEach((inst, iIdx) => {
+    const calcMedia = (jIdx) => {
+      const vals = als.map(a=>a.notas?.[trim]?.[iIdx]?.[jIdx]).filter(v=>v!==undefined&&v!=='');
+      return vals.length ? (vals.reduce((s,v)=>s+parseFloat(v),0)/vals.length).toFixed(2) : '—';
+    };
+    if (inst.items.length === 0) {
+      tdsMedias += `<td style="background:var(--surface2);border:1px solid var(--border2);padding:4px 5px;text-align:center;font-size:11px;font-weight:700;color:var(--text2);font-family:'DM Mono',monospace">${calcMedia(0)}</td>`;
+    } else {
+      inst.items.forEach((_,jIdx) => {
+        tdsMedias += `<td style="background:var(--surface2);border:1px solid var(--border2);padding:4px 5px;text-align:center;font-size:11px;font-weight:700;color:var(--text2);font-family:'DM Mono',monospace">${calcMedia(jIdx)}</td>`;
+      });
+    }
+  });
+  const mediaFinal = (() => {
+    const ms = als.map(a=>calcNotaTrimestre(a,trim)).filter(n=>n!==null);
+    return ms.length ? (ms.reduce((s,n)=>s+n,0)/ms.length).toFixed(2) : '—';
+  })();
+
+  return `
+    <!-- Barra de controles -->
+    <div style="padding:8px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface)">
+      <div style="display:flex;gap:4px">
+        ${['T1','T2','T3'].map((t,i)=>`<button onclick="_cuadernoTrim['${gid}']='${t}';renderPage()"
+          style="padding:4px 11px;border-radius:6px;border:1.5px solid ${trim===t?'var(--accent)':'var(--border2)'};background:${trim===t?'var(--accent)':'var(--surface2)'};color:${trim===t?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer">${i+1}ª Eval.</button>`).join('')}
+      </div>
+      <label onclick="_cuadernoFotos['${gid}']=!(_cuadernoFotos['${gid}']!==false);renderPage()" style="cursor:pointer">
+        <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${mostrarFotos?'var(--accent)':'var(--border2)'};background:${mostrarFotos?'var(--accent-bg)':'transparent'};color:${mostrarFotos?'var(--accent)':'var(--text3)'};font-size:11px;font-weight:600">${mostrarFotos?'● Fotos':'○ Fotos'}</span>
+      </label>
+      <label onclick="_cuadernoEdicion['${gid}']=!_cuadernoEdicion['${gid}'];renderPage()" style="cursor:pointer">
+        <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${edicion?'#d97706':'var(--border2)'};background:${edicion?'#fef9c3':'transparent'};color:${edicion?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${edicion?'✏ Editando':'○ Editar'}</span>
+      </label>
+      ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo</span>` : ''}
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button onclick="exportarCuadernoPDF('${gid}','${trim}')" class="btn btn-secondary btn-sm">📄 PDF</button>
+        <button onclick="exportarCuadernoExcel('${gid}','${trim}')" class="btn btn-secondary btn-sm">📊 Excel</button>
+      </div>
+    </div>
+    <!-- Tabla -->
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table style="border-collapse:collapse;font-family:'Calibri',sans-serif">
+        <thead>
+          <tr>
+            <th rowspan="2" style="background:var(--accent);color:#fff;border:1px solid var(--border2);padding:6px 10px;font-size:12px;text-align:left;position:sticky;left:0;z-index:4;min-width:${mostrarFotos?'155px':'125px'}">Alumno</th>
+            ${thInst}
+            <th rowspan="2" style="background:#1e3a1e;color:#fff;border:1px solid var(--border2);padding:6px 8px;font-size:11px;font-weight:700;position:sticky;right:0;z-index:4;min-width:65px;text-align:center">Final</th>
+          </tr>
+          <tr>${thItems}</tr>
+        </thead>
+        <tbody>${filas}</tbody>
+        <tfoot>
+          <tr>
+            <td style="background:var(--surface2);border:1px solid var(--border2);padding:4px 8px;font-size:11px;font-weight:700;color:var(--text3);position:sticky;left:0;z-index:2">Media clase</td>
+            ${tdsMedias}
+            <td style="background:var(--surface2);border:1px solid var(--border2);padding:4px 8px;text-align:center;font-size:12px;font-weight:700;color:var(--text2);font-family:'DM Mono',monospace;position:sticky;right:0;z-index:2">${mediaFinal}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+}
+
+// ── Funciones de edición del cuaderno ───────────────────────────
+function cuadernoEditarPesoInst(gid, trim, iIdx, val) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  g.estructura[trim][iIdx].peso = parseInt(val)||0;
+  const suma = g.estructura[trim].reduce((s,i)=>s+(i.peso||0),0);
+  if (suma !== 100) mostrarAvisoSuma(gid, trim, suma);
+  guardarDatos(); renderPage();
+}
+
+function cuadernoEditarPesoItem(gid, trim, iIdx, jIdx, val) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  g.estructura[trim][iIdx].items[jIdx].peso = parseInt(val)||0;
+  const suma = g.estructura[trim][iIdx].items.reduce((s,it)=>s+(it.peso||0),0);
+  if (suma !== 100) mostrarAvisoSuma(gid, trim, suma, true, iIdx);
+  guardarDatos(); renderPage();
+}
+
+function mostrarAvisoSuma(gid, trim, suma, esItems=false, iIdx=null) {
+  const msg = esItems
+    ? `Los apartados del instrumento suman ${suma}% (debe ser 100%). Ajusta los porcentajes.`
+    : `Los instrumentos suman ${suma}% (debe ser 100%). Ajusta los porcentajes.`;
+  // Mostrar como toast no bloqueante
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#92400e;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+  toast.textContent = '⚠ ' + msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
+
+function cuadernoAgregarItem(gid, trim, iIdx) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  const inst = g.estructura[trim][iIdx];
+  inst.items.push({ nombre: 'Apartado '+(inst.items.length+1), peso: 0 });
+  if (inst.mediaAritmetica !== false) {
+    inst.mediaAritmetica = true;
+    recalcularPesosAritmetica(iIdx);
+    // Recalcular en contexto del grupo correcto
+    const n = inst.items.length;
+    const pesoBase = Math.floor(100/n);
+    const resto = 100 - pesoBase*n;
+    inst.items.forEach((item,i) => { item.peso = pesoBase + (i===n-1?resto:0); });
+  }
+  guardarDatos(); renderPage();
+}
+
+function cuadernoEliminarItem(gid, trim, iIdx, jIdx) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  const nombre = g.estructura[trim][iIdx].items[jIdx]?.nombre || 'este apartado';
+  confirmar('Eliminar apartado', `¿Eliminar "${nombre}" y sus notas en todos los alumnos?`, () => {
+    const inst = g.estructura[trim][iIdx];
+    inst.items.splice(jIdx,1);
+    if (inst.mediaAritmetica !== false && inst.items.length) {
+      const n = inst.items.length;
+      const pesoBase = Math.floor(100/n);
+      const resto = 100 - pesoBase*n;
+      inst.items.forEach((item,i) => { item.peso = pesoBase + (i===n-1?resto:0); });
+    }
+    // Limpiar notas del apartado eliminado
+    APP.alumnos.filter(a=>a.grupoId===gid).forEach(a => {
+      if (!a.notas?.[trim]?.[iIdx]) return;
+      const bloque = a.notas[trim][iIdx];
+      const nuevo = {};
+      Object.keys(bloque).map(Number).filter(k=>!isNaN(k)&&k!==jIdx).sort((a,b)=>a-b).forEach((k,ni) => {
+        nuevo[ni < jIdx ? k : k-1] = bloque[k];
+      });
+      a.notas[trim][iIdx] = { ...bloque, ...nuevo };
+    });
+    guardarDatos(); renderPage();
+  });
+}
+
+function cuadernoGuardarNota(aid, iIdx, jIdx, val, inputEl) {
+  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+  const gid = a.grupoId;
+  const trim = _cuadernoTrim[gid] || 'T1';
+  if (isEvalBloqueada(gid, trim)) return;
+  if (!a.notas) a.notas = {};
+  if (!a.notas[trim]) a.notas[trim] = {};
+  if (!a.notas[trim][iIdx]) a.notas[trim][iIdx] = {};
+  const anterior = a.notas[trim][iIdx][jIdx];
+  const tieneNota = anterior !== '' && anterior !== null && anterior !== undefined;
+
+  const _guardar = () => {
+    if (tieneNota) _guardarHistorialNota(a, trim, iIdx, jIdx, anterior);
+    a.notas[trim][iIdx][jIdx] = val === '' ? '' : parseFloat(val);
+    guardarDatos();
+    renderPage();
+  };
+
+  if (tieneNota && val !== '' && parseFloat(val) !== parseFloat(anterior)) {
+    confirmar('Sobreescribir nota', `Este apartado ya tiene ${anterior}. ¿Cambiarlo por ${val}?`,
+      _guardar, 'Sobreescribir',
+      () => { if (inputEl) { inputEl.value = anterior; inputEl.blur(); } }
+    );
+  } else {
+    _guardar();
+  }
+}
+
+function cuadernoDeshacerNota(aid, iIdx, jIdx) {
+  const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
+  const trim = _cuadernoTrim[a.grupoId] || 'T1';
+  const hist = a.notas?.[trim]?.[iIdx]?._historial?.[jIdx];
+  if (!hist?.length) return;
+  a.notas[trim][iIdx][jIdx] = hist.shift();
+  guardarDatos(); renderPage();
+}
+
+function exportarCuadernoPDF(gid, trim) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  const insts = g.estructura?.[trim]||[];
+  const trimLabel = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'}[trim]||trim;
+  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
+  const redOn = APP.config.redondeoActivo!==false;
+
+  let cabTh = '<th style="border:1px solid #ccc;padding:4px 8px;background:#1F3864;color:#fff;font-size:11px;text-align:left">Alumno</th>';
+  let subTh = '';
+  insts.forEach(inst => {
+    const n = inst.items.length||1;
+    cabTh += `<th colspan="${n}" style="border:1px solid #ccc;padding:4px 6px;background:#2E74B5;color:#fff;font-size:10px;text-align:center">${inst.nombre} (${inst.peso}%)</th>`;
+    if (!inst.items.length) {
+      subTh += `<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">Nota</th>`;
+    } else {
+      inst.items.forEach(item => { subTh += `<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">${item.nombre} ${item.peso}%</th>`; });
+    }
+  });
+  cabTh += `<th style="border:1px solid #ccc;padding:4px 8px;background:#1e3a1e;color:#fff;font-size:11px;text-align:center">Final</th>`;
+
+  const filas = als.map((a,ri) => {
+    const bg = ri%2===0?'#fff':'#f5f5f5';
+    let tds = `<td style="border:1px solid #ccc;padding:4px 8px;background:${bg};font-size:11px;white-space:nowrap">${a.apellidos||''}, ${a.nombre||''}</td>`;
+    insts.forEach((inst,iIdx) => {
+      const getCelda = (jIdx) => {
+        const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
+        const vr = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+        const tieneRec = vr!==undefined&&vr!=='';
+        return `<td style="border:1px solid #ccc;padding:4px 5px;text-align:center;background:${bg};font-size:11px;font-family:monospace">
+          ${v!==undefined&&v!==''?`<span style="${tieneRec?'text-decoration:line-through;opacity:0.6':''}">${parseFloat(v).toFixed(2)}</span>`:'—'}
+          ${tieneRec?`<br><small style="color:#c07800">↑${parseFloat(vr).toFixed(2)}</small>`:''}
+        </td>`;
+      };
+      if (!inst.items.length) { tds += getCelda(0); }
+      else inst.items.forEach((_,jIdx) => { tds += getCelda(jIdx); });
+    });
+    const nt = calcNotaTrimestre(a,trim);
+    const nr = redOn&&nt!==null?redondear(nt,umbral):null;
+    const nc = nt!==null?(nt<5?'#c0392b':nt>=9?'#1e7145':'#1a1a1a'):'#aaa';
+    tds += `<td style="border:1px solid #ccc;padding:4px 8px;text-align:center;background:${bg};font-weight:700;font-size:12px;color:${nc};font-family:monospace">${nt!==null?nt.toFixed(2):'—'}${nr!==null&&nr!==nt?`<br><small style="color:#2E74B5">(${nr})</small>`:''}</td>`;
+    return `<tr>${tds}</tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Cuaderno ${g.nombre} — ${trimLabel}</title>
+    <style>body{font-family:Calibri,sans-serif;margin:12px}@media print{@page{size:landscape;margin:8mm}button{display:none}}</style>
+  </head><body>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid #1F3864;padding-bottom:6px">
+      <div><strong style="font-size:15px;color:#1F3864">${g.nombre}</strong>${g.asignatura?`<br><span style="font-size:11px;color:#666">${g.asignatura}</span>`:''}</div>
+      <div style="text-align:right"><strong style="font-size:13px;color:#2E74B5">${trimLabel}</strong><br><span style="font-size:10px;color:#999">${new Date().toLocaleDateString('es-ES')}</span></div>
+    </div>
+    <table style="border-collapse:collapse;width:100%">
+      <thead><tr>${cabTh}</tr><tr>${subTh}</tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+  </body></html>`;
+
+  const w = window.open('','_blank');
+  w.document.write(html); w.document.close();
+  setTimeout(()=>w.print(),400);
+}
+
+function exportarCuadernoExcel(gid, trim) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  const insts = g.estructura?.[trim]||[];
+  const trimLabel = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'}[trim]||trim;
+  if (!window.XLSX) {
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=()=>exportarCuadernoExcel(gid,trim);
+    s.onerror=()=>alert('No se pudo cargar Excel.');
+    document.head.appendChild(s); return;
+  }
+  const row1=['Alumno'], row2=[''];
+  insts.forEach(inst=>{
+    const n=Math.max(inst.items.length,1);
+    row1.push(inst.nombre+' ('+inst.peso+'%)');
+    for(let i=1;i<n;i++) row1.push('');
+    if(!inst.items.length){row2.push('Nota');}
+    else inst.items.forEach(it=>row2.push(it.nombre+' '+it.peso+'%'));
+  });
+  row1.push('Nota Final'); row2.push('');
+  const dataRows=als.map(a=>{
+    const row=[`${a.apellidos||''}, ${a.nombre||''}`];
+    insts.forEach((inst,iIdx)=>{
+      if(!inst.items.length){const v=a.notas?.[trim]?.[iIdx]?.['0'];row.push(v!==undefined&&v!==''?parseFloat(v):'');}
+      else inst.items.forEach((_,jIdx)=>{const v=a.notas?.[trim]?.[iIdx]?.[jIdx];row.push(v!==undefined&&v!==''?parseFloat(v):'');});
+    });
+    const nt=calcNotaTrimestre(a,trim); row.push(nt!==null?nt:null);
+    return row;
+  });
+  const ws=XLSX.utils.aoa_to_sheet([row1,row2,...dataRows]);
+  XLSX.utils.book_append_sheet(XLSX.utils.book_new(),ws,trimLabel.slice(0,31));
+  XLSX.writeFile(XLSX.utils.book_new(),'cuaderno_error.xlsx'); // placeholder
+  const wb2=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb2,ws,trimLabel.slice(0,31));
+  XLSX.writeFile(wb2,`cuaderno_${g.nombre.replace(/\s/g,'_')}_${trim}.xlsx`);
+}
+
 
 function renderVistaMiniaturas(g, als) {
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
@@ -5669,6 +6136,25 @@ function renderEstructuraModal() {
           Suma apartados: ${badgeSuma(sumaItems)}
           ${esAritmetica ? '<span style="font-size:11px;color:var(--accent)">— Media aritmética (pesos automáticos)</span>' : ''}
         </div>` : ''}
+        <!-- Campo criterios de evaluación -->
+        <div style="margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border2)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${inst.criterios!==undefined&&inst.criterios!==null?'6px':'0'}">
+            <span style="font-size:11px;font-weight:600;color:var(--text3)">Criterios de evaluación</span>
+            <label onclick="event.stopPropagation();editarCriteriosInst(${iIdx},${inst.criterios!==undefined&&inst.criterios!==null?'null':`''`})" style="cursor:pointer">
+              <span style="padding:2px 8px;border-radius:10px;border:1px solid ${inst.criterios!==undefined&&inst.criterios!==null?'var(--accent)':'var(--border2)'};background:${inst.criterios!==undefined&&inst.criterios!==null?'var(--accent-bg)':'transparent'};color:${inst.criterios!==undefined&&inst.criterios!==null?'var(--accent)':'var(--text3)'};font-size:10px;font-weight:600">
+                ${inst.criterios!==undefined&&inst.criterios!==null?'● Activo':'○ Desactivado'}
+              </span>
+            </label>
+          </div>
+          ${inst.criterios!==undefined&&inst.criterios!==null?`
+          <input type="text" value="${(inst.criterios||'').replace(/"/g,'&quot;')}"
+            placeholder="Ej: 1.1, 1.2, 2.1, 4.2"
+            style="width:100%;border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:inherit;font-size:12px;background:var(--surface);color:var(--text);outline:none;box-sizing:border-box"
+            onclick="event.stopPropagation()"
+            onchange="editarCriteriosInstTexto(${iIdx},this.value)">
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Separa los códigos con comas: 1.1, 1.2, 2.1...</div>
+          `:''}
+        </div>
         ${itemsHtml}
         <div style="margin-top:8px">
           <button class="btn btn-secondary btn-sm" onclick="agregarItemGrupo(${iIdx})">+ Añadir apartado</button>
@@ -5721,6 +6207,26 @@ function toggleModoInstrumento(iIdx) {
   if (inst.mediaAritmetica) recalcularPesosAritmetica(iIdx);
   guardarDatos();
   renderEstructuraModal();
+}
+
+function editarCriteriosInst(iIdx, valor) {
+  // Toggle: si valor es null → desactivar (undefined), si es string → activar
+  const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
+  const inst = g.estructura[trimEstructura]?.[iIdx]; if(!inst) return;
+  if (valor === 'null' || valor === null) {
+    delete inst.criterios;
+  } else {
+    inst.criterios = valor || '';
+  }
+  guardarDatos();
+  renderEstructuraModal();
+}
+
+function editarCriteriosInstTexto(iIdx, valor) {
+  const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
+  const inst = g.estructura[trimEstructura]?.[iIdx]; if(!inst) return;
+  inst.criterios = valor;
+  guardarDatos();
 }
 
 function toggleGrupoInst(iIdx) {
@@ -7238,10 +7744,15 @@ function renderProgramacion() {
       <div class="toggle ${prog.activa ? 'on' : ''}"></div>
       <span style="font-size:13px;font-weight:500">${prog.activa ? 'Activa' : 'Desactivada'}</span>
     </label>
-    <label class="btn btn-secondary btn-sm" style="cursor:pointer" title="Importar programación desde JSON">
-      📥 Importar
-      <input type="file" accept=".json" style="display:none" onchange="importarProgramacion(this)">
-    </label>
+    <div style="position:relative;display:inline-block" id="prog-import-wrap">
+      <button class="btn btn-secondary btn-sm" onclick="toggleProgImportMenu()">📥 Importar ▾</button>
+      <div id="prog-import-menu" class="hidden" style="position:absolute;top:100%;left:0;z-index:100;background:var(--surface);border:1.5px solid var(--border2);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.12);min-width:200px;margin-top:4px;overflow:hidden">
+        <button onclick="toggleProgImportMenu();document.getElementById('prog-import-file').click()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text)">📋 Importar JSON ProfeApp</button>
+        <input id="prog-import-file" type="file" accept=".json" style="display:none" onchange="importarProgramacion(this)">
+        <div style="height:1px;background:var(--border)"></div>
+        <button onclick="toggleProgImportMenu();abrirModalAnota()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text)">🏫 Importar desde Anota (.docx / texto)</button>
+      </div>
+    </div>
     <button class="btn btn-secondary btn-sm" onclick="exportarProgramacion()">📤 Exportar</button>
     ${prog.activa ? `<button class="btn btn-primary btn-sm" onclick="abrirModalNivel()">+ Nivel / Materia</button>` : ''}
   </div>`;
@@ -7386,6 +7897,276 @@ function exportarProgramacion() {
   a.download = `programacion_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── Importar desde Anota ─────────────────────────────────────
+let _anotaUnidades = [];
+let _anotaNombreNivel = '';
+
+function toggleProgImportMenu() {
+  const m = document.getElementById('prog-import-menu');
+  if (m) m.classList.toggle('hidden');
+  // Cerrar al pulsar fuera
+  setTimeout(() => {
+    document.addEventListener('click', function cerrar(e) {
+      if (!document.getElementById('prog-import-wrap')?.contains(e.target)) {
+        m?.classList.add('hidden');
+        document.removeEventListener('click', cerrar);
+      }
+    });
+  }, 10);
+}
+
+function abrirModalAnota() {
+  _anotaUnidades = [];
+  document.getElementById('anota-paso1').classList.remove('hidden');
+  document.getElementById('anota-paso2').classList.add('hidden');
+  document.getElementById('anota-error').classList.add('hidden');
+  document.getElementById('anota-texto').value = '';
+  document.getElementById('anota-footer').innerHTML = '<button class="btn btn-secondary" onclick="cerrarModalAnota()">Cancelar</button>';
+  document.getElementById('modal-anota').classList.remove('hidden');
+}
+
+function cerrarModalAnota() {
+  document.getElementById('modal-anota').classList.add('hidden');
+}
+
+async function anotaLeerWord(input) {
+  const file = input.files[0]; if (!file) return;
+  // Cargar mammoth si no está disponible
+  if (!window.mammoth) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
+      anotaProcesarTexto(result.value);
+    } catch(err) {
+      anotaMostrarError('Error al leer el archivo Word. Prueba a pegar el texto manualmente.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+function anotaProcesarTexto(texto) {
+  if (!texto?.trim()) { anotaMostrarError('No hay texto para analizar.'); return; }
+
+  // Extraer nombre del centro/materia para el nombre del nivel
+  const materiaMatch = texto.match(/Materia:\s*([^\n]+)/);
+  const cursoMatch = texto.match(/Curso:\s*([^\n]+)/);
+  const centroMatch = texto.match(/^([^\n]+)\s*Curso Escolar/m);
+  const materia = materiaMatch ? materiaMatch[1].trim().replace(/^BGE\w+\s*-\s*/,'') : 'Programación';
+  const curso = cursoMatch ? cursoMatch[1].trim() : '';
+  _anotaNombreNivel = `${materia}${curso?' — '+curso:''}`;
+
+  // Detectar instrumentos de evaluación (globales)
+  const instrMap = {};
+  const instrRegex = /(?:Diario de clase|Prueba escrita|Cuaderno|Prácticas?|Trabajo)[:\s]*(\d+)%/gi;
+  let mInstr;
+  while ((mInstr = instrRegex.exec(texto)) !== null) {
+    const nombre = mInstr[0].replace(/:\s*\d+%/,'').trim();
+    const peso = parseInt(mInstr[1]);
+    if (!instrMap[nombre]) instrMap[nombre] = peso;
+  }
+
+  // Extraer unidades didácticas con sus criterios por instrumento
+  const unidadRegex = /UNIDAD\s+(\w+):\s*([^\n]+?)\s+Fecha inicio prev\.:\s*([\d/]+)\s+Fecha fin\s+prev\.:\s*([\d/]+)\s+Sesiones prev\.:\s*(\d+)/gi;
+  _anotaUnidades = [];
+  let m;
+  while ((m = unidadRegex.exec(texto)) !== null) {
+    const codigo = m[1];
+    const titulo = m[2].trim();
+    const fechaIni = anotaFecha(m[3]);
+    const fechaFin = anotaFecha(m[4]);
+    const nSesiones = parseInt(m[5]);
+    const trimEst = anotaEstimarTrim(fechaIni);
+
+    // Extraer bloque de texto de esta unidad (hasta la siguiente UNIDAD o fin)
+    const posActual = m.index;
+    const unidadRegex2 = /UNIDAD\s+\w+:/gi;
+    unidadRegex2.lastIndex = posActual + 1;
+    const sigMatch = unidadRegex2.exec(texto);
+    const bloqueUnidad = texto.slice(posActual, sigMatch ? sigMatch.index : texto.length);
+
+    // Extraer criterios por instrumento en esta unidad
+    const criteriosPorInstrumento = {};
+    // Buscar filas con formato: #.N.N + instrumento + %
+    const criterioRegex = /#\.(\d+\.\d+)/g;
+    let mc;
+    const criteriosUnidad = [];
+    while ((mc = criterioRegex.exec(bloqueUnidad)) !== null) {
+      criteriosUnidad.push(mc[1]);
+    }
+    // Asignar criterios a los instrumentos según qué % aparece después del criterio
+    Object.keys(instrMap).forEach(instr => {
+      // Criterios donde el instrumento tiene % (simplificado: todos los criterios van a todos los instrumentos)
+      // En el PDF de Anota la asociación instrumento-criterio no es siempre parseable directamente
+      criteriosPorInstrumento[instr] = [...new Set(criteriosUnidad)];
+    });
+
+    _anotaUnidades.push({ codigo, titulo, fechaIni, fechaFin, nSesiones, trim: trimEst, criteriosPorInstrumento });
+  }
+
+  if (!_anotaUnidades.length) {
+    anotaMostrarError('No se encontraron unidades didácticas. Comprueba que el texto es correcto o prueba con otro formato.');
+    return;
+  }
+
+  _anotaInstrumentos = instrMap;
+  anotaMostrarPaso2();
+}
+
+let _anotaInstrumentos = {};
+
+function anotaFecha(str) {
+  if (!str) return '';
+  // Formato dd/mm/yyyy o dd/mm/yy
+  const parts = str.split('/');
+  if (parts.length === 3) {
+    const d = parts[0].padStart(2,'0');
+    const mes = parts[1].padStart(2,'0');
+    let y = parts[2];
+    if (y.length === 2) y = '20' + y;
+    return `${y}-${mes}-${d}`;
+  }
+  return '';
+}
+
+function anotaEstimarTrim(fecha) {
+  if (!fecha) return 'T1';
+  const m = parseInt(fecha.split('-')[1]);
+  if (m >= 9 && m <= 12) return 'T1';
+  if (m >= 1 && m <= 3) return 'T2';
+  return 'T3';
+}
+
+function anotaMostrarPaso2() {
+  document.getElementById('anota-paso1').classList.add('hidden');
+  document.getElementById('anota-paso2').classList.remove('hidden');
+  document.getElementById('anota-nivel-preview').textContent = `📖 ${_anotaNombreNivel} — ${_anotaUnidades.length} unidades detectadas`;
+
+  const lista = document.getElementById('anota-unidades-lista');
+  lista.innerHTML = _anotaUnidades.map((u, i) => `
+    <div style="padding:10px 12px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div>
+          <span style="font-size:11px;font-weight:700;color:var(--accent)">${u.codigo}</span>
+          <span style="font-size:12px;font-weight:600;margin-left:6px">${u.titulo}</span>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${u.nSesiones} sesiones · ${u.fechaIni||'Sin fecha'} → ${u.fechaFin||'Sin fecha'}</div>
+        </div>
+        <select onchange="_anotaUnidades[${i}].trim=this.value"
+          style="padding:4px 8px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
+          <option value="T1" ${u.trim==='T1'?'selected':''}>1ª Evaluación</option>
+          <option value="T2" ${u.trim==='T2'?'selected':''}>2ª Evaluación</option>
+          <option value="T3" ${u.trim==='T3'?'selected':''}>3ª Evaluación</option>
+        </select>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('anota-footer').innerHTML = `
+    <button class="btn btn-secondary" onclick="anotaVolver()">← Volver</button>
+    <button class="btn btn-primary" onclick="anotaConfirmarImport()">✓ Importar programación</button>`;
+}
+
+function anotaVolver() {
+  document.getElementById('anota-paso1').classList.remove('hidden');
+  document.getElementById('anota-paso2').classList.add('hidden');
+  document.getElementById('anota-footer').innerHTML = '<button class="btn btn-secondary" onclick="cerrarModalAnota()">Cancelar</button>';
+}
+
+function anotaConfirmarImport() {
+  if (!APP.programacion) APP.programacion = { activa: true, niveles: [] };
+
+  // Nombre único para el nuevo nivel
+  let nombre = _anotaNombreNivel;
+  const existentes = APP.programacion.niveles.map(n => n.nombre);
+  if (existentes.includes(nombre)) {
+    let i = 2;
+    while (existentes.includes(`${nombre} (${i})`)) i++;
+    nombre = `${nombre} (${i})`;
+  }
+
+  // Colores para bloques
+  const colores = ['#1e3fa8','#166534','#92400e','#5b21b6','#0e7490','#c55a11','#1e7145','#7c3aed'];
+
+  // Crear bloques desde unidades
+  const bloques = _anotaUnidades.map((u, i) => {
+    const sesiones = Array.from({length: u.nSesiones}, (_, si) => ({
+      id: uid(),
+      titulo: `Sesión ${si+1} ${u.codigo}`,
+      tipo: 'explicacion',
+      explicacion: '',
+      tarea: '',
+      enlaceTitulo: '',
+      enlaceUrl: '',
+      estado: 'pendiente',
+      notaReal: '',
+      trim: u.trim,
+      fechaIni: u.fechaIni
+    }));
+    return {
+      id: uid(),
+      titulo: `${u.codigo}: ${u.titulo}`,
+      color: colores[i % colores.length],
+      trim: u.trim,
+      fechaIni: u.fechaIni,
+      sesiones
+    };
+  });
+
+  // Crear estructura de instrumentos si se detectaron
+  const instruccionesEval = {};
+  if (Object.keys(_anotaInstrumentos).length) {
+    ['T1','T2','T3'].forEach(t => {
+      // Agrupar criterios por instrumento para este trimestre
+      const unidadesTrim = _anotaUnidades.filter(u => u.trim === t);
+      instruccionesEval[t] = Object.entries(_anotaInstrumentos).map(([nombre, peso]) => {
+        // Recoger criterios de las unidades de este trimestre para este instrumento
+        const criteriosSet = new Set();
+        unidadesTrim.forEach(u => {
+          (u.criteriosPorInstrumento?.[nombre] || []).forEach(c => criteriosSet.add(c));
+        });
+        const criteriosStr = criteriosSet.size > 0 ? [...criteriosSet].join(', ') : '';
+        return {
+          nombre, peso, items: [], mediaAritmetica: true,
+          criterios: criteriosStr || undefined
+        };
+      });
+    });
+  }
+
+  const nivel = {
+    id: uid(),
+    nombre,
+    grupos: [],
+    fechaInicio: _anotaUnidades[0]?.fechaIni || '',
+    activo: true,
+    bloques,
+    _instruccionesEval: instruccionesEval // para aplicar al grupo al asignarlo
+  };
+
+  APP.programacion.niveles.push(nivel);
+  APP.programacion.activa = true;
+  guardarDatos();
+  cerrarModalAnota();
+  renderPage();
+
+  // Aviso de instrumentos
+  const tieneInstr = Object.keys(_anotaInstrumentos).length > 0;
+  alert(`✅ Programación "${nombre}" importada correctamente.\n\n${_anotaUnidades.length} bloques · ${_anotaUnidades.reduce((s,u)=>s+u.nSesiones,0)} sesiones${tieneInstr ? '\n\nInstrumentos detectados: '+Object.entries(_anotaInstrumentos).map(([n,p])=>`${n} (${p}%)`).join(', ')+'\nAsígnalos a tu grupo desde ⚙ Notas.' : ''}`);
+}
+
+function anotaMostrarError(msg) {
+  const el = document.getElementById('anota-error');
+  el.textContent = '⚠ ' + msg;
+  el.classList.remove('hidden');
 }
 
 function importarProgramacion(input) {
