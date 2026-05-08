@@ -863,9 +863,6 @@
       <div class="nav-item" onclick="navTo('alumnos')">
         <span class="icon">👥</span><span>Clases</span>
       </div>
-      <div class="nav-item" onclick="navTo('importar')">
-        <span class="icon">📥</span><span>Importar</span>
-      </div>
       <div class="nav-section">Gestión</div>
       <div class="nav-item" onclick="navTo('horario')">
         <span class="icon">🕐</span><span>Horario</span>
@@ -880,6 +877,9 @@
         <span class="icon">📊</span><span>Estadísticas</span>
       </div>
       <div class="nav-section">Configuración</div>
+      <div class="nav-item" onclick="navTo('importar')">
+        <span class="icon">📥</span><span>Importar</span>
+      </div>
       <div class="nav-item" onclick="navTo('archivo')">
         <span class="icon">🗄</span><span>Archivo</span>
       </div>
@@ -909,11 +909,11 @@
   <div class="bottom-nav-item" id="bn-alumnos" onclick="navTo('alumnos')">
     <span class="icon">👥</span><span>Clases</span>
   </div>
-  <div class="bottom-nav-item" id="bn-importar" onclick="navTo('importar')">
-    <span class="icon">📥</span><span>Importar</span>
-  </div>
   <div class="bottom-nav-item" id="bn-estadisticas" onclick="navTo('estadisticas')">
     <span class="icon">📊</span><span>Stats</span>
+  </div>
+  <div class="bottom-nav-item" id="bn-programacion" onclick="navTo('programacion')">
+    <span class="icon">📖</span><span>Programación</span>
   </div>
   <div class="bottom-nav-item" id="bn-mas" onclick="abrirSidebar()">
     <span class="icon">☰</span><span>Más</span>
@@ -1762,11 +1762,11 @@ function navTo(page) {
   if (items[map[page]]) items[map[page]].classList.add('active');
   // Bottom nav
   document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
-  const bnMap = {inicio:'bn-inicio', alumnos:'bn-alumnos', importar:'bn-importar', estadisticas:'bn-estadisticas'};
-  if (bnMap[page]) { const el = document.getElementById(bnMap[page]); if(el) el.classList.add('active'); }
-  // Cerrar sidebar si está abierto (móvil)
+  const bnMap = {inicio:'bn-inicio', alumnos:'bn-alumnos', estadisticas:'bn-estadisticas', programacion:'bn-programacion'};
+  if (bnMap[page]) { const el = document.getElementById(bnMap[page]); if(el) el.classList.add('active'); }  // Cerrar sidebar si está abierto (móvil)
   cerrarSidebar();
   renderPage(page);
+  applyBottomNav();
 }
 
 function abrirSidebar() {
@@ -2601,6 +2601,7 @@ function renderVistaCuaderno(g, als) {
 
     const tdAlumno = `<td style="background:${bg};border:1px solid var(--border2);padding:4px 8px;white-space:nowrap;position:sticky;left:0;z-index:2;min-width:${mostrarFotos?'155px':'125px'}">
       <div style="display:flex;align-items:center;gap:5px">
+        <div onclick="abrirFicha('${a.id}')" style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Abrir ficha">
         ${fotoHtml}
         <div>
           <div style="font-size:12px;font-weight:600;line-height:1.2">${a.apellidos||''}, ${a.nombre||''}</div>
@@ -2609,6 +2610,7 @@ function renderVistaCuaderno(g, als) {
             ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PAP</span>':''}
             ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PEP</span>':''}
           </div>
+        </div>
         </div>
       </div>
     </td>`;
@@ -2714,7 +2716,7 @@ function renderVistaCuaderno(g, als) {
       <label onclick="_cuadernoRec['${gid}']=!_cuadernoRec['${gid}'];renderPage()" style="cursor:pointer">
         <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${mostrarRec?'var(--amber)':'var(--border2)'};background:${mostrarRec?'#fef9c3':'transparent'};color:${mostrarRec?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${mostrarRec?'● Rec':'○ Rec'}</span>
       </label>
-      ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo</span>` : ''}
+      ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo salvo alumnos con % propios — actívalo en su ficha → Notas</span>` : ''}
       <div style="margin-left:auto;display:flex;gap:6px">
         <button onclick="exportarCuadernoPDF('${gid}','${trim}')" class="btn btn-secondary btn-sm">📄 PDF</button>
         <button onclick="exportarCuadernoExcel('${gid}','${trim}')" class="btn btn-secondary btn-sm">📊 Excel</button>
@@ -3434,10 +3436,16 @@ function renderTabNotas(a) {
       </div>
     </div>` : '';
 
-  // ── Barra redondeo ────────────────────────────────────────────
+  // ── Barra redondeo + % propios ───────────────────────────────
   let redondeoBar = '';
   if (!redOn) {
-    redondeoBar = `<div class="redondeo-config"><span>⚙️</span><span style="color:var(--amber)">Redondeo desactivado globalmente (Ajustes)</span></div>`;
+    redondeoBar = `<div class="redondeo-config"><span>⚙️</span><span style="color:var(--amber)">Redondeo desactivado globalmente (Ajustes)</span>
+      <span style="margin-left:12px;color:var(--border2)">|</span>
+      <label class="toggle-row" onclick="toggleEstrPersonal('${a.id}')" style="margin-left:8px;cursor:pointer;gap:6px">
+        <div class="toggle ${tieneEstrPersonal ? 'on' : ''}"></div>
+        <span style="font-size:12px;color:${tieneEstrPersonal?'var(--purple)':'var(--text2)'}">% propios</span>
+      </label>
+    </div>`;
   } else {
     redondeoBar = `<div class="redondeo-config">
       <span>⚙️</span>
@@ -3449,6 +3457,11 @@ function renderTabNotas(a) {
       ${umbralPropio
         ? `<input type="number" min="0.1" max="0.9" step="0.05" value="${a.redondeoAlza}" style="width:64px" onchange="setRedondeoAlumno('${a.id}',parseFloat(this.value));cambiarTabFicha('notas')">`
         : `<span style="font-family:'DM Mono',monospace;font-weight:600">${umbral}</span>`}
+      <span style="margin-left:12px;color:var(--border2)">|</span>
+      <label class="toggle-row" onclick="toggleEstrPersonal('${a.id}')" style="margin-left:8px;cursor:pointer;gap:6px">
+        <div class="toggle ${tieneEstrPersonal ? 'on' : ''}"></div>
+        <span style="font-size:12px;color:${tieneEstrPersonal?'var(--purple)':'var(--text2)'}">% propios</span>
+      </label>
     </div>`;
   }
 
@@ -3858,18 +3871,19 @@ function _initRec(a, trim, iIdx) {
 
 function cambiarNotaRecuperacion(aid, iIdx, jIdx, val, inputEl) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
-  _initRec(a, trimestreActual, iIdx);
-  const anterior = a.notas[trimestreActual][iIdx].rec[jIdx];
+  const trim = _cuadernoTrim[a.grupoId] || trimestreActual;
+  _initRec(a, trim, iIdx);
+  const anterior = a.notas[trim][iIdx].rec[jIdx];
   const tieneNota = anterior !== '' && anterior !== null && anterior !== undefined;
 
   const _guardar = () => {
     if (tieneNota) {
-      if (!a.notas[trimestreActual][iIdx]._historialRec) a.notas[trimestreActual][iIdx]._historialRec = {};
-      if (!a.notas[trimestreActual][iIdx]._historialRec[jIdx]) a.notas[trimestreActual][iIdx]._historialRec[jIdx] = [];
-      a.notas[trimestreActual][iIdx]._historialRec[jIdx].unshift(parseFloat(anterior));
-      if (a.notas[trimestreActual][iIdx]._historialRec[jIdx].length > 5) a.notas[trimestreActual][iIdx]._historialRec[jIdx].pop();
+      if (!a.notas[trim][iIdx]._historialRec) a.notas[trim][iIdx]._historialRec = {};
+      if (!a.notas[trim][iIdx]._historialRec[jIdx]) a.notas[trim][iIdx]._historialRec[jIdx] = [];
+      a.notas[trim][iIdx]._historialRec[jIdx].unshift(parseFloat(anterior));
+      if (a.notas[trim][iIdx]._historialRec[jIdx].length > 5) a.notas[trim][iIdx]._historialRec[jIdx].pop();
     }
-    a.notas[trimestreActual][iIdx].rec[jIdx] = val === '' ? '' : parseFloat(val);
+    a.notas[trim][iIdx].rec[jIdx] = val === '' ? '' : parseFloat(val);
     guardarDatos();
     if (inputEl) inputEl.blur();
     cambiarTabFicha('notas');
@@ -4000,12 +4014,14 @@ function deshacerNota(iIdx, jIdx) {
 
 function deshacerRecuperacion(aid, iIdx, jIdx) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
-  const hist = a.notas?.[trimestreActual]?.[iIdx]?._historialRec?.[jIdx];
+  const trim = _cuadernoTrim[a.grupoId] || trimestreActual;
+  const hist = a.notas?.[trim]?.[iIdx]?._historialRec?.[jIdx];
   if (!hist || !hist.length) return;
-  if (!a.notas[trimestreActual][iIdx].rec) a.notas[trimestreActual][iIdx].rec = {};
-  a.notas[trimestreActual][iIdx].rec[jIdx] = hist.shift();
+  if (!a.notas[trim][iIdx].rec) a.notas[trim][iIdx].rec = {};
+  a.notas[trim][iIdx].rec[jIdx] = hist.shift();
   guardarDatos();
   cambiarTabFicha('notas');
+  renderPage();
 }
 
 function toggleRedondeoAlumno(aid) {
@@ -5685,6 +5701,11 @@ function renderAjustes() {
       ` : `<p style="font-size:13px;color:var(--text2)">El redondeo está desactivado. Las notas se muestran con decimales sin redondear.</p>`}
     </div>
     <div class="card" style="padding:20px;margin-bottom:16px">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:6px">📱 Barra inferior (tablet y móvil)</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Elige las 4 secciones que aparecen en la barra inferior. La última ranura (☰ Más) es fija.</p>
+      ${renderBottomNavSettings()}
+    </div>
+    <div class="card" style="padding:20px;margin-bottom:16px">
       <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Datos y exportación</h3>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="exportarDatos()">💾 Exportar datos…</button>
@@ -5706,9 +5727,77 @@ function renderAjustes() {
     </div>
   </div>`;
 }
+function renderBottomNavSettings() {
+  const opciones = [
+    {id:'inicio',       icon:'🏠', label:'Inicio'},
+    {id:'alumnos',      icon:'👥', label:'Clases'},
+    {id:'estadisticas', icon:'📊', label:'Stats'},
+    {id:'programacion', icon:'📖', label:'Programación'},
+    {id:'horario',      icon:'🕐', label:'Horario'},
+    {id:'calendario',   icon:'📅', label:'Calendario'},
+    {id:'importar',     icon:'📥', label:'Importar'},
+    {id:'ajustes',      icon:'⚙️', label:'Ajustes'},
+    {id:'archivo',      icon:'🗄', label:'Archivo'},
+  ];
+  const sel = APP.config.bottomNav || ['inicio','alumnos','estadisticas','programacion'];
+  let rows = '';
+  [0,1,2,3].forEach(i => {
+    const opts = opciones.map(o =>
+      '<option value="' + o.id + '"' + (sel[i] === o.id ? ' selected' : '') + '>' + o.icon + ' ' + o.label + '</option>'
+    ).join('');
+    rows += '<div style="display:flex;align-items:center;gap:10px">'
+      + '<span style="font-size:11px;color:var(--text3);min-width:52px;font-weight:600">Ranura ' + (i+1) + '</span>'
+      + '<select onchange="setBottomNavSlot(' + i + ',this.value)" style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);outline:none">'
+      + opts + '</select></div>';
+  });
+  rows += '<div style="display:flex;align-items:center;gap:10px;opacity:0.45">'
+    + '<span style="font-size:11px;color:var(--text3);min-width:52px;font-weight:600">Fija</span>'
+    + '<div style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface2);color:var(--text3)">☰ Más</div>'
+    + '</div>';
+  return '<div style="display:flex;flex-direction:column;gap:8px">' + rows + '</div>';
+}
+
 function toggleRedondeoGlobal() {
   APP.config.redondeoActivo = APP.config.redondeoActivo === false ? true : false;
   guardarDatos(); renderPage();
+}
+
+const _BN_OPTS = [
+  {id:'inicio',       icon:'🏠', label:'Inicio'},
+  {id:'alumnos',      icon:'👥', label:'Clases'},
+  {id:'estadisticas', icon:'📊', label:'Stats'},
+  {id:'programacion', icon:'📖', label:'Programación'},
+  {id:'horario',      icon:'🕐', label:'Horario'},
+  {id:'calendario',   icon:'📅', label:'Calendario'},
+  {id:'importar',     icon:'📥', label:'Importar'},
+  {id:'ajustes',      icon:'⚙️', label:'Ajustes'},
+  {id:'archivo',      icon:'🗄', label:'Archivo'},
+];
+
+function setBottomNavSlot(slot, pageId) {
+  if (!APP.config.bottomNav) APP.config.bottomNav = ['inicio','alumnos','estadisticas','programacion'];
+  APP.config.bottomNav[slot] = pageId;
+  guardarDatos();
+  applyBottomNav();
+}
+
+function applyBottomNav() {
+  const slots = APP.config.bottomNav || ['inicio','alumnos','estadisticas','programacion'];
+  const nav = document.getElementById('bottom-nav');
+  if (!nav) return;
+  // Keep last item (Más button) fixed, rebuild first 4
+  const items = nav.querySelectorAll('.bottom-nav-item');
+  slots.forEach((pageId, i) => {
+    if (!items[i]) return;
+    const opt = _BN_OPTS.find(o => o.id === pageId) || _BN_OPTS[0];
+    items[i].id = 'bn-' + pageId;
+    items[i].onclick = () => navTo(pageId);
+    items[i].innerHTML = `<span class="icon">${opt.icon}</span><span>${opt.label}</span>`;
+  });
+  // Update active state
+  document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+  const currentSlot = slots.findIndex(id => id === paginaActual);
+  if (currentSlot >= 0 && items[currentSlot]) items[currentSlot].classList.add('active');
 }
 function toggleRedondeoGrupo(gid) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
@@ -7817,6 +7906,59 @@ function calCerrarEvento() {
 // determinan qué sesión toca cada día y detectan retrasos.
 // =====================================================================
 
+function renderInstrumentosEval(niv) {
+  const instr = niv._instruccionesEval;
+  if (!instr || !Object.keys(instr).length) return '';
+  const trimLabels = {T1:'1ª Eval.',T2:'2ª Eval.',T3:'3ª Eval.'};
+  const trims = ['T1','T2','T3'].filter(t => instr[t] && instr[t].length);
+  if (!trims.length) return '';
+  const panelId = 'instr-panel-' + niv.id;
+
+  let panelContent = '';
+  trims.forEach(t => {
+    const insts = instr[t];
+    let rows = '';
+    insts.forEach(inst => {
+      const criterios = inst.criterios ? inst.criterios.split(',').map(s => s.trim()).filter(Boolean) : [];
+      let critHtml = '';
+      if (criterios.length) {
+        const tags = criterios.map(cr =>
+          '<span style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);font-family:\'DM Mono\',monospace">' + cr + '</span>'
+        ).join('');
+        critHtml = '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">' + tags + '</div>';
+      }
+      rows += '<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface)">'
+        + '<div style="display:flex;align-items:center;gap:8px">'
+        + '<span style="font-weight:700;font-size:12px;color:var(--accent)">' + inst.nombre + '</span>'
+        + '<span style="font-size:11px;font-weight:600;background:var(--accent);color:#fff;padding:1px 7px;border-radius:20px">' + inst.peso + '%</span>'
+        + '</div>'
+        + (criterios.length
+          ? '<div style="font-size:10px;color:var(--text3);margin-top:5px;font-weight:600">Criterios de evaluación asociados:</div>' + critHtml
+          : '<div style="font-size:10px;color:var(--text3);margin-top:3px">Sin criterios asociados</div>')
+        + '</div>';
+    });
+    panelContent += '<div style="margin-bottom:10px">'
+      + '<div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">' + trimLabels[t] + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:6px">' + rows + '</div>'
+      + '</div>';
+  });
+
+  const pills = (instr.T1 || []).map(i =>
+    '<span style="background:var(--accent-bg);color:var(--accent);border:1px solid #bfcffa;border-radius:12px;padding:1px 9px;font-size:11px;font-weight:600">' + i.nombre + ' ' + i.peso + '%</span>'
+  ).join('');
+
+  return '<div style="margin-top:10px">'
+    + '<div onclick="(function(){var p=document.getElementById(\'' + panelId + '\');p.style.display=p.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.instr-arrow\').textContent=p.style.display===\'none\'?\'▸\':\'▾\';}).call(this)" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">'
+    + '<span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em">📊 Instrumentos de evaluación</span>'
+    + '<span class="instr-arrow" style="font-size:11px;color:var(--text3)">▸</span>'
+    + '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-left:4px">' + pills + '</div>'
+    + '</div>'
+    + '<div id="' + panelId + '" style="display:none;margin-top:10px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">'
+    + panelContent
+    + '</div>'
+    + '</div>';
+}
+
 function renderProgramacion() {
   if (!APP.programacion) APP.programacion = { activa: true, niveles: [] };
   if (!APP.programacion.niveles) APP.programacion.niveles = [];
@@ -7891,24 +8033,7 @@ function renderProgramacion() {
             ${info.siguienteFecha ? `<span style="background:var(--bg);color:var(--text2);border-radius:20px;padding:2px 10px;font-size:11px">📅 ${info.siguienteFecha}</span>` : ''}
           </div>
           <!-- Instrumentos de evaluación detectados desde Anota -->
-          ${(()=>{
-            const instr = niv._instruccionesEval;
-            if (!instr || !Object.keys(instr).length) return '';
-            const instT1 = instr.T1 || [];
-            if (!instT1.length) return '';
-            const pills = instT1.map(inst => {
-              const criteriosHtml = inst.criterios ? `<div style="font-size:9px;color:var(--text3);margin-top:1px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${inst.criterios.replace(/"/g,'&quot;')}">${inst.criterios}</div>` : '';
-              return `<div style="background:var(--accent-bg);border:1px solid #bfcffa;border-radius:8px;padding:4px 8px;font-size:11px">
-                <span style="font-weight:600;color:var(--accent)">${inst.nombre}</span>
-                <span style="color:var(--text3);margin-left:4px">${inst.peso}%</span>
-                ${criteriosHtml}
-              </div>`;
-            }).join('');
-            return `<div style="margin-top:10px">
-              <div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.04em">📊 Instrumentos de evaluación</div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap">${pills}</div>
-            </div>`;
-          })()}
+          ${renderInstrumentosEval(niv)}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-secondary btn-sm" onclick="duplicarNivel(${ni})" title="Duplicar este nivel">⧉ Duplicar</button>
@@ -11993,6 +12118,7 @@ self.addEventListener('fetch', e => {
 cargarDatos();
 inicializarTema();
 renderPage('inicio');
+applyBottomNav();
 driveSetStatus('off');
 registrarServiceWorker();
 
