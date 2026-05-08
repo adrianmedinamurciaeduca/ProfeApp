@@ -8528,107 +8528,11 @@ document.addEventListener('click', e => {
 
 function calAbrirSesionDesdeCalendario(ni, bi, si) {
   ni = parseInt(ni); bi = parseInt(bi); si = parseInt(si);
-  const nivel = APP.programacion.niveles[ni];
-  if (!nivel) return;
-  const bloque = nivel.bloques[bi];
-  const sesion = bloque?.sesiones[si];
-  if (!sesion) return;
-  _calSesionContext = { nivel, bloque, sesion, ni, bi, si };
-  window._estadoSesionCal = sesion.estado || 'pendiente';
-  window._audioSesionTemp = undefined;
-  const tipoIcon = { explicacion:'📘', practica:'🔬', examen:'📝', correccion:'✔️', mixta:'📚' }[sesion.tipo] || '📘';
-  const sesNum = nivel.bloques.slice(0,bi).reduce((a,bb)=>a+(bb.sesiones?.length||0),0)+si+1;
-  document.getElementById('cal-ses-titulo').textContent = 'S'+sesNum+' — '+bloque.titulo;
-
-  let enlaceHtml = '';
-  if (sesion.enlaceUrl) {
-    const url = sesion.enlaceUrl;
-    const label = sesion.enlaceTitulo || 'Ver material';
-    enlaceHtml = '<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-      + '<a href="'+url+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--accent);font-size:13px;font-weight:600;text-decoration:none">📎 '+label+' ↗</a>'
-      + '<button id="cal-copy-link-btn" onclick="navigator.clipboard.writeText(document.getElementById(\'cal-copy-link-btn\').dataset.url).then(()=>{this.textContent=\'✓ Copiado\';setTimeout(()=>this.textContent=\'📋 Copiar enlace\',1500)})" data-url="'+url.replace(/"/g,'&quot;')+'" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;color:var(--text2)">📋 Copiar enlace</button>'
-      + '</div>';
-  }
-
-  const estadoBtns = [['pendiente','⏳ Pendiente'],['realizada','✓ Realizada']].map(function(pair) {
-    const est = pair[0], lbl = pair[1];
-    const active = (sesion.estado||'pendiente') === est;
-    return '<button class="btn btn-sm '+(active?'btn-primary':'btn-secondary')+' est-sesion-cal-btn" data-est="'+est+'" onclick="setEstadoSesionCal(this.dataset.est,this)" style="flex:1">'+lbl+'</button>';
-  }).join('');
-
-  document.getElementById('cal-ses-body').innerHTML =
-    '<div style="font-weight:600;font-size:15px;margin-bottom:10px">'+tipoIcon+' '+sesion.titulo+'</div>'
-    +(sesion.explicacion ? '<div style="margin-bottom:10px"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px">Contenido</span><div style="margin-top:4px;font-size:13px;color:var(--text2)">'+sesion.explicacion+'</div></div>' : '')
-    +(sesion.tarea ? '<div style="margin-bottom:10px;padding:8px 12px;background:var(--accent-bg);border-radius:8px"><span style="font-size:11px;font-weight:600;color:var(--accent)">📋 TAREA</span><div style="margin-top:3px;font-size:13px">'+sesion.tarea+'</div></div>' : '')
-    +enlaceHtml
-    +'<div style="margin-bottom:14px">'
-    +'<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">Estado</div>'
-    +'<div style="display:flex;gap:8px">'+estadoBtns+'</div>'
-    +'</div>'
-    +'<div class="form-group" style="margin-bottom:0">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
-    +'<label style="margin:0;font-size:12px;font-weight:600;color:var(--text2)">Nota de clase</label>'
-    +'<div style="display:flex;gap:6px">'+btnDictar('cal-nota-sesion-real')+'<button type="button" onclick="grabarAudioSesionCal(this)" style="padding:3px 10px;font-size:11px;font-weight:600;border:1.5px solid var(--purple);background:var(--purple-bg);color:var(--purple);border-radius:20px;cursor:pointer">🎙 Audio</button>'
-    +'</div></div>'
-    +'<textarea id="cal-nota-sesion-real" rows="4" style="width:100%;box-sizing:border-box" placeholder="Ej: No dio tiempo al último ejercicio…">'+(sesion.notaReal||'')+'</textarea>'
-    +'<div id="cal-audio-sesion-wrap" style="margin-top:6px">'
-    +(sesion.audioNota ? '<audio controls src="'+sesion.audioNota+'" style="width:100%;height:36px"></audio><button onclick="borrarAudioSesionCal()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px">✕ Eliminar</button>' : '')
-    +'</div></div>'
-    +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'
-    +'<button onclick="calIrASesionProg('+ni+','+bi+','+si+')" style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;font-weight:600">📖 Ver en Programación ↗</button>'
-    +'</div>';
-
-  document.getElementById('cal-modal-sesion').classList.remove('hidden');
+  // Guardar contexto de calendario para volver tras guardar
+  window._sesDesdeCalendario = true;
+  editarSesion(ni, bi, si);
 }
 
-function setEstadoSesionCal(est, btn) {
-  window._estadoSesionCal = est;
-  document.querySelectorAll('.est-sesion-cal-btn').forEach(function(b) {
-    b.classList.remove('btn-primary'); b.classList.add('btn-secondary');
-  });
-  if (btn) { btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary'); }
-}
-
-function grabarAudioSesionCal(btnEl) {
-  grabarAudio(function(base64) {
-    window._audioSesionTemp = base64;
-    const wrap = document.getElementById('cal-audio-sesion-wrap');
-    if (wrap) wrap.innerHTML = '<audio controls src="'+base64+'" style="width:100%;height:36px"></audio>'
-      +'<button onclick="borrarAudioSesionCal()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px">✕ Eliminar</button>';
-  }, btnEl);
-}
-
-function borrarAudioSesionCal() {
-  window._audioSesionTemp = null;
-  const wrap = document.getElementById('cal-audio-sesion-wrap');
-  if (wrap) wrap.innerHTML = '';
-}
-
-function calGuardarNotaSesion() {
-  if (!_calSesionContext) return;
-  const ni = _calSesionContext.ni, bi = _calSesionContext.bi, si = _calSesionContext.si;
-  const s = APP.programacion.niveles[ni].bloques[bi].sesiones[si];
-  if (window._estadoSesionCal) s.estado = window._estadoSesionCal;
-  s.notaReal = document.getElementById('cal-nota-sesion-real')?.value || '';
-  if (window._audioSesionTemp !== undefined) {
-    if (window._audioSesionTemp) s.audioNota = window._audioSesionTemp;
-    else delete s.audioNota;
-    window._audioSesionTemp = undefined;
-  }
-  guardarDatos();
-  document.getElementById('cal-modal-sesion').classList.add('hidden');
-  renderPage();
-}
-
-function calIrASesionProg(ni, bi, si) {
-  document.getElementById('cal-modal-sesion').classList.add('hidden');
-  navTo('programacion');
-  setTimeout(function() {
-    if (!window._bloqAbiertos) window._bloqAbiertos = new Set();
-    window._bloqAbiertos.add(ni+'-'+bi);
-    renderPage('programacion');
-  }, 50);
-}
 
 function obtenerSesionProgramada(grupoId, fechaKey) {
   const info = obtenerInfoSesion(grupoId, fechaKey);
@@ -8762,7 +8666,8 @@ function renderModalesProg() {
           <input type="url" id="ses-enlace-url" placeholder="URL de Drive u otro enlace (https://...)"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="document.getElementById('modal-sesion-prog').classList.add('hidden')">Cancelar</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('modal-sesion-prog').classList.add('hidden');window._sesDesdeCalendario=false;">Cancelar</button>
+        <button class="btn btn-secondary" id="btn-impartir-sesion" onclick="impartirDesdeSesionProg()" style="display:none">▶ Impartir</button>
         <button class="btn btn-primary" onclick="guardarSesionProg()">Guardar sesión</button>
       </div>
     </div>
@@ -8937,6 +8842,9 @@ function abrirModalSesion(ni, bi) {
   _sesProgEdit = { ni, bi, si: -1 };
   _tipoSesActual = 'explicacion';
   document.getElementById('sesion-modal-titulo').textContent = 'Nueva sesión';
+  window._sesDesdeCalendario = false;
+  const impBtn = document.getElementById('btn-impartir-sesion');
+  if (impBtn) impBtn.style.display = 'none';
   document.getElementById('ses-titulo').value = '';
   document.getElementById('ses-explicacion').value = '';
   document.getElementById('ses-tarea').value = '';
@@ -8950,17 +8858,22 @@ function abrirModalSesion(ni, bi) {
 }
 function editarSesion(ni, bi, si) {
   _sesProgEdit = { ni, bi, si };
-  const s = APP.programacion.niveles[ni].bloques[bi].sesiones[si];
+  const niv = APP.programacion.niveles[ni];
+  const s = niv.bloques[bi].sesiones[si];
+  const globalNum = niv.bloques.slice(0,bi).reduce((acc,bb)=>acc+(bb.sesiones?.length||0),0)+si+1;
   _tipoSesActual = s.tipo || 'explicacion';
-  document.getElementById('sesion-modal-titulo').textContent = `Editar sesión S${si + 1}`;
+  document.getElementById('sesion-modal-titulo').textContent = 'S'+globalNum+' — '+s.titulo;
   document.getElementById('ses-titulo').value = s.titulo || '';
   document.getElementById('ses-explicacion').value = s.explicacion || '';
   document.getElementById('ses-tarea').value = s.tarea || '';
   document.getElementById('ses-enlace-titulo').value = s.enlaceTitulo || '';
   document.getElementById('ses-enlace-url').value = s.enlaceUrl || '';
+  // Show Impartir button only when editing existing session
+  const impBtn = document.getElementById('btn-impartir-sesion');
+  if (impBtn) impBtn.style.display = 'inline-flex';
   document.getElementById('modal-sesion-prog').classList.remove('hidden');
   setTimeout(() => {
-    const btn = document.querySelector(`.ses-tipo-btn[data-tipo="${s.tipo || 'explicacion'}"]`);
+    const btn = document.querySelector('.ses-tipo-btn[data-tipo="'+(s.tipo||'explicacion')+'"]');
     if (btn) selectTipoSesion(s.tipo || 'explicacion', btn);
   }, 50);
 }
@@ -8971,7 +8884,12 @@ function selectTipoSesion(tipo, btn) {
   });
   if (btn) { btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary'); }
 }
-function guardarSesionProg() {
+function impartirDesdeSesionProg() {
+  // Save session first, then open nota modal
+  guardarSesionProg(true);
+}
+
+function guardarSesionProg(abrirNota) {
   const titulo = document.getElementById('ses-titulo').value.trim();
   if (!titulo) { alert('Añade un título'); return; }
   const { ni, bi, si } = _sesProgEdit;
@@ -8989,9 +8907,17 @@ function guardarSesionProg() {
   if (si >= 0) ses[si] = nueva; else ses.push(nueva);
   guardarDatos();
   document.getElementById('modal-sesion-prog').classList.add('hidden');
-  window._bloqAbiertos = window._bloqAbiertos || new Set();
-  window._bloqAbiertos.add(`${ni}-${bi}`);
-  renderPage();
+  const siIdx = si >= 0 ? si : ses.length - 1;
+  if (abrirNota === true) {
+    const fromCal = window._sesDesdeCalendario;
+    window._sesDesdeCalendario = false;
+    abrirNotaSesion(ni, bi, siIdx, fromCal);
+  } else {
+    window._sesDesdeCalendario = false;
+    window._bloqAbiertos = window._bloqAbiertos || new Set();
+    window._bloqAbiertos.add(ni+'-'+bi);
+    renderPage();
+  }
 }
 function eliminarSesion(ni, bi, si) {
   if (!confirm('¿Eliminar esta sesión?')) return;
@@ -9000,8 +8926,8 @@ function eliminarSesion(ni, bi, si) {
 }
 
 // ── Modal "Impartir" sesión ────────────────────────────────────────
-function abrirNotaSesion(ni, bi, si) {
-  _sesProgEdit = { ni, bi, si };
+function abrirNotaSesion(ni, bi, si, fromCal) {
+  _sesProgEdit = { ni, bi, si, fromCal: !!fromCal };
   const b = APP.programacion.niveles[ni].bloques[bi];
   const niv = APP.programacion.niveles[ni];
   const s = b.sesiones[si];
@@ -9019,7 +8945,7 @@ function abrirNotaSesion(ni, bi, si) {
     <div style="margin-bottom:16px">
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Estado de la sesión</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${[['pendiente','⏳ Pendiente'],['en-curso','▶ En curso'],['realizada','✓ Realizada']].map(([est,lbl]) =>
+        ${[['pendiente','⏳ Pendiente'],['realizada','✓ Realizada']].map(([est,lbl]) =>
           `<button class="btn btn-sm ${s.estado===est?'btn-primary':'btn-secondary'} est-sesion-btn"
             onclick="setEstadoSesionProg('${est}',this)">${lbl}</button>`
         ).join('')}
@@ -9076,8 +9002,13 @@ function guardarNotaSesionProg() {
   }
   guardarDatos();
   document.getElementById('modal-nota-prog').classList.add('hidden');
+  const wasFromCal = _sesProgEdit.fromCal;
   window._estadoSesionProg = null;
-  renderPage();
+  if (!wasFromCal) {
+    window._bloqAbiertos = window._bloqAbiertos || new Set();
+    window._bloqAbiertos.add(_sesProgEdit.ni+'-'+_sesProgEdit.bi);
+  }
+  renderPage(wasFromCal ? 'calendario' : undefined);
 }
 
 
