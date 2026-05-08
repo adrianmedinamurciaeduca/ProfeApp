@@ -1838,7 +1838,7 @@ function renderInicio() {
       // Sesión programada — clicable
       let spInfo = null;
       try { spInfo = obtenerInfoSesion(cel.grupoId, dKey(hoy)); } catch(e) {}
-      const spText = spInfo ? `${spInfo.bloque?.titulo||'Sesión'} · S${spInfo.sesNum}` : null;
+      const spText = spInfo ? { titulo: spInfo.bloque?.titulo||'Sesión', num: spInfo.sesNum, total: spInfo.bloque?.sesiones?.length||0 } : null;
       const spClick = spInfo ? `onclick="(()=>{navTo('calendario');setTimeout(()=>{const ni=APP.programacion.niveles.indexOf(obtenerInfoSesion('${cel.grupoId}','${dKey(hoy)}')?.nivel);calAbrirSesionDesdeCalendario(ni,${spInfo.bi},${spInfo.si});},200);})()"` : '';
       const grupoClick = !spInfo && cel.grupoId ? `onclick="navTo('alumnos');setTimeout(()=>{gruposExpandidos['${cel.grupoId}']=true;renderPage('alumnos');},100)"` : '';
       const clickAttr = spClick || grupoClick;
@@ -1849,7 +1849,7 @@ function renderInicio() {
         <div style="flex:1">
           <div style="font-size:13px;font-weight:600;color:${textColor}">${icon} ${tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
           ${g?`<div style="font-size:12px;font-weight:600;color:var(--text2)">${g.nombre}${cel.ubicacion?' · 📍'+cel.ubicacion:''}</div>`:''}
-          ${spText?`<div style="font-size:11px;color:var(--purple);margin-top:2px">📖 ${spText}</div>`:''}
+          ${spText?`<div style="font-size:11px;color:var(--purple);margin-top:2px;line-height:1.4">📖 <strong>${spText.titulo}</strong><br><span style="font-size:10px">Sesión ${spText.num}/${spText.total}</span></div>`:''}
         </div>
         ${clickAttr?`<span style="font-size:12px;color:var(--text3)">›</span>`:''}
       </div>`;
@@ -7298,12 +7298,12 @@ function calRenderSemana() {
         const top=(ini-minH)*PX, h=Math.max((fin-ini)*PX,18);
         const icon=tipo==='guardia'?'👁 ':tipo==='recreo'?'☕ ':'';
         let _spInfo=null; try{_spInfo=obtenerInfoSesion(cel.grupoId,dKey(d));}catch(e){}
-        const sp = _spInfo ? `${_spInfo.bloque?.titulo||'Sesión'} · S${_spInfo.sesNum}` : null;
+        const sp = _spInfo ? { titulo: _spInfo.bloque?.titulo||'Sesión', num: _spInfo.sesNum, total: _spInfo.bloque?.sesiones?.length||0 } : null;
         const spAttrs = _spInfo ? `data-sp-grupo="${cel.grupoId}" data-sp-fecha="${dKey(d)}"` : '';
         bloqHtml+=`<div ${spAttrs} style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box;cursor:${_spInfo?'pointer':'default'}">
           <div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icon}${colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
           ${h>22&&g?`<div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nombre}</div>`:''}
-          ${h>36&&sp?`<div style="font-size:9px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📖 ${sp}</div>`:''}
+          ${h>36&&sp?`<div style="font-size:9px;color:#fff;font-weight:600;overflow:hidden;line-height:1.3">📖 ${sp.titulo}<br>S${sp.num}/${sp.total}</div>`:''}
         </div>`;
       });
     }
@@ -7493,7 +7493,7 @@ function calRenderDia() {
       // Sesión programada
       let _spInfoDia = null;
       try { _spInfoDia = obtenerInfoSesion(cel.grupoId, dKey(calFecha)); } catch(e) {}
-      const sp = _spInfoDia ? `${_spInfoDia.bloque?.titulo||'Sesión'} · S${_spInfoDia.sesNum}` : null;
+      const sp = _spInfoDia ? { titulo: _spInfoDia.bloque?.titulo||'Sesión', num: _spInfoDia.sesNum, total: _spInfoDia.bloque?.sesiones?.length||0 } : null;
       const spAttrs = _spInfoDia ? `data-sp-grupo="${cel.grupoId}" data-sp-fecha="${dKey(calFecha)}"` : '';
 
       const h = Math.max((fin-ini)*PX_MIN, 22);
@@ -7501,7 +7501,7 @@ function calRenderDia() {
       bloquesHtml += `<div ${spAttrs} style="position:absolute;top:${top.toFixed(1)}px;left:0;right:0;height:${h.toFixed(1)}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 5px 5px 0;padding:3px 6px;box-sizing:border-box;overflow:hidden;cursor:${_spInfoDia?'pointer':'default'};z-index:2">
         <div style="font-size:11px;font-weight:700;color:${col.text};line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${titulo}</div>
         ${h>28?`<div style="font-size:10px;color:${col.text};opacity:0.8;line-height:1.3;overflow:hidden">${sub}</div>`:''}
-        ${h>44&&sp?`<div style="font-size:10px;color:#fff;font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📖 ${sp}</div>`:''}
+        ${h>44&&sp?`<div style="font-size:10px;color:#fff;font-weight:600;margin-top:2px;overflow:hidden;line-height:1.3">📖 ${sp.titulo}<br>Sesión ${sp.num}/${sp.total}</div>`:''}
       </div>`;
     });
   }
@@ -7661,7 +7661,7 @@ function calVerSesion(grupoId, fechaKey) {
     : {bg:'var(--bg)',text:'var(--text3)',lbl:'Pendiente'};
 
   document.getElementById('cal-ses-titulo').textContent =
-    `${bloque.titulo} · S${sesNum}`;
+    bloque.titulo + ' · S' + sesNum + '/' + (bloque.sesiones?.length||0);
 
   document.getElementById('cal-ses-body').innerHTML = `
     <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;margin-bottom:14px;font-size:13px">
@@ -8537,7 +8537,7 @@ function calAbrirSesionDesdeCalendario(ni, bi, si) {
 function obtenerSesionProgramada(grupoId, fechaKey) {
   const info = obtenerInfoSesion(grupoId, fechaKey);
   if (!info) return null;
-  return `${info.bloque?.titulo || 'Sesión'} · S${info.sesNum}`;
+  return (info.bloque?.titulo||'Sesión') + ' · Sesión ' + info.sesNum + '/' + (info.bloque?.sesiones?.length||0);
 }
 
 // Devuelve el objeto completo con nivel, bloque, sesion y número
