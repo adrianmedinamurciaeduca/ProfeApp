@@ -2717,7 +2717,7 @@ function renderVistaCuaderno(g, als) {
         <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${mostrarRec?'var(--amber)':'var(--border2)'};background:${mostrarRec?'#fef9c3':'transparent'};color:${mostrarRec?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${mostrarRec?'● Rec':'○ Rec'}</span>
       </label>
       ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo salvo alumnos con % propios — actívalo en su ficha → Notas</span>` : ''}
-      <span style="font-size:11px;color:var(--text3)">ℹ Los % de instrumentos son aritméticos por defecto — pondera en la ficha del alumno → Notas</span>
+      <span style="font-size:11px;color:var(--text3)">ℹ Los % de instrumentos son aritméticos por defecto — pondera en las notas de clase (para hacerlo por grupo) o en la ficha del alumno para hacerlo de manera individual</span>
       <div style="margin-left:auto;display:flex;gap:6px">
         <button onclick="exportarCuadernoPDF('${gid}','${trim}')" class="btn btn-secondary btn-sm">📄 PDF</button>
         <button onclick="exportarCuadernoExcel('${gid}','${trim}')" class="btn btn-secondary btn-sm">📊 Excel</button>
