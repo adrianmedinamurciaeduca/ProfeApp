@@ -2782,12 +2782,16 @@ function cuadernoAgregarItem(gid, trim, iIdx) {
   if (inst.mediaAritmetica !== false) {
     inst.mediaAritmetica = true;
     recalcularPesosAritmetica(iIdx);
-    // Recalcular en contexto del grupo correcto
     const n = inst.items.length;
     const pesoBase = Math.floor(100/n);
     const resto = 100 - pesoBase*n;
     inst.items.forEach((item,i) => { item.peso = pesoBase + (i===n-1?resto:0); });
   }
+  // Sync to students with personal structure — add with peso 0 so they decide
+  APP.alumnos.filter(a=>a.grupoId===gid&&a.estructuraPersonal?.[trim]?.[iIdx]).forEach(a => {
+    const instP = a.estructuraPersonal[trim][iIdx];
+    instP.items.push({ nombre: inst.items[inst.items.length-1].nombre, peso: 0 });
+  });
   guardarDatos(); renderPage();
 }
 
@@ -2812,6 +2816,10 @@ function cuadernoEliminarItem(gid, trim, iIdx, jIdx) {
         nuevo[ni < jIdx ? k : k-1] = bloque[k];
       });
       a.notas[trim][iIdx] = { ...bloque, ...nuevo };
+      // Sync personal structure
+      if (a.estructuraPersonal?.[trim]?.[iIdx]?.items?.length > jIdx) {
+        a.estructuraPersonal[trim][iIdx].items.splice(jIdx, 1);
+      }
     });
     guardarDatos(); renderPage();
   });
@@ -2824,6 +2832,10 @@ function cuadernoEditarNombreItem(gid, trim, iIdx, jIdx, val) {
   const nombre = val.trim();
   if (!nombre) return;
   item.nombre = nombre;
+  // Sync name to students with personal structure
+  APP.alumnos.filter(a=>a.grupoId===gid&&a.estructuraPersonal?.[trim]?.[iIdx]?.items?.[jIdx]).forEach(a => {
+    a.estructuraPersonal[trim][iIdx].items[jIdx].nombre = nombre;
+  });
   guardarDatos();
 }
 
