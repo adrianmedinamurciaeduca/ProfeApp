@@ -889,6 +889,9 @@
       <div class="nav-item" onclick="navTo('ajustes')">
         <span class="icon">⚙️</span><span>Ajustes</span>
       </div>
+      <div class="nav-item" onclick="navTo('ayuda')">
+        <span class="icon">❓</span><span>Ayuda</span>
+      </div>
     </nav>
     <div style="padding:12px 14px; border-top:1px solid var(--border);">
       <button class="btn btn-secondary btn-sm" style="width:100%" onclick="exportarDatos()">💾 Exportar</button>
@@ -919,6 +922,28 @@
     <span class="icon">☰</span><span>Más</span>
   </div>
 </nav>
+
+<!-- MODAL SELECCIÓN EVALUACIONES EXPORT -->
+<div class="modal-overlay hidden" id="modal-export-sel" onclick="event.target===this&&this.classList.add('hidden')">
+  <div class="modal" style="max-width:320px">
+    <div class="modal-header">
+      <h3 id="export-sel-titulo">Exportar</h3>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-export-sel').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Selecciona las evaluaciones a incluir. Cada una irá en una hoja/sección separada.</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" id="export-cb-T1" checked> <span>1ª Evaluación</span></label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" id="export-cb-T2" checked> <span>2ª Evaluación</span></label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" id="export-cb-T3" checked> <span>3ª Evaluación</span></label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-export-sel').classList.add('hidden')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExportacionCuaderno()">Exportar</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL FICHA ALUMNO -->
 <!-- BÚSQUEDA GLOBAL -->
@@ -1559,7 +1584,7 @@ function exportarExcelGrupo(grupoId) {
       ...instNombres.map(n => n + ' (nota)'),
       ...instNombres.map(n => n + ' (peso%)'),
       'Nota real', 'Nota redondeada', 'Calificación',
-      'Observaciones', 'Reuniones'
+      'Observaciones', 'Reuniones', 'Eval. individual'
     ];
     rows.push(cabecera);
     alumnos.forEach((a, idx) => {
@@ -1572,22 +1597,29 @@ function exportarExcelGrupo(grupoId) {
         instNotas = ['T1','T2','T3'].map(t => { const n = calcNotaTrimestre(a,t); return n !== null ? parseFloat(n.toFixed(2)) : ''; });
         instPesos = ['T1','T2','T3'].map(t => APP.config.pesos_trimestres[t] || 33);
       } else {
-        const insts = (a.notas && a.notas[trim]) ? a.notas[trim] : plantilla;
-        instNotas = insts.map(i => { const n = calcNota(i.items); return n !== null ? parseFloat(n.toFixed(2)) : ''; });
-        instPesos = insts.map(i => i.peso || 0);
+        // Usar estructura personal si existe, sino la del grupo
+        const estructuraEf = a.estructuraPersonal?.[trim] || g.estructura?.[trim] || plantilla;
+        instNotas = estructuraEf.map((inst, iIdx) => {
+          const n = calcNota(inst.items.length
+            ? inst.items.map((item, jIdx) => ({ ...item, valor: a.notas?.[trim]?.[iIdx]?.[jIdx] ?? '' }))
+            : [{ valor: a.notas?.[trim]?.[iIdx]?.[0] ?? '' }]);
+          return n !== null ? parseFloat(n.toFixed(2)) : '';
+        });
+        instPesos = estructuraEf.map(i => i.peso || 0);
         notaReal = calcNotaTrimestre(a, trim);
         notaRed = redondear(notaReal, umbralA);
         cal = notaLabel(notaRed);
       }
       const obs = (a.observaciones || []).map(o => new Date(o.fecha).toLocaleDateString('es-ES') + ': ' + o.texto).join(' | ');
       const reu = (a.reuniones || []).map(r => r.fecha + ' – ' + (r.temas||'') + (r.acuerdos?' / Acuerdos: '+r.acuerdos:'')).join(' | ');
+      const evalIndivMark = a.estructuraPersonal?.[trim === 'Final' ? 'T1' : trim] ? '★ Eval. individual' : '';
       rows.push([
         a.nLista || idx+1, a.apellidos || '', a.nombre || '',
         ...instNotas, ...instPesos,
         notaReal !== null ? parseFloat(notaReal.toFixed(2)) : '',
         notaRed !== null ? notaRed : '',
         cal !== '—' ? cal : '',
-        obs, reu
+        obs, reu, evalIndivMark
       ]);
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1660,7 +1692,7 @@ function getEstructuraGrupo(grupoId, trim) {
 // Para calcular: fusiona estructura del grupo con valores del alumno
 // Si existe nota de recuperación, la usa en lugar de la original
 function getInstrumentosConValores(alumno, trim) {
-  const estructura = getEstructuraGrupo(alumno.grupoId, trim);
+  const estructura = alumno.estructuraPersonal?.[trim] || getEstructuraGrupo(alumno.grupoId, trim);
   const valoresTrim = alumno.notas?.[trim] || {};
   return estructura.map((inst, iIdx) => ({
     ...inst,
@@ -1786,6 +1818,7 @@ function renderPage(page) {
     case 'inicio': main.innerHTML = renderInicio(); break;
     case 'alumnos': main.innerHTML = renderAlumnos(); break;
     case 'importar': main.innerHTML = renderImportar(); break;
+    case 'ayuda': main.innerHTML = renderAyuda(); break;
     case 'horario': main.innerHTML = renderHorario(); break;
     case 'calendario': main.innerHTML = renderCalendario(); break;
     case 'programacion': main.innerHTML = renderProgramacion(); break;
@@ -2526,6 +2559,15 @@ let _cuadernoFotos = {};     // { gid: true/false }
 let _cuadernoEdicion = {};   // { gid: true/false }
 let _cuadernoRec = {};       // { gid: true/false } — mostrar fila recuperación
 
+// Re-render solo la tabla del cuaderno de un grupo sin recargar toda la página
+function renderCuaderno(gid) {
+  const el = document.getElementById('cuaderno-wrap-' + gid);
+  if (!el) { renderPage(); return; }
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  el.outerHTML = renderVistaCuaderno(g, als);
+}
+
 function renderVistaCuaderno(g, als) {
   const gid = g.id;
   const trim = _cuadernoTrim[gid] || 'T1';
@@ -2700,7 +2742,7 @@ function renderVistaCuaderno(g, als) {
     return ms.length ? (ms.reduce((s,n)=>s+n,0)/ms.length).toFixed(2) : '—';
   })();
 
-  return `
+  return `<div id="cuaderno-wrap-${gid}">
     <!-- Barra de controles -->
     <div style="padding:8px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface)">
       <div style="display:flex;gap:4px">
@@ -2719,8 +2761,8 @@ function renderVistaCuaderno(g, als) {
       ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo salvo alumnos con % propios — actívalo en su ficha → Notas</span>` : ''}
       <span style="font-size:11px;color:var(--text3)">ℹ Los % de instrumentos son aritméticos por defecto — pondera en las notas de clase (para hacerlo por grupo) o en la ficha del alumno para hacerlo de manera individual</span>
       <div style="margin-left:auto;display:flex;gap:6px">
-        <button onclick="exportarCuadernoPDF('${gid}','${trim}')" class="btn btn-secondary btn-sm">📄 PDF</button>
-        <button onclick="exportarCuadernoExcel('${gid}','${trim}')" class="btn btn-secondary btn-sm">📊 Excel</button>
+        <button onclick="exportarCuadernoPDF('${gid}')" class="btn btn-secondary btn-sm">📄 PDF</button>
+        <button onclick="exportarCuadernoExcel('${gid}')" class="btn btn-secondary btn-sm">📊 Excel</button>
       </div>
     </div>
     <!-- Tabla -->
@@ -2743,7 +2785,7 @@ function renderVistaCuaderno(g, als) {
           </tr>
         </tfoot>
       </table>
-    </div>`;
+    </div></div>`;
 }
 
 // ── Funciones de edición del cuaderno ───────────────────────────
@@ -2752,7 +2794,7 @@ function cuadernoEditarPesoInst(gid, trim, iIdx, val) {
   g.estructura[trim][iIdx].peso = parseInt(val)||0;
   const suma = g.estructura[trim].reduce((s,i)=>s+(i.peso||0),0);
   if (suma !== 100) mostrarAvisoSuma(gid, trim, suma);
-  guardarDatos(); renderPage();
+  guardarDatos(); renderCuaderno(gid);
 }
 
 function cuadernoEditarPesoItem(gid, trim, iIdx, jIdx, val) {
@@ -2760,7 +2802,7 @@ function cuadernoEditarPesoItem(gid, trim, iIdx, jIdx, val) {
   g.estructura[trim][iIdx].items[jIdx].peso = parseInt(val)||0;
   const suma = g.estructura[trim][iIdx].items.reduce((s,it)=>s+(it.peso||0),0);
   if (suma !== 100) mostrarAvisoSuma(gid, trim, suma, true, iIdx);
-  guardarDatos(); renderPage();
+  guardarDatos(); renderCuaderno(gid);
 }
 
 function mostrarAvisoSuma(gid, trim, suma, esItems=false, iIdx=null) {
@@ -2787,18 +2829,15 @@ function cuadernoAgregarItem(gid, trim, iIdx) {
     const resto = 100 - pesoBase*n;
     inst.items.forEach((item,i) => { item.peso = pesoBase + (i===n-1?resto:0); });
   }
-  // Sync to students with personal structure — add with peso 0 so they decide
-  APP.alumnos.filter(a=>a.grupoId===gid&&a.estructuraPersonal?.[trim]?.[iIdx]).forEach(a => {
-    const instP = a.estructuraPersonal[trim][iIdx];
-    instP.items.push({ nombre: inst.items[inst.items.length-1].nombre, peso: 0 });
-  });
-  guardarDatos(); renderPage();
+  _resyncEvalPropias(gid, trim);
+  guardarDatos(); renderCuaderno(gid);
 }
 
 function cuadernoEliminarItem(gid, trim, iIdx, jIdx) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
   const nombre = g.estructura[trim][iIdx].items[jIdx]?.nombre || 'este apartado';
-  confirmar('Eliminar apartado', `¿Eliminar "${nombre}" y sus notas en todos los alumnos?`, () => {
+  const aviso = _avisoEvalPropias(gid, trim);
+  confirmar('Eliminar apartado', `¿Eliminar "${nombre}" y sus notas en todos los alumnos?${aviso}`, () => {
     const inst = g.estructura[trim][iIdx];
     inst.items.splice(jIdx,1);
     if (inst.mediaAritmetica !== false && inst.items.length) {
@@ -2816,12 +2855,9 @@ function cuadernoEliminarItem(gid, trim, iIdx, jIdx) {
         nuevo[ni < jIdx ? k : k-1] = bloque[k];
       });
       a.notas[trim][iIdx] = { ...bloque, ...nuevo };
-      // Sync personal structure
-      if (a.estructuraPersonal?.[trim]?.[iIdx]?.items?.length > jIdx) {
-        a.estructuraPersonal[trim][iIdx].items.splice(jIdx, 1);
-      }
     });
-    guardarDatos(); renderPage();
+    _resyncEvalPropias(gid, trim);
+    guardarDatos(); renderCuaderno(gid);
   });
 }
 
@@ -2832,11 +2868,8 @@ function cuadernoEditarNombreItem(gid, trim, iIdx, jIdx, val) {
   const nombre = val.trim();
   if (!nombre) return;
   item.nombre = nombre;
-  // Sync name to students with personal structure
-  APP.alumnos.filter(a=>a.grupoId===gid&&a.estructuraPersonal?.[trim]?.[iIdx]?.items?.[jIdx]).forEach(a => {
-    a.estructuraPersonal[trim][iIdx].items[jIdx].nombre = nombre;
-  });
   guardarDatos();
+  renderCuaderno(gid);
 }
 
 function cuadernoGuardarNota(aid, iIdx, jIdx, val, inputEl) {
@@ -2854,7 +2887,7 @@ function cuadernoGuardarNota(aid, iIdx, jIdx, val, inputEl) {
     if (tieneNota) _guardarHistorialNota(a, trim, iIdx, jIdx, anterior);
     a.notas[trim][iIdx][jIdx] = val === '' ? '' : parseFloat(val);
     guardarDatos();
-    renderPage();
+    renderCuaderno(gid);
   };
 
   if (tieneNota && val !== '' && parseFloat(val) !== parseFloat(anterior)) {
@@ -2873,170 +2906,256 @@ function cuadernoDeshacerNota(aid, iIdx, jIdx) {
   const hist = a.notas?.[trim]?.[iIdx]?._historial?.[jIdx];
   if (!hist?.length) return;
   a.notas[trim][iIdx][jIdx] = hist.shift();
-  guardarDatos(); renderPage();
+  guardarDatos(); renderCuaderno(gid);
 }
 
-function exportarCuadernoPDF(gid, trim) {
+function abrirSelectorExportacion(gid, tipo) {
+  window._exportGid = gid;
+  window._exportTipo = tipo;
+  document.getElementById('export-sel-titulo').textContent = tipo === 'pdf' ? '📄 Exportar PDF' : '📊 Exportar Excel';
+  ['T1','T2','T3'].forEach(t => {
+    const cb = document.getElementById('export-cb-'+t);
+    if (cb) cb.checked = true;
+  });
+  document.getElementById('modal-export-sel').classList.remove('hidden');
+}
+
+function confirmarExportacionCuaderno() {
+  const trims = ['T1','T2','T3'].filter(t => document.getElementById('export-cb-'+t)?.checked);
+  if (!trims.length) { alert('Selecciona al menos una evaluación.'); return; }
+  document.getElementById('modal-export-sel').classList.add('hidden');
+  if (window._exportTipo === 'pdf') exportarCuadernoPDF(window._exportGid, trims);
+  else exportarCuadernoExcel(window._exportGid, trims);
+}
+
+function exportarCuadernoPDF(gid, trims) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  // If called without trims, show selector modal
+  if (!trims) { abrirSelectorExportacion(gid, 'pdf'); return; }
   const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
-  const insts = g.estructura?.[trim]||[];
-  const trimLabel = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'}[trim]||trim;
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
   const redOn = APP.config.redondeoActivo!==false;
+  const trimLabels = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'};
 
-  let cabTh = '<th style="border:1px solid #ccc;padding:4px 8px;background:#1F3864;color:#fff;font-size:11px;text-align:left">Alumno</th>';
-  let subTh = '';
-  insts.forEach(inst => {
-    const n = inst.items.length||1;
-    cabTh += `<th colspan="${n}" style="border:1px solid #ccc;padding:4px 6px;background:#2E74B5;color:#fff;font-size:10px;text-align:center">${inst.nombre} (${inst.peso}%)</th>`;
-    if (!inst.items.length) {
-      subTh += `<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">Nota</th>`;
-    } else {
-      inst.items.forEach(item => { subTh += `<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">${item.nombre} ${item.peso}%</th>`; });
-    }
-  });
-  cabTh += `<th style="border:1px solid #ccc;padding:4px 8px;background:#1e3a1e;color:#fff;font-size:11px;text-align:center">Final</th>`;
-
-  const filas = als.map((a,ri) => {
-    const bg = ri%2===0?'#fff':'#f5f5f5';
-    let tds = `<td style="border:1px solid #ccc;padding:4px 8px;background:${bg};font-size:11px;white-space:nowrap">${a.apellidos||''}, ${a.nombre||''}</td>`;
-    insts.forEach((inst,iIdx) => {
-      const getCelda = (jIdx) => {
-        const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
-        const vr = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
-        const tieneRec = vr!==undefined&&vr!=='';
-        return `<td style="border:1px solid #ccc;padding:4px 5px;text-align:center;background:${bg};font-size:11px;font-family:monospace">
-          ${v!==undefined&&v!==''?`<span style="${tieneRec?'text-decoration:line-through;opacity:0.6':''}">${parseFloat(v).toFixed(2)}</span>`:'—'}
-          ${tieneRec?`<br><small style="color:#c07800">↑${parseFloat(vr).toFixed(2)}</small>`:''}
-        </td>`;
-      };
-      if (!inst.items.length) { tds += getCelda(0); }
-      else inst.items.forEach((_,jIdx) => { tds += getCelda(jIdx); });
+  const sectiones = trims.map(trim => {
+    const insts = g.estructura?.[trim]||[];
+    const trimLabel = trimLabels[trim]||trim;
+    let cabTh = '<th rowspan="2" style="border:1px solid #ccc;padding:4px 8px;background:#1F3864;color:#fff;font-size:11px;text-align:left;vertical-align:middle">Alumno</th>';
+    let subTh = '';
+    insts.forEach(inst => {
+      const n = inst.items.length||1;
+      cabTh += '<th colspan="'+n+'" style="border:1px solid #ccc;padding:4px 6px;background:#2E74B5;color:#fff;font-size:10px;text-align:center">'+inst.nombre+' ('+inst.peso+'%)</th>';
+      if (!inst.items.length) { subTh += '<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">Nota</th>'; }
+      else inst.items.forEach(item => { subTh += '<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">'+item.nombre+' '+item.peso+'%</th>'; });
     });
-    const nt = calcNotaTrimestre(a,trim);
-    const nr = redOn&&nt!==null?redondear(nt,umbral):null;
-    const nc = nt!==null?(nt<5?'#c0392b':nt>=9?'#1e7145':'#1a1a1a'):'#aaa';
-    tds += `<td style="border:1px solid #ccc;padding:4px 8px;text-align:center;background:${bg};font-weight:700;font-size:12px;color:${nc};font-family:monospace">${nt!==null?nt.toFixed(2):'—'}${nr!==null&&nr!==nt?`<br><small style="color:#2E74B5">(${nr})</small>`:''}</td>`;
-    return `<tr>${tds}</tr>`;
+    cabTh += '<th rowspan="2" style="border:1px solid #ccc;padding:4px 8px;background:#1e3a1e;color:#fff;font-size:11px;text-align:center;vertical-align:middle">Final</th>';
+    const hayIndiv = als.some(a => !!a.estructuraPersonal?.[trim]);
+    const filas = als.map((a,ri) => {
+      const bg = ri%2===0?'#fff':'#f5f5f5';
+      const indivMark = a.estructuraPersonal?.[trim] ? ' <span style="color:#7c3aed;font-size:9px">★</span>' : '';
+      let tds = '<td style="border:1px solid #ccc;padding:4px 8px;background:'+bg+';font-size:11px;white-space:nowrap">'+(a.apellidos||'')+', '+(a.nombre||'')+indivMark+'</td>';
+      insts.forEach((inst,iIdx) => {
+        const getCelda = (jIdx) => {
+          const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
+          const vr = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+          const tieneRec = vr!==undefined&&vr!=='';
+          return '<td style="border:1px solid #ccc;padding:4px 5px;text-align:center;background:'+bg+';font-size:11px;font-family:monospace">'
+            +(v!==undefined&&v!==''?'<span style="'+(tieneRec?'text-decoration:line-through;opacity:0.6':'')+'">'+(+v).toFixed(2)+'</span>':'—')
+            +(tieneRec?'<br><small style="color:#c07800">↑'+(+vr).toFixed(2)+'</small>':'')
+            +'</td>';
+        };
+        if (!inst.items.length) tds += getCelda(0);
+        else inst.items.forEach((_,jIdx) => { tds += getCelda(jIdx); });
+      });
+      const nt = calcNotaTrimestre(a,trim);
+      const nr = redOn&&nt!==null?redondear(nt,umbral):null;
+      const nc = nt!==null?(nt<5?'#c0392b':nt>=9?'#1e7145':'#1a1a1a'):'#aaa';
+      tds += '<td style="border:1px solid #ccc;padding:4px 8px;text-align:center;background:'+bg+';font-weight:700;font-size:12px;color:'+nc+';font-family:monospace">'+(nt!==null?nt.toFixed(2):'—')+(nr!==null&&nr!==nt?'<br><small style="color:#2E74B5">('+nr+')</small>':'')+'</td>';
+      return '<tr>'+tds+'</tr>';
+    }).join('');
+    const leyenda = hayIndiv ? '<p style="font-size:10px;color:#7c3aed;margin-top:6px">★ Evaluación individual — nota calculada con % propios.</p>' : '';
+    return '<div style="page-break-after:always;margin-bottom:20px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid #1F3864;padding-bottom:6px">'
+      +'<div><strong style="font-size:15px;color:#1F3864">'+g.nombre+'</strong>'+(g.asignatura?'<br><span style="font-size:11px;color:#666">'+g.asignatura+'</span>':'')+'</div>'
+      +'<div style="text-align:right"><strong style="font-size:13px;color:#2E74B5">'+trimLabel+'</strong><br><span style="font-size:10px;color:#999">'+new Date().toLocaleDateString('es-ES')+'</span></div>'
+      +'</div>'
+      +'<table style="border-collapse:collapse;width:100%"><thead><tr>'+cabTh+'</tr><tr>'+subTh+'</tr></thead><tbody>'+filas+'</tbody></table>'
+      +leyenda+'</div>';
   }).join('');
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <title>Cuaderno ${g.nombre} — ${trimLabel}</title>
-    <style>body{font-family:Calibri,sans-serif;margin:12px}@media print{@page{size:landscape;margin:8mm}button{display:none}}</style>
-  </head><body>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid #1F3864;padding-bottom:6px">
-      <div><strong style="font-size:15px;color:#1F3864">${g.nombre}</strong>${g.asignatura?`<br><span style="font-size:11px;color:#666">${g.asignatura}</span>`:''}</div>
-      <div style="text-align:right"><strong style="font-size:13px;color:#2E74B5">${trimLabel}</strong><br><span style="font-size:10px;color:#999">${new Date().toLocaleDateString('es-ES')}</span></div>
-    </div>
-    <table style="border-collapse:collapse;width:100%">
-      <thead><tr>${cabTh}</tr><tr>${subTh}</tr></thead>
-      <tbody>${filas}</tbody>
-    </table>
-  </body></html>`;
-
-  const w = window.open('','_blank');
-  w.document.write(html); w.document.close();
-  setTimeout(()=>w.print(),400);
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cuaderno '+g.nombre+'</title>'
+    +'<style>body{font-family:Calibri,sans-serif;margin:12px}@media print{@page{size:landscape;margin:8mm}button{display:none}div{page-break-after:auto}}</style>'
+    +'</head><body>'+sectiones+'</body></html>';
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url,'_blank');
+  if (!w) { alert('El navegador bloqueó la ventana. Permite ventanas emergentes e inténtalo de nuevo.'); return; }
+  setTimeout(() => { w.print(); URL.revokeObjectURL(url); }, 800);
 }
 
-function exportarCuadernoExcel(gid, trim) {
+function exportarCuadernoExcel(gid, trims) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
-  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
-  const insts = g.estructura?.[trim]||[];
-  const trimLabel = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'}[trim]||trim;
-  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
-  const redOn = APP.config.redondeoActivo !== false;
-
+  if (!trims) { abrirSelectorExportacion(gid, 'excel'); return; }
   if (!window.XLSX) {
     const s=document.createElement('script');
     s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=()=>exportarCuadernoExcel(gid,trim);
+    s.onload=()=>exportarCuadernoExcel(gid,trims);
     s.onerror=()=>alert('No se pudo cargar Excel.');
     document.head.appendChild(s); return;
   }
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  const trimLabels = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'};
+  const redOn = APP.config.redondeoActivo !== false;
+  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
+  const wb = XLSX.utils.book_new();
 
-  // Cabecera fila 1: instrumento (merged) + Final
-  const row1 = ['Alumno'];
-  // Cabecera fila 2: apartados + Rec + Final
-  const row2 = [''];
+  const qualLabel = n => {
+    if (n === null || n === '') return '';
+    if (n < 5) return 'SUSPENSO';
+    if (n < 6) return 'APROBADO';
+    if (n < 7) return 'BIEN';
+    if (n < 9) return 'NOTABLE';
+    return 'SOBRESALIENTE';
+  };
 
-  insts.forEach(inst => {
-    const nCols = inst.items.length || 1;
-    row1.push(inst.nombre + ' (' + inst.peso + '%)');
-    for (let i = 1; i < nCols; i++) row1.push('');
-    if (!inst.items.length) {
-      row2.push('Nota');
-    } else {
-      inst.items.forEach(it => row2.push(it.nombre + ' ' + it.peso + '%'));
-    }
-    // Columna recuperación por cada apartado
-    if (!inst.items.length) {
-      row1.push(''); row2.push('Rec.');
-    } else {
-      inst.items.forEach(() => { row1.push(''); row2.push('Rec.'); });
-    }
-  });
-  row1.push('Nota Final');
-  row2.push(redOn ? 'Redondeada' : '');
+  const valorEfectivo = (a, iIdx, jIdx, trim) => {
+    const vRec = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+    if (vRec !== undefined && vRec !== '') return parseFloat(vRec);
+    const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
+    if (v !== undefined && v !== '') return parseFloat(v);
+    return null;
+  };
 
-  const dataRows = als.map(a => {
-    const row = [a.apellidos || '' + (a.nombre ? ', ' + a.nombre : '')];
-    insts.forEach((inst, iIdx) => {
-      const renderApartado = (jIdx) => {
-        const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
-        row.push(v !== undefined && v !== '' ? parseFloat(v) : '');
-        const vRec = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
-        row.push(vRec !== undefined && vRec !== '' ? parseFloat(vRec) : '');
-      };
+  trims.forEach(trim => {
+    const insts = g.estructura?.[trim]||[];
+    const trimLabel = trimLabels[trim]||trim;
+    const hayEvalIndiv = als.some(a => !!a.estructuraPersonal?.[trim]);
+
+    // ── Fila 1: cabecera instrumentos ────────────────────────────
+    // Columnas: Nº | Alumno | [por cada inst: apartados... | Media inst] | Nota final | Nota cualitativa | Eval.indiv?
+    const row1 = ['Nº', 'Alumno'];
+    const row2 = ['', ''];
+    const merges = [{s:{r:0,c:0},e:{r:1,c:0}},{s:{r:0,c:1},e:{r:1,c:1}}];
+    let col = 2;
+
+    insts.forEach(inst => {
+      const nItems = inst.items.length || 1;
+      // Fila 1: nombre instrumento + peso, merged sobre sus apartados + columna media
+      row1.push(inst.nombre + ' (' + inst.peso + '%)');
+      for (let i = 1; i < nItems; i++) row1.push('');
+      row1.push(''); // columna Media inst
+      // Fila 2: nombres de apartados + "Media"
       if (!inst.items.length) {
-        renderApartado(0);
+        row2.push('Nota'); row2.push('Media');
       } else {
-        inst.items.forEach((_, jIdx) => renderApartado(jIdx));
+        inst.items.forEach(it => row2.push(it.nombre + (it.peso ? ' ('+it.peso+'%)' : '')));
+        row2.push('Media');
+      }
+      // Merge nombre instrumento sobre sus apartados (sin la columna Media)
+      if (nItems > 1) merges.push({s:{r:0,c:col},e:{r:0,c:col+nItems-1}});
+      else merges.push({s:{r:0,c:col},e:{r:0,c:col}});
+      col += nItems + 1; // apartados + media
+    });
+
+    // Nota final, cualitativa, eval indiv
+    row1.push('NOTA FINAL'); row2.push('');
+    merges.push({s:{r:0,c:col},e:{r:1,c:col}}); col++;
+    if (redOn) { row1.push('REDONDEADA'); row2.push(''); merges.push({s:{r:0,c:col},e:{r:1,c:col}}); col++; }
+    row1.push('CALIFICACIÓN'); row2.push(''); merges.push({s:{r:0,c:col},e:{r:1,c:col}}); col++;
+    if (hayEvalIndiv) { row1.push('EVAL. INDIV.'); row2.push(''); merges.push({s:{r:0,c:col},e:{r:1,c:col}}); }
+
+    // ── Filas de datos ────────────────────────────────────────────
+    const dataRows = als.map((a, ri) => {
+      const row = [a.nLista || (ri+1), (a.apellidos||'') + (a.nombre ? ', '+a.nombre : '')];
+      insts.forEach((inst, iIdx) => {
+        const nItems = inst.items.length || 1;
+        let suma = 0, count = 0, pesoTotal = 0;
+        if (!inst.items.length) {
+          const v = valorEfectivo(a, iIdx, 0, trim);
+          row.push(v !== null ? v : '');
+          row.push(v !== null ? v : ''); // media = mismo valor
+        } else {
+          const vals = inst.items.map((it, jIdx) => {
+            const v = valorEfectivo(a, iIdx, jIdx, trim);
+            row.push(v !== null ? v : '');
+            return { v, peso: it.peso || 0 };
+          });
+          // Media ponderada del instrumento
+          const esArit = inst.mediaAritmetica !== false;
+          let media = null;
+          if (esArit) {
+            const notas = vals.filter(x => x.v !== null).map(x => x.v);
+            media = notas.length ? notas.reduce((s,n)=>s+n,0)/notas.length : null;
+          } else {
+            let ps = 0, pw = 0;
+            vals.forEach(({v,peso}) => { if (v !== null) { ps += v*peso; pw += peso; } });
+            media = pw > 0 ? ps/pw : null;
+          }
+          row.push(media !== null ? parseFloat(media.toFixed(2)) : '');
+        }
+      });
+      const nt = calcNotaTrimestre(a, trim);
+      const nr = redOn && nt !== null ? redondear(nt, getUmbral(a)) : null;
+      row.push(nt !== null ? parseFloat(nt.toFixed(2)) : '');
+      if (redOn) row.push(nr !== null ? nr : '');
+      row.push(qualLabel(nr !== null ? nr : nt));
+      if (hayEvalIndiv) row.push(a.estructuraPersonal?.[trim] ? '★' : '');
+      return row;
+    });
+
+    // ── Fila de medias ────────────────────────────────────────────
+    const mediaRow = ['', 'MEDIA CLASE'];
+    insts.forEach((inst, iIdx) => {
+      const nItems = inst.items.length || 1;
+      if (!inst.items.length) {
+        const vals = als.map(a => valorEfectivo(a, iIdx, 0, trim)).filter(v => v !== null);
+        const m = vals.length ? parseFloat((vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(2)) : '';
+        mediaRow.push(m); mediaRow.push(m);
+      } else {
+        inst.items.forEach((_, jIdx) => {
+          const vals = als.map(a => valorEfectivo(a, iIdx, jIdx, trim)).filter(v => v !== null);
+          mediaRow.push(vals.length ? parseFloat((vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(2)) : '');
+        });
+        // media del instrumento
+        const medias = als.map(a => {
+          const esArit = inst.mediaAritmetica !== false;
+          if (esArit) {
+            const vs = inst.items.map((_,jIdx)=>valorEfectivo(a,iIdx,jIdx,trim)).filter(v=>v!==null);
+            return vs.length ? vs.reduce((s,v)=>s+v,0)/vs.length : null;
+          } else {
+            let ps=0,pw=0;
+            inst.items.forEach((it,jIdx) => { const v=valorEfectivo(a,iIdx,jIdx,trim); if(v!==null){ps+=v*it.peso;pw+=it.peso;} });
+            return pw>0?ps/pw:null;
+          }
+        }).filter(v=>v!==null);
+        mediaRow.push(medias.length ? parseFloat((medias.reduce((s,v)=>s+v,0)/medias.length).toFixed(2)) : '');
       }
     });
-    const nt = calcNotaTrimestre(a, trim);
-    row.push(nt !== null ? parseFloat(nt.toFixed(2)) : '');
-    return row;
+    const mf = als.map(a=>calcNotaTrimestre(a,trim)).filter(n=>n!==null);
+    mediaRow.push(mf.length ? parseFloat((mf.reduce((s,n)=>s+n,0)/mf.length).toFixed(2)) : '');
+    if (redOn) mediaRow.push('');
+    mediaRow.push('');
+    if (hayEvalIndiv) mediaRow.push('');
+
+    const ws = XLSX.utils.aoa_to_sheet([row1, row2, ...dataRows, mediaRow]);
+    ws['!merges'] = merges;
+
+    // Anchos de columna
+    const wscols = [{wch:5},{wch:28}];
+    insts.forEach(inst => {
+      const n = inst.items.length || 1;
+      for (let i=0;i<n;i++) wscols.push({wch:14});
+      wscols.push({wch:10}); // media
+    });
+    wscols.push({wch:12},{wch:12},{wch:14});
+    if (hayEvalIndiv) wscols.push({wch:12});
+    ws['!cols'] = wscols;
+
+    XLSX.utils.book_append_sheet(wb, ws, trimLabel.slice(0,31));
   });
 
-  // Fila de medias
-  const mediaRow = ['Media clase'];
-  insts.forEach((inst, iIdx) => {
-    const calcMedia = (jIdx) => {
-      const vals = als.map(a => a.notas?.[trim]?.[iIdx]?.[jIdx]).filter(v => v !== undefined && v !== '');
-      return vals.length ? parseFloat((vals.reduce((s,v) => s + parseFloat(v), 0) / vals.length).toFixed(2)) : '';
-    };
-    const calcMediaRec = (jIdx) => {
-      const vals = als.map(a => a.notas?.[trim]?.[iIdx]?.rec?.[jIdx]).filter(v => v !== undefined && v !== '');
-      return vals.length ? parseFloat((vals.reduce((s,v) => s + parseFloat(v), 0) / vals.length).toFixed(2)) : '';
-    };
-    if (!inst.items.length) {
-      mediaRow.push(calcMedia(0)); mediaRow.push(calcMediaRec(0));
-    } else {
-      inst.items.forEach((_, jIdx) => { mediaRow.push(calcMedia(jIdx)); mediaRow.push(calcMediaRec(jIdx)); });
-    }
-  });
-  const mediasFinales = als.map(a => calcNotaTrimestre(a, trim)).filter(n => n !== null);
-  mediaRow.push(mediasFinales.length ? parseFloat((mediasFinales.reduce((s,n) => s+n, 0) / mediasFinales.length).toFixed(2)) : '');
-
-  const ws = XLSX.utils.aoa_to_sheet([row1, row2, ...dataRows, mediaRow]);
-
-  // Merge celdas cabecera instrumento
-  const merges = [];
-  let col = 1;
-  insts.forEach(inst => {
-    const nCols = (inst.items.length || 1) * 2; // *2 por la col Rec
-    if (nCols > 1) merges.push({ s:{r:0,c:col}, e:{r:0,c:col+nCols-1} });
-    col += nCols;
-  });
-  if (merges.length) ws['!merges'] = merges;
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, trimLabel.slice(0,31));
-  XLSX.writeFile(wb, `cuaderno_${g.nombre.replace(/\s/g,'_')}_${trim}.xlsx`);
+  XLSX.writeFile(wb, 'cuaderno_'+g.nombre.replace(/\s/g,'_')+'.xlsx');
 }
-
-
 function renderVistaMiniaturas(g, als) {
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
   const col = getColorGrupo(g.id);
@@ -3449,16 +3568,10 @@ function renderTabNotas(a) {
       </div>
     </div>` : '';
 
-  // ── Barra redondeo + % propios ───────────────────────────────
+  // ── Barra redondeo ───────────────────────────────────────────
   let redondeoBar = '';
   if (!redOn) {
-    redondeoBar = `<div class="redondeo-config"><span>⚙️</span><span style="color:var(--amber)">Redondeo desactivado globalmente (Ajustes)</span>
-      <span style="margin-left:12px;color:var(--border2)">|</span>
-      <label class="toggle-row" onclick="toggleEstrPersonal('${a.id}')" style="margin-left:8px;cursor:pointer;gap:6px">
-        <div class="toggle ${tieneEstrPersonal ? 'on' : ''}"></div>
-        <span style="font-size:12px;color:${tieneEstrPersonal?'var(--purple)':'var(--text2)'}">% propios</span>
-      </label>
-    </div>`;
+    redondeoBar = `<div class="redondeo-config"><span>⚙️</span><span style="color:var(--amber)">Redondeo desactivado globalmente (Ajustes)</span></div>`;
   } else {
     redondeoBar = `<div class="redondeo-config">
       <span>⚙️</span>
@@ -3470,11 +3583,6 @@ function renderTabNotas(a) {
       ${umbralPropio
         ? `<input type="number" min="0.1" max="0.9" step="0.05" value="${a.redondeoAlza}" style="width:64px" onchange="setRedondeoAlumno('${a.id}',parseFloat(this.value));cambiarTabFicha('notas')">`
         : `<span style="font-family:'DM Mono',monospace;font-weight:600">${umbral}</span>`}
-      <span style="margin-left:12px;color:var(--border2)">|</span>
-      <label class="toggle-row" onclick="toggleEstrPersonal('${a.id}')" style="margin-left:8px;cursor:pointer;gap:6px">
-        <div class="toggle ${tieneEstrPersonal ? 'on' : ''}"></div>
-        <span style="font-size:12px;color:${tieneEstrPersonal?'var(--purple)':'var(--text2)'}">% propios</span>
-      </label>
     </div>`;
   }
 
@@ -3808,16 +3916,17 @@ function renombrarInstGrupo(iIdx, val) {
 function eliminarInstGrupo(iIdx) {
   const g = getGrupoActual(); if(!g) return;
   const nombre = g.estructura?.[trimestreActual]?.[iIdx]?.nombre || 'este instrumento';
-  if (!confirm(`¿Eliminar "${nombre}" para todos los alumnos del grupo? Se perderán todas las notas de este instrumento.`)) return;
+  const aviso9 = _avisoEvalPropias(g.id, trimestreActual);
+  if (!confirm(`¿Eliminar "${nombre}" para todos los alumnos del grupo? Se perderán todas las notas de este instrumento.${aviso9}`)) return;
   asegurarEstructuraGrupo(g);
   g.estructura[trimestreActual].splice(iIdx, 1);
-  // Borrar valores del instrumento en todos los alumnos del grupo
   APP.alumnos.filter(a=>a.grupoId===g.id).forEach(a => {
     if (a.notas?.[trimestreActual]) {
       const vals = a.notas[trimestreActual];
       if (Array.isArray(vals)) vals.splice(iIdx, 1);
     }
   });
+  _resyncEvalPropias(g.id, trimestreActual);
   instAbiertas.clear();
   guardarDatos();
   cambiarTabFicha('notas');
@@ -3828,9 +3937,10 @@ function añadirItemGrupo(iIdx) {
   const g = getGrupoActual(); if(!g) return;
   asegurarEstructuraGrupo(g);
   const items = g.estructura[trimestreActual][iIdx].items;
-  const n = items.length;
-  items.push({nombre:'Actividad '+(n+1), peso: Math.floor(100/(n+1)), fecha: dKey(new Date())});
+  const nuevoItem = {nombre:'Actividad '+(items.length+1), peso: Math.floor(100/(items.length+1)), fecha: dKey(new Date())};
+  items.push(nuevoItem);
   instAbiertas.add(iIdx);
+  _resyncEvalPropias(g.id, trimestreActual);
   guardarDatos();
   cambiarTabFicha('notas');
 }
@@ -3900,7 +4010,7 @@ function cambiarNotaRecuperacion(aid, iIdx, jIdx, val, inputEl) {
     guardarDatos();
     if (inputEl) inputEl.blur();
     cambiarTabFicha('notas');
-    renderPage();
+    renderCuaderno(trim ? a.grupoId : undefined);
   };
 
   if (tieneNota && val !== '' && parseFloat(val) !== parseFloat(anterior)) {
@@ -4061,12 +4171,48 @@ function getInstrumentosDefecto() {
 
 // (funciones legacy eliminadas — ver equivalentes en estructura grupo)
 
+
+// ── Sincronización de estructura con evaluaciones propias ─────────────────
+// Después de cualquier cambio estructural en g.estructura[trim],
+// reconstruye estructuraPersonal preservando solo los pesos por índice.
+function _resyncEvalPropias(gid, trim) {
+  const g = APP.grupos.find(x => x.id === gid); if (!g) return;
+  const base = g.estructura?.[trim] || [];
+  APP.alumnos.filter(a => a.grupoId === gid && a.estructuraPersonal?.[trim]).forEach(a => {
+    const prev = a.estructuraPersonal[trim];
+    a.estructuraPersonal[trim] = base.map((inst, iIdx) => {
+      const prevInst = prev[iIdx];
+      return {
+        nombre: inst.nombre,
+        peso: prevInst?.peso ?? 0,
+        mediaAritmetica: inst.mediaAritmetica,
+        items: inst.items.map((item, jIdx) => ({
+          nombre: item.nombre,
+          peso: prevInst?.items?.[jIdx]?.peso ?? 0,
+          fecha: item.fecha
+        }))
+      };
+    });
+  });
+}
+
+// Aviso si hay alumnos con eval propia afectados por un borrado
+function _avisoEvalPropias(gid, trim) {
+  const n = APP.alumnos.filter(a => a.grupoId === gid && a.estructuraPersonal?.[trim]).length;
+  return n > 0
+    ? `
+
+ℹ️ ${n} alumno${n > 1 ? 's tienen' : ' tiene'} evaluación individual. Sus % se ajustarán automáticamente — revísalos después si es necesario.`
+    : '';
+}
+
 function añadirInstGrupo() {
   const g = getGrupoActual(); if(!g) return;
   asegurarEstructuraGrupo(g);
-  const newIdx = g.estructura[trimestreActual].length;
-  g.estructura[trimestreActual].push({nombre:'Nuevo instrumento', peso:10, items:[]});
-  instAbiertas.add(newIdx);
+  const nuevaInst = {nombre:'Nuevo instrumento', peso:10, items:[]};
+  g.estructura[trimestreActual].push(nuevaInst);
+  instAbiertas.add(g.estructura[trimestreActual].length - 1);
+  _resyncEvalPropias(g.id, trimestreActual);
   guardarDatos();
   cambiarTabFicha('notas');
 }
@@ -4119,16 +4265,32 @@ function eliminarReunion(idx) {
   cambiarTabFicha('reuniones');
 }
 
+function mostrarToast(msg, duracion) {
+  let el = document.getElementById('app-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'app-toast';
+    el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:9999;max-width:90vw;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:opacity 0.3s;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.opacity = '0'; }, duracion || 3500);
+}
+
 function toggleAcnee() {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   a.acnee = !a.acnee;
   guardarDatos(); renderFicha(a);
+  if (a.acnee) mostrarToast('💡 Puedes activar la evaluación individual en la ficha → Notas si lo necesitas.');
 }
 
 function toggleEtiqueta(key) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   a[key] = !a[key];
   guardarDatos(); renderFicha(a);
+  if ((key === 'pap' || key === 'pep') && a[key]) mostrarToast('💡 Puedes activar la evaluación individual en la ficha → Notas si lo necesitas.');
 }
 
 function toggleSidePanel(id) {
@@ -5235,10 +5397,13 @@ function exportarNotasTrimestre() {
         maxCol = Math.max(maxCol, cabeceras.length - 1);
         fila++;
 
+        const hayIndivGrupo = alumnos.some(a => !!a.estructuraPersonal?.[trim]);
         alumnos.forEach(a => {
           let col = 0;
-          ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(a.apellidos||'', stNormal);
-          ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(a.nombre||'', stNormal);
+          const tieneIndiv = !!a.estructuraPersonal?.[trim];
+          const stNombre = tieneIndiv ? { font: { name: 'Arial', sz: 10, italic: true }, fill: { patternType: 'solid', fgColor: { rgb: 'EDE9FE' } } } : stNormal;
+          ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda((a.apellidos||'') + (tieneIndiv ? ' ★' : ''), stNombre);
+          ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(a.nombre||'', stNombre);
           estructura.forEach((inst, iIdx) => {
             const indices = inst.items.length ? inst.items.map((_,j) => j) : [0];
             indices.forEach(jIdx => {
@@ -5250,6 +5415,7 @@ function exportarNotasTrimestre() {
           const nr = redOn && nt !== null ? redondear(nt, getUmbral(a)) : null;
           ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(nt !== null ? parseFloat(nt.toFixed(2)) : '', stNormal);
           ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(nr !== null ? nr : '', stNormal);
+          if (hayIndivGrupo) ws[XLSX.utils.encode_cell({r:fila,c:col++})] = celda(tieneIndiv ? '★ Eval. individual' : '', tieneIndiv ? { font: { name: 'Arial', sz: 10, color: { rgb: '7c3aed' } } } : stNormal);
           maxCol = Math.max(maxCol, col - 1);
           fila++;
         });
@@ -5633,6 +5799,71 @@ function eliminarCriterioLomloe(idx) {
 // =====================
 // PÁGINA: AJUSTES
 // =====================
+function renderAyuda() {
+  const sec = (icon, titulo, pasos) => `
+    <div class="card" style="padding:22px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <span style="font-size:24px">${icon}</span>
+        <h2 style="font-size:16px;font-weight:700;margin:0">${titulo}</h2>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${pasos.map((p,i) => `
+          <div style="display:flex;gap:12px">
+            <div style="min-width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:1px">${i+1}</div>
+            <div style="font-size:13px;color:var(--text2);line-height:1.6">${p}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  const tip = (texto) => `<div style="display:flex;gap:8px;padding:10px 14px;background:var(--accent-bg);border-radius:8px;border-left:3px solid var(--accent);font-size:12px;color:var(--text2);line-height:1.5;margin-top:8px"><span style="flex-shrink:0">💡</span><span>${texto}</span></div>`;
+
+  return `
+    <div class="page">
+      <div style="max-width:680px;margin:0 auto;padding:20px 16px">
+        <h1 style="font-size:20px;font-weight:700;margin-bottom:6px">❓ Ayuda</h1>
+        <p style="font-size:13px;color:var(--text3);margin-bottom:22px">Guía de inicio rápido para sacarle el máximo partido a la app.</p>
+
+        ${sec('👥', '1. Crear clases e importar alumnos', [
+          `Ve a <strong>Clases</strong> y crea un grupo. Puedes añadir alumnos manualmente o importarlos desde Plumier.`,
+          `En Plumier, entra en <strong>Datos del alumnado</strong> y exporta el listado. La app acepta ese formato directamente desde el botón <strong>Importar</strong>.`,
+          `Para importar las <strong>fotos</strong>, Plumier las descarga en un archivo <strong>.zip</strong> — descomprímelo primero. Las fotos vienen nombradas con el <strong>NRE</strong> del alumno, así que asegúrate de que el campo NRE esté importado correctamente para que la app las asocie de forma automática.`,
+          `Si algún alumno tiene <strong>instrumentos de evaluación o % diferentes</strong> al resto del grupo, ábrelo, ve a su ficha → pestaña <strong>Notas</strong> y activa <em>"Evaluación personalizada"</em>. Sus % no se verán afectados por cambios en el grupo.`,
+        ])}
+
+        ${tip('Si vas a importar fotos, importa primero los alumnos con su NRE y luego sube las fotos ya descomprimidas.')}
+
+        ${sec('🕐', '2. Poner el horario', [
+          `Ve a <strong>Horario</strong> en el menú lateral.`,
+          `Añade tus franjas horarias (hora de inicio y fin) y luego asigna cada hueco a un grupo o tipo de actividad (guardia, reunión…).`,
+          `El horario se refleja automáticamente en el <strong>Calendario</strong>, donde verás cada día tus clases con la sesión de programación correspondiente si la tienes configurada.`,
+        ])}
+
+        ${sec('📖', '3. Programación', [
+          `Lo más cómodo es <strong>importar la programación desde Anota</strong>: exporta el documento de Anota a <strong>Word (.docx)</strong> y luego impórtalo desde el apartado <strong>Importar</strong> de la app. Se detectarán automáticamente los bloques, sesiones e instrumentos de evaluación.`,
+          `Para <strong>asignar la misma programación a varios grupos</strong>, usa la opción <strong>Duplicar programación</strong> — nunca edites la misma directamente o los cambios afectarán a todos.`,
+          `En cada sesión puedes añadir una <strong>URL de Google Drive</strong> con tu material (presentaciones, fichas…). Si compartes la programación con otros docentes, no olvides hacer esos documentos <strong>públicos o accesibles con enlace</strong> en Drive.`,
+          `Para <strong>compartir tu programación</strong> con otro docente, exporta el <strong>JSON de programaciones</strong> desde Ajustes y envíaselo. Al importarlo no sobreescribe sus programaciones existentes, solo añade las nuevas.`,
+          `Desde el <strong>Calendario</strong>, al pulsar una sesión puedes ver su contenido, cambiar su estado (Pendiente / Realizada) y añadir una nota de clase sobre lo que se hizo o lo que queda pendiente.`,
+        ])}
+
+        ${tip('Si compartes tanto la programación como los documentos de Drive, pide a tus compañeros que dupliquen la programación antes de modificarla para que cada uno trabaje sobre su copia.')}
+
+        ${sec('☁️', '4. Sincronización en la nube (opcional)', [
+          `Por defecto la app funciona en <strong>modo local</strong>: los datos se guardan solo en el navegador de tu dispositivo. Para sincronizar con Google Drive y acceder desde cualquier dispositivo, hay que configurar un proyecto en Google Cloud. Hazlo una sola vez.`,
+          `<strong>Paso 1 — Crear proyecto en Google Cloud:</strong> entra en <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent)">console.cloud.google.com</a>, crea un proyecto nuevo (por ejemplo "ProfeApp"), activa la <strong>Google Drive API</strong> desde <em>APIs y servicios → Biblioteca</em>.`,
+          `<strong>Paso 2 — Credenciales OAuth:</strong> en <em>APIs y servicios → Credenciales</em>, crea unas credenciales de tipo <strong>ID de cliente OAuth 2.0</strong> para aplicación web. En <em>Orígenes autorizados</em> y <em>URIs de redirección</em> pon la URL desde donde abres la app (por ejemplo <code>https://tu-usuario.github.io/profeapp</code> o <code>http://localhost</code> si la usas en local). Copia el <strong>Client ID</strong> que te da.`,
+          `<strong>Paso 3 — Pantalla de consentimiento:</strong> en <em>APIs y servicios → Pantalla de consentimiento OAuth</em> configúrala como <em>Externa</em> y añade tu cuenta de Google como usuario de prueba. Así solo tú puedes acceder.`,
+          `<strong>Paso 4 — Conectar en la app:</strong> ve a <strong>Ajustes</strong> en la app, pega el Client ID en el campo de Google Drive y guarda. Al conectarte por primera vez te pedirá permiso para acceder a Drive. Desde entonces la app guardará automáticamente un archivo <code>profeapp_datos.json</code> en tu Drive.`,
+          `<strong>Conflictos:</strong> si editas desde dos dispositivos sin sincronizar, gana siempre el JSON <strong>más reciente</strong> por fecha de modificación en Drive. Para evitarlo, asegúrate de que el dispositivo anterior haya sincronizado antes de abrir la app en otro.`,
+          `<strong>Copia de seguridad manual:</strong> aunque tengas Drive, se recomienda exportar el JSON de vez en cuando desde Ajustes → <em>Exportar datos</em>. Sirve también para mover todos los datos a otro navegador sin pasar por Drive.`,
+        ])}
+
+        ${tip('Si en algún momento Google te pide verificar la app, es porque el proyecto está en modo de prueba. Basta con añadir tu cuenta como usuario de prueba en la pantalla de consentimiento — no necesitas publicar la app.')}
+
+      </div>
+    </div>`;
+}
+
 function renderAjustes() {
   const cfg = APP.config;
   const redOn = cfg.redondeoActivo !== false;
@@ -6466,12 +6697,14 @@ function editarPesoItemGrupo(iIdx, jIdx, val) {
 function agregarItemGrupo(iIdx) {
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
   const inst = g.estructura[trimEstructura][iIdx];
-  inst.items.push({nombre:'Apartado '+(inst.items.length+1), peso: 0});
+  const nuevoItem = {nombre:'Apartado '+(inst.items.length+1), peso: 0};
+  inst.items.push(nuevoItem);
   if (inst.mediaAritmetica !== false) {
     inst.mediaAritmetica = true;
     recalcularPesosAritmetica(iIdx);
   }
   instAbiertasGrupo.add(iIdx);
+  _resyncEvalPropias(g.id, trimEstructura);
   guardarDatos(); renderEstructuraModal();
 }
 // ── Modal de confirmación reutilizable ────────────────────────
@@ -6499,7 +6732,8 @@ function confirmarCancelar() {
 function borrarItemGrupo(iIdx, jIdx) {
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
   const nombre = g.estructura[trimEstructura][iIdx]?.items[jIdx]?.nombre || 'este apartado';
-  confirmar('Eliminar apartado', `¿Eliminar "${nombre}" y sus notas en todos los alumnos?`, () => {
+  const avisoBorrarItem = _avisoEvalPropias(g.id, trimEstructura);
+  confirmar('Eliminar apartado', `¿Eliminar "${nombre}" y sus notas en todos los alumnos?${avisoBorrarItem}`, () => {
     const inst = g.estructura[trimEstructura][iIdx];
     inst.items.splice(jIdx, 1);
     if (inst.mediaAritmetica !== false) recalcularPesosAritmetica(iIdx);
@@ -6512,20 +6746,24 @@ function borrarItemGrupo(iIdx, jIdx) {
       });
       a.notas[trimEstructura][iIdx] = nuevo;
     });
+    _resyncEvalPropias(g.id, trimEstructura);
     guardarDatos(); renderEstructuraModal();
   });
 }
 function agregarInstGrupo() {
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
+  const nuevaInst = {nombre:'Nuevo instrumento', peso:10, items:[], mediaAritmetica:true};
   const newIdx = g.estructura[trimEstructura].length;
-  g.estructura[trimEstructura].push({nombre:'Nuevo instrumento', peso:10, items:[], mediaAritmetica:true});
+  g.estructura[trimEstructura].push(nuevaInst);
   instAbiertasGrupo.add(newIdx);
+  _resyncEvalPropias(g.id, trimEstructura);
   guardarDatos(); renderEstructuraModal();
 }
 function borrarInstGrupo(iIdx) {
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
   const nombre = g.estructura[trimEstructura][iIdx]?.nombre || 'este instrumento';
-  confirmar('Eliminar instrumento', `¿Eliminar "${nombre}" y sus notas en todos los alumnos del grupo?`, () => {
+  const avisoBorrar = _avisoEvalPropias(g.id, trimEstructura);
+  confirmar('Eliminar instrumento', `¿Eliminar "${nombre}" y sus notas en todos los alumnos del grupo?${avisoBorrar}`, () => {
     g.estructura[trimEstructura].splice(iIdx, 1);
     APP.alumnos.filter(a=>a.grupoId===g.id).forEach(a => {
       if (!a.notas?.[trimEstructura]) return;
@@ -6537,6 +6775,7 @@ function borrarInstGrupo(iIdx) {
       a.notas[trimEstructura] = nuevo;
     });
     instAbiertasGrupo.clear();
+    _resyncEvalPropias(g.id, trimEstructura);
     guardarDatos(); renderEstructuraModal();
   });
 }
@@ -9437,19 +9676,27 @@ function cambiarNombreItemPersonal(aid, iIdx, jIdx, val) {
 function añadirItemPersonal(aid, iIdx) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
   if (!a.estructuraPersonal?.[trimestreActual]) return;
-  const items = a.estructuraPersonal[trimestreActual][iIdx].items;
-  items.push({nombre:'Actividad '+(items.length+1), peso:0});
+  const g = APP.grupos.find(x=>x.id===a.grupoId); if(!g) return;
+  asegurarEstructuraGrupo(g);
+  const instGrupo = g.estructura[trimestreActual][iIdx]; if(!instGrupo) return;
+  const nuevoItem = {nombre:'Actividad '+(instGrupo.items.length+1), peso:0};
+  instGrupo.items.push(nuevoItem);
   instAbiertas.add(iIdx);
+  _resyncEvalPropias(g.id, trimestreActual);
   guardarDatos(); cambiarTabFicha('notas');
 }
 
 function eliminarItemPersonal(aid, iIdx, jIdx) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
-  if (!a.estructuraPersonal?.[trimestreActual]) return;
-  const nombre = a.estructuraPersonal[trimestreActual][iIdx]?.items[jIdx]?.nombre || 'este apartado';
-  confirmar('Eliminar apartado', `¿Eliminar "${nombre}" de la evaluación personalizada de este alumno?`, () => {
-    a.estructuraPersonal[trimestreActual][iIdx].items.splice(jIdx,1);
-    if (a.notas?.[trimestreActual]?.[iIdx]) delete a.notas[trimestreActual][iIdx][jIdx];
+  const g = APP.grupos.find(x=>x.id===a.grupoId); if(!g) return;
+  const nombre = g.estructura?.[trimestreActual]?.[iIdx]?.items?.[jIdx]?.nombre || 'este apartado';
+  const aviso = _avisoEvalPropias(g.id, trimestreActual);
+  confirmar('Eliminar apartado', `¿Eliminar "${nombre}" para todos los alumnos del grupo?${aviso}`, () => {
+    if (g.estructura?.[trimestreActual]?.[iIdx]?.items) g.estructura[trimestreActual][iIdx].items.splice(jIdx, 1);
+    APP.alumnos.filter(al=>al.grupoId===g.id).forEach(al => {
+      if (al.notas?.[trimestreActual]?.[iIdx]) delete al.notas[trimestreActual][iIdx][jIdx];
+    });
+    _resyncEvalPropias(g.id, trimestreActual);
     guardarDatos(); cambiarTabFicha('notas');
   });
 }
@@ -9457,15 +9704,28 @@ function eliminarItemPersonal(aid, iIdx, jIdx) {
 function añadirInstPersonal(aid) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
   if (!a.estructuraPersonal?.[trimestreActual]) return;
-  a.estructuraPersonal[trimestreActual].push({nombre:'Nuevo instrumento', peso:10, items:[]});
+  const g = APP.grupos.find(x=>x.id===a.grupoId); if(!g) return;
+  asegurarEstructuraGrupo(g);
+  const nuevaInst = {nombre:'Nuevo instrumento', peso:10, items:[]};
+  g.estructura[trimestreActual].push(nuevaInst);
+  _resyncEvalPropias(g.id, trimestreActual);
+  // Give this alumno peso 10 for the new inst (others get 0 from resync)
+  const iIdx = g.estructura[trimestreActual].length - 1;
+  if (a.estructuraPersonal[trimestreActual][iIdx]) a.estructuraPersonal[trimestreActual][iIdx].peso = 10;
   guardarDatos(); cambiarTabFicha('notas');
 }
 
 function eliminarInstPersonal(aid, iIdx) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
-  const nombre = a.estructuraPersonal?.[trimestreActual]?.[iIdx]?.nombre || 'este instrumento';
-  confirmar('Eliminar instrumento', `¿Eliminar "${nombre}" de la evaluación personalizada de este alumno?`, () => {
-    a.estructuraPersonal[trimestreActual].splice(iIdx,1);
+  const g = APP.grupos.find(x=>x.id===a.grupoId); if(!g) return;
+  const nombre = g.estructura?.[trimestreActual]?.[iIdx]?.nombre || 'este instrumento';
+  const aviso = _avisoEvalPropias(g.id, trimestreActual);
+  confirmar('Eliminar instrumento', `¿Eliminar "${nombre}" para todos los alumnos del grupo?${aviso}`, () => {
+    if (g.estructura?.[trimestreActual]) g.estructura[trimestreActual].splice(iIdx, 1);
+    APP.alumnos.filter(al=>al.grupoId===g.id).forEach(al => {
+      if (al.notas?.[trimestreActual] && Array.isArray(al.notas[trimestreActual])) al.notas[trimestreActual].splice(iIdx, 1);
+    });
+    _resyncEvalPropias(g.id, trimestreActual);
     instAbiertas.clear();
     guardarDatos(); cambiarTabFicha('notas');
   });
