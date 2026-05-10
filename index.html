@@ -2937,7 +2937,11 @@ function exportarCuadernoPDF(gid, trims) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
   // If called without trims, show selector modal
   if (!trims) { abrirSelectorExportacion(gid, 'pdf'); return; }
-  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado).sort((a,b) => {
+    const na = parseInt(a.nLista)||9999, nb = parseInt(b.nLista)||9999;
+    if (na !== nb) return na - nb;
+    return (a.apellidos||'').localeCompare(b.apellidos||'', 'es');
+  });
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
   const redOn = APP.config.redondeoActivo!==false;
   const trimLabels = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'};
@@ -3008,7 +3012,11 @@ function exportarCuadernoExcel(gid, trims) {
     s.onerror=()=>alert('No se pudo cargar Excel.');
     document.head.appendChild(s); return;
   }
-  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado).sort((a,b) => {
+    const na = parseInt(a.nLista)||9999, nb = parseInt(b.nLista)||9999;
+    if (na !== nb) return na - nb;
+    return (a.apellidos||'').localeCompare(b.apellidos||'', 'es');
+  });
   const trimLabels = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'};
   const redOn = APP.config.redondeoActivo !== false;
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
