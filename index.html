@@ -3802,7 +3802,7 @@ function renderNotaFinal(a, cfg, umbral, nr, nf, redOn) {
         <div class="pt-label">${trimLabel}</div>
         <div class="pt-nota ${notaColor(nr2)}">${fmtNota(nt)}</div>
         ${tienePersonal
-          ? `<input type="number" min="0" max="100" step="5" value="${pesosActivos[t]||0}" onchange="setPesoPersonalAlumno('${a.id}','${t}',this.value)">`
+          ? `<input type="number" min="0" max="100" step="5" value="${pesosActivos[t]||0}" onchange="setPesoPersonalAlumno('${a.id}','${t}',this.value)" onkeydown="if(event.key==='Enter'){this.blur()}">`
           : `<input type="number" value="${pesosActivos[t]||0}" readonly style="pointer-events:none;opacity:0.55;background:var(--surface2)">`}
         <span style="font-size:12px;color:var(--text2)">%</span>
       </div>`;
@@ -6524,12 +6524,12 @@ function renderEstructuraModal() {
     inst.items.forEach((item, jIdx) => {
       itemsHtml += `<div class="nota-item">
         <div class="nota-item-nombre">
-          <input type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" style="border:none;background:transparent;font-family:inherit;font-size:13px;width:100%;outline:none;color:var(--text)" placeholder="Nombre..." onchange="editarNombreItemGrupo(${iIdx},${jIdx},this.value)">
+          <input type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" style="border:none;background:transparent;font-family:inherit;font-size:13px;width:100%;outline:none;color:var(--text)" placeholder="Nombre..." onchange="editarNombreItemGrupo(${iIdx},${jIdx},this.value)" onkeydown="if(event.key==='Enter'){this.blur()}">
         </div>
         <div class="nota-item-peso">
           <input type="number" min="0" max="100" step="5" value="${item.peso||''}" placeholder="%" 
             ${esAritmetica ? 'readonly style="opacity:0.5;pointer-events:none;background:var(--surface2)"' : ''}
-            onchange="editarPesoItemGrupo(${iIdx},${jIdx},this.value)">
+            onchange="editarPesoItemGrupo(${iIdx},${jIdx},this.value)" onkeydown="if(event.key==='Enter'){this.blur()}">
           <span style="font-size:11px;color:var(--text3)">%</span>
         </div>
         <input type="date" value="${item.fecha||''}" title="Fecha" style="padding:3px 6px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:11px;color:var(--text2);outline:none" onchange="editarFechaItemGrupo(${iIdx},${jIdx},this.value)">
@@ -6549,7 +6549,7 @@ function renderEstructuraModal() {
     html += `<div class="instrumento-card" style="margin-bottom:10px">
       <div class="instrumento-header" onclick="toggleGrupoInst(${iIdx})">
         <input type="text" value="${(inst.nombre||'').replace(/"/g,'&quot;')}" style="border:none;background:transparent;font-family:inherit;font-size:13.5px;font-weight:600;min-width:80px;max-width:200px;outline:none;color:var(--text)" onclick="event.stopPropagation()" onchange="editarNombreInstGrupo(${iIdx},this.value)">
-        <span class="instrumento-peso-info">Peso: <input type="number" min="0" max="100" step="5" value="${inst.peso||0}" style="width:52px;padding:2px 6px;border:1px solid var(--border2);border-radius:5px;font-family:'DM Mono',monospace;font-size:12px;text-align:right;outline:none" onclick="event.stopPropagation()" onchange="editarPesoInstGrupo(${iIdx},this.value)">%</span>
+        <span class="instrumento-peso-info">Peso: <input type="number" min="0" max="100" step="5" value="${inst.peso||0}" style="width:52px;padding:2px 6px;border:1px solid var(--border2);border-radius:5px;font-family:'DM Mono',monospace;font-size:12px;text-align:right;outline:none" onclick="event.stopPropagation()" onchange="editarPesoInstGrupo(${iIdx},this.value)" onkeydown="if(event.key==='Enter'){this.blur()}">%</span>
         <span style="font-size:10px;color:${esAritmetica?'var(--accent)':'var(--text3)'};font-weight:600">${esAritmetica?'≡ Media':'% Ponderada'}</span>
         ${switchHtml}
         <button class="btn btn-delete" onclick="event.stopPropagation();borrarInstGrupo(${iIdx})" title="Eliminar instrumento">✕</button>
