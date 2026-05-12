@@ -83,10 +83,10 @@
     display: flex; align-items: center; gap: 9px;
     padding: 10px 14px; cursor: pointer;
     color: var(--text2); font-size: 13.5px; font-weight: 400;
-    transition: all 0.12s; border-left: 3px solid transparent; margin: 1px 0;
+    transition: background 0.12s, color 0.12s; border-left: 3px solid transparent; margin: 1px 0;
   }
   .nav-item:hover { background: var(--bg); color: var(--text); }
-  .nav-item.active { background: var(--accent-bg); color: var(--accent); font-weight: 500; border-left-color: var(--accent); }
+  .nav-item.active { background: var(--accent-bg); color: var(--accent); font-weight: 500; border-left-color: var(--accent); position: relative; z-index: 1; }
   .nav-item .icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
 
   /* ── MAIN ───────────────────────────────────────────── */
@@ -857,39 +857,39 @@
           style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text2);font-size:16px;cursor:pointer;flex-shrink:0">🎤</button>
       </div>
       <div class="nav-section">Principal</div>
-      <div class="nav-item active" onclick="navTo('inicio')">
+      <div class="nav-item" id="nav-inicio" onclick="navTo('inicio')">
         <span class="icon">🏠</span><span>Inicio</span>
       </div>
-      <div class="nav-item" onclick="navTo('alumnos')">
+      <div class="nav-item" id="nav-alumnos" onclick="navTo('alumnos')">
         <span class="icon">👥</span><span>Clases</span>
       </div>
       <div class="nav-section">Gestión</div>
-      <div class="nav-item" onclick="navTo('horario')">
+      <div class="nav-item" id="nav-horario" onclick="navTo('horario')">
         <span class="icon">🕐</span><span>Horario</span>
       </div>
-      <div class="nav-item" onclick="navTo('calendario')">
+      <div class="nav-item" id="nav-calendario" onclick="navTo('calendario')">
         <span class="icon">📅</span><span>Calendario</span>
       </div>
-      <div class="nav-item" onclick="navTo('programacion')">
+      <div class="nav-item" id="nav-programacion" onclick="navTo('programacion')">
         <span class="icon">📖</span><span>Programación</span>
       </div>
-      <div class="nav-item" onclick="navTo('estadisticas')">
+      <div class="nav-item" id="nav-estadisticas" onclick="navTo('estadisticas')">
         <span class="icon">📊</span><span>Estadísticas</span>
       </div>
       <div class="nav-section">Configuración</div>
-      <div class="nav-item" onclick="navTo('importar')">
+      <div class="nav-item" id="nav-importar" onclick="navTo('importar')">
         <span class="icon">📥</span><span>Importar</span>
       </div>
-      <div class="nav-item" onclick="navTo('archivo')">
+      <div class="nav-item" id="nav-archivo" onclick="navTo('archivo')">
         <span class="icon">🗄</span><span>Archivo</span>
       </div>
-      <div class="nav-item" onclick="navTo('criterios')" style="display:none">
+      <div class="nav-item" id="nav-criterios" onclick="navTo('criterios')" style="display:none">
         <span class="icon">⚖️</span><span>Criterios eval.</span>
       </div>
-      <div class="nav-item" onclick="navTo('ajustes')">
+      <div class="nav-item" id="nav-ajustes" onclick="navTo('ajustes')">
         <span class="icon">⚙️</span><span>Ajustes</span>
       </div>
-      <div class="nav-item" onclick="navTo('ayuda')">
+      <div class="nav-item" id="nav-ayuda" onclick="navTo('ayuda')">
         <span class="icon">❓</span><span>Ayuda</span>
       </div>
     </nav>
@@ -923,24 +923,35 @@
   </div>
 </nav>
 
-<!-- MODAL SELECCIÓN EVALUACIONES EXPORT -->
-<div class="modal-overlay hidden" id="modal-export-sel" onclick="event.target===this&&this.classList.add('hidden')">
-  <div class="modal" style="max-width:320px">
+<!-- MODAL PRE-PREGUNTA APARTADOS -->
+<div class="modal-overlay hidden" id="modal-ap-pregunta" onclick="event.target===this&&this.classList.add('hidden')">
+  <div class="modal" style="max-width:420px" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h3 id="export-sel-titulo">Exportar</h3>
-      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-export-sel').classList.add('hidden')">✕</button>
+      <h3>📋 Crear apartados desde la programación</h3>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-ap-pregunta').classList.add('hidden');renderPage()">✕</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Selecciona las evaluaciones a incluir. Cada una irá en una hoja/sección separada.</p>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" id="export-cb-T1" checked> <span>1ª Evaluación</span></label>
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" id="export-cb-T2" checked> <span>2ª Evaluación</span></label>
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" id="export-cb-T3" checked> <span>3ª Evaluación</span></label>
-      </div>
+      <p style="font-size:14px;color:var(--text);margin-bottom:8px">¿Deseas crear ahora los apartados de cada instrumento de evaluación a partir de las sesiones de esta programación?</p>
+      <p style="font-size:12px;color:var(--text3)">Los % se distribuirán igualmente (modo aritmético). Si lo prefieres, puedes hacerlo más tarde desde el botón "📋 Crear apartados" en cada bloque de la programación.</p>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="document.getElementById('modal-export-sel').classList.add('hidden')">Cancelar</button>
-      <button class="btn btn-primary" onclick="confirmarExportacionCuaderno()">Exportar</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-ap-pregunta').classList.add('hidden');renderPage()">Lo haré más tarde</button>
+      <button class="btn btn-primary" onclick="document.getElementById('modal-ap-pregunta').classList.add('hidden');abrirModalApartadosDeSesiones(_apSelNi,_apSelGids)">Sí, crear apartados</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CREAR APARTADOS DESDE SESIONES -->
+<div class="modal-overlay hidden" id="modal-ap-sesiones" onclick="event.target===this&&this.classList.add('hidden')">
+  <div class="modal" style="max-width:620px;max-height:85vh;display:flex;flex-direction:column" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>📋 Crear apartados desde sesiones</h3>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-ap-sesiones').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body" id="ap-modal-body" style="overflow-y:auto;flex:1"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-ap-sesiones').classList.add('hidden')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarApartadosDeSesiones()">✓ Crear apartados</button>
     </div>
   </div>
 </div>
@@ -1157,7 +1168,7 @@
 <div class="modal-overlay hidden" id="modal-anota" onclick="event.target===this&&cerrarModalAnota()">
   <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h3>📥 Importar desde Anota</h3>
+      <h3>📥 Importar formato Anota</h3>
       <button class="btn btn-ghost btn-icon" onclick="cerrarModalAnota()">✕</button>
     </div>
     <div class="modal-body" style="padding:16px">
@@ -1785,13 +1796,13 @@ function notaLabel(nr) {
 // NAVEGACIÓN
 // =====================
 function navTo(page) {
-  // Sidebar nav
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  const items = document.querySelectorAll('.nav-item');
-  const map = {inicio:0, alumnos:1, importar:2, horario:3, calendario:4, programacion:5, estadisticas:6, archivo:7, ajustes:8};
-  // grupos redirige a clases (alumnos)
   if (page === 'grupos') page = 'alumnos';
-  if (items[map[page]]) items[map[page]].classList.add('active');
+  // Sidebar nav — use id-based lookup, completely reliable
+  const pages = ['inicio','alumnos','horario','calendario','programacion','estadisticas','importar','archivo','criterios','ajustes','ayuda'];
+  pages.forEach(p => {
+    const el = document.getElementById('nav-' + p);
+    if (el) el.classList.toggle('active', p === page);
+  });
   // Bottom nav
   document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
   const bnMap = {inicio:'bn-inicio', alumnos:'bn-alumnos', estadisticas:'bn-estadisticas', programacion:'bn-programacion'};
@@ -1821,7 +1832,16 @@ function renderPage(page) {
     case 'ayuda': main.innerHTML = renderAyuda(); break;
     case 'horario': main.innerHTML = renderHorario(); break;
     case 'calendario': main.innerHTML = renderCalendario(); break;
-    case 'programacion': main.innerHTML = renderProgramacion(); break;
+    case 'programacion':
+      main.innerHTML = renderProgramacion();
+      // Restore expand state
+      _nivAbiertos.forEach(ni => {
+        const b = document.getElementById('pnb-' + ni);
+        const a = document.getElementById('pna-' + ni);
+        if (b) b.style.display = '';
+        if (a) a.textContent = '\u25be';
+      });
+      break;
     case 'estadisticas': main.innerHTML = renderEstadisticas(); break;
     case 'grupos': main.innerHTML = renderGrupos(); break;
     case 'archivo': main.innerHTML = renderArchivo(); break;
@@ -2208,6 +2228,8 @@ function renderAlumnos() {
                   <span style="width:8px;height:8px;border-radius:50%;background:#c07800;display:inline-block"></span> 🎨 Color</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();toggleTutor('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#c09000;display:inline-block"></span> ${g.esTutor?'★ Quitar tutoría':'☆ Marcar como tutoría'}</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();renombrarGrupo('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#2a5a9a;display:inline-block"></span> ✏ Renombrar grupo</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();duplicarGrupo('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#4a6a8a;display:inline-block"></span> Duplicar grupo</button>
                 <div class="grupo-menu-sep"></div>
@@ -2554,21 +2576,32 @@ function renderVistaLista(g, als) {
 }
 
 // ── Vista Cuaderno ────────────────────────────────────────────
-let _cuadernoTrim = {};      // { gid: 'T1' }
+let _cuadernoTrim = {};
+let _nivAbiertos = new Set();      // { gid: 'T1' }
 let _cuadernoFotos = {};     // { gid: true/false }
 let _cuadernoEdicion = {};   // { gid: true/false }
 let _cuadernoRec = {};       // { gid: true/false } — mostrar fila recuperación
 
 // Re-render solo la tabla del cuaderno de un grupo sin recargar toda la página
+function toggleNivelUI(ni) {
+  if (_nivAbiertos.has(ni)) _nivAbiertos.delete(ni);
+  else _nivAbiertos.add(ni);
+  const body = document.getElementById('pnb-' + ni);
+  const arrow = document.getElementById('pna-' + ni);
+  const open = _nivAbiertos.has(ni);
+  if (body) body.style.display = open ? '' : 'none';
+  if (arrow) arrow.textContent = open ? '\u25be' : '\u25b8';
+}
+
+function refreshCuadernoIfVisible(gid) {
+  if (paginaActual === 'alumnos' && vistaAlumnos === 'cuaderno') renderCuaderno(gid);
+}
+
 function renderCuaderno(gid) {
   const el = document.getElementById('cuaderno-wrap-' + gid);
   if (!el) { renderPage(); return; }
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
-  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado).sort((a,b) => {
-    const na = parseInt(a.nLista)||9999, nb = parseInt(b.nLista)||9999;
-    if (na !== nb) return na - nb;
-    return (a.apellidos||'').localeCompare(b.apellidos||'', 'es');
-  });
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
   el.outerHTML = renderVistaCuaderno(g, als);
 }
 
@@ -2582,7 +2615,23 @@ function renderVistaCuaderno(g, als) {
   const umbral = parseFloat(APP.config.redondeoAlza) || 0.5;
   const redOn = APP.config.redondeoActivo !== false;
 
-  if (!insts.length) return `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">No hay instrumentos para esta evaluación.<br><button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="abrirEstructuraGrupo('${gid}')">⚙ Configurar notas</button></div>`;
+  if (!insts.length) {
+    return `<div id="cuaderno-wrap-${gid}">
+      <div style="padding:8px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface)">
+        ${['T1','T2','T3'].map((t,i)=>`<button onclick="_cuadernoTrim['${gid}']='${t}';renderPage()"
+          style="padding:3px 10px;border-radius:12px;border:1.5px solid ${trim===t?'var(--accent)':'var(--border2)'};background:${trim===t?'var(--accent)':'transparent'};color:${trim===t?'#fff':'var(--text3)'};font-size:11px;font-weight:600">${['1ª','2ª','3ª'][i]} Eval.</button>`).join('')}
+        <label onclick="_cuadernoEdicion['${gid}']=!_cuadernoEdicion['${gid}'];renderPage()" style="cursor:pointer">
+          <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${edicion?'#d97706':'var(--border2)'};background:${edicion?'#fef9c3':'transparent'};color:${edicion?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${edicion?'✏ Editando':'○ Editar'}</span>
+        </label>
+      </div>
+      <div style="padding:32px 20px;text-align:center;color:var(--text3);font-size:13px">
+        <div style="font-size:32px;margin-bottom:12px">📋</div>
+        <div style="font-weight:600;margin-bottom:6px">No hay instrumentos de evaluación para esta evaluación</div>
+        <div style="font-size:12px;margin-bottom:16px">Crea los instrumentos (exámenes, tareas, prácticas…) para poder registrar notas.</div>
+        <button class="btn btn-secondary btn-sm" onclick="abrirEstructuraGrupo('${gid}')">⚙ Configurar instrumentos</button>
+      </div>
+    </div>`;
+  }
 
   // ── Cabecera de dos niveles ──────────────────────────────────
   let thInst = '';
@@ -2645,9 +2694,8 @@ function renderVistaCuaderno(g, als) {
       ? `<div style="width:30px;height:30px;border-radius:5px;overflow:hidden;flex-shrink:0;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent)">${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}</div>`
       : '';
 
-    const tdAlumno = `<td style="background:${bg};border:1px solid var(--border2);padding:4px 8px;white-space:nowrap;position:sticky;left:0;z-index:2;min-width:${mostrarFotos?'170px':'140px'}">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:10px;font-weight:700;color:var(--text3);font-family:'DM Mono',monospace;min-width:18px;text-align:right">${a.nLista||''}</span>
+    const tdAlumno = `<td style="background:${bg};border:1px solid var(--border2);padding:4px 8px;white-space:nowrap;position:sticky;left:0;z-index:2;min-width:${mostrarFotos?'155px':'125px'}">
+      <div style="display:flex;align-items:center;gap:5px">
         <div onclick="abrirFicha('${a.id}')" style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Abrir ficha">
         ${fotoHtml}
         <div>
@@ -2766,8 +2814,8 @@ function renderVistaCuaderno(g, als) {
       ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo salvo alumnos con % propios — actívalo en su ficha → Notas</span>` : ''}
       <span style="font-size:11px;color:var(--text3)">ℹ Los % de instrumentos son aritméticos por defecto — pondera en las notas de clase (para hacerlo por grupo) o en la ficha del alumno para hacerlo de manera individual</span>
       <div style="margin-left:auto;display:flex;gap:6px">
-        <button onclick="exportarCuadernoPDF('${gid}')" class="btn btn-secondary btn-sm">📄 PDF</button>
-        <button onclick="exportarCuadernoExcel('${gid}')" class="btn btn-secondary btn-sm">📊 Excel</button>
+        <button onclick="exportarCuadernoPDF('${gid}','${trim}')" class="btn btn-secondary btn-sm">📄 PDF</button>
+        <button onclick="exportarCuadernoExcel('${gid}','${trim}')" class="btn btn-secondary btn-sm">📊 Excel</button>
       </div>
     </div>
     <!-- Tabla -->
@@ -2914,261 +2962,180 @@ function cuadernoDeshacerNota(aid, iIdx, jIdx) {
   guardarDatos(); renderCuaderno(gid);
 }
 
-function abrirSelectorExportacion(gid, tipo) {
-  window._exportGid = gid;
-  window._exportTipo = tipo;
-  document.getElementById('export-sel-titulo').textContent = tipo === 'pdf' ? '📄 Exportar PDF' : '📊 Exportar Excel';
-  ['T1','T2','T3'].forEach(t => {
-    const cb = document.getElementById('export-cb-'+t);
-    if (cb) cb.checked = true;
-  });
-  document.getElementById('modal-export-sel').classList.remove('hidden');
-}
-
-function confirmarExportacionCuaderno() {
-  const trims = ['T1','T2','T3'].filter(t => document.getElementById('export-cb-'+t)?.checked);
-  if (!trims.length) { alert('Selecciona al menos una evaluación.'); return; }
-  document.getElementById('modal-export-sel').classList.add('hidden');
-  if (window._exportTipo === 'pdf') exportarCuadernoPDF(window._exportGid, trims);
-  else exportarCuadernoExcel(window._exportGid, trims);
-}
-
-function exportarCuadernoPDF(gid, trims) {
+function exportarCuadernoPDF(gid, trim) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
-  // If called without trims, show selector modal
-  if (!trims) { abrirSelectorExportacion(gid, 'pdf'); return; }
-  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado).sort((a,b) => {
-    const na = parseInt(a.nLista)||9999, nb = parseInt(b.nLista)||9999;
-    if (na !== nb) return na - nb;
-    return (a.apellidos||'').localeCompare(b.apellidos||'', 'es');
-  });
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  const insts = g.estructura?.[trim]||[];
+  const trimLabel = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'}[trim]||trim;
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
   const redOn = APP.config.redondeoActivo!==false;
-  const trimLabels = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'};
 
-  const sectiones = trims.map(trim => {
-    const insts = g.estructura?.[trim]||[];
-    const trimLabel = trimLabels[trim]||trim;
-    let cabTh = '<th rowspan="2" style="border:1px solid #ccc;padding:4px 8px;background:#1F3864;color:#fff;font-size:11px;text-align:left;vertical-align:middle">Alumno</th>';
-    let subTh = '';
-    insts.forEach(inst => {
-      const n = inst.items.length||1;
-      cabTh += '<th colspan="'+n+'" style="border:1px solid #ccc;padding:4px 6px;background:#2E74B5;color:#fff;font-size:10px;text-align:center">'+inst.nombre+' ('+inst.peso+'%)</th>';
-      if (!inst.items.length) { subTh += '<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">Nota</th>'; }
-      else inst.items.forEach(item => { subTh += '<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">'+item.nombre+' '+item.peso+'%</th>'; });
+  let cabTh = '<th style="border:1px solid #ccc;padding:4px 8px;background:#1F3864;color:#fff;font-size:11px;text-align:left">Alumno</th>';
+  let subTh = '';
+  insts.forEach(inst => {
+    const n = inst.items.length||1;
+    cabTh += `<th colspan="${n}" style="border:1px solid #ccc;padding:4px 6px;background:#2E74B5;color:#fff;font-size:10px;text-align:center">${inst.nombre} (${inst.peso}%)</th>`;
+    if (!inst.items.length) {
+      subTh += `<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">Nota</th>`;
+    } else {
+      inst.items.forEach(item => { subTh += `<th style="border:1px solid #ccc;padding:3px 5px;background:#BDD7EE;font-size:9px;text-align:center">${item.nombre} ${item.peso}%</th>`; });
+    }
+  });
+  cabTh += `<th style="border:1px solid #ccc;padding:4px 8px;background:#1e3a1e;color:#fff;font-size:11px;text-align:center">Final</th>`;
+
+  const hayEvalIndivPDF = als.some(a => !!a.estructuraPersonal?.[trim]);
+  const filas = als.map((a,ri) => {
+    const bg = ri%2===0?'#fff':'#f5f5f5';
+    const indivMark = a.estructuraPersonal?.[trim] ? ' <span style="color:#7c3aed;font-size:9px" title="Evaluación individual">★</span>' : '';
+    let tds = `<td style="border:1px solid #ccc;padding:4px 8px;background:${bg};font-size:11px;white-space:nowrap">${a.apellidos||''}, ${a.nombre||''}${indivMark}</td>`;
+    insts.forEach((inst,iIdx) => {
+      const getCelda = (jIdx) => {
+        const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
+        const vr = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+        const tieneRec = vr!==undefined&&vr!=='';
+        return `<td style="border:1px solid #ccc;padding:4px 5px;text-align:center;background:${bg};font-size:11px;font-family:monospace">
+          ${v!==undefined&&v!==''?`<span style="${tieneRec?'text-decoration:line-through;opacity:0.6':''}">${parseFloat(v).toFixed(2)}</span>`:'—'}
+          ${tieneRec?`<br><small style="color:#c07800">↑${parseFloat(vr).toFixed(2)}</small>`:''}
+        </td>`;
+      };
+      if (!inst.items.length) { tds += getCelda(0); }
+      else inst.items.forEach((_,jIdx) => { tds += getCelda(jIdx); });
     });
-    cabTh += '<th rowspan="2" style="border:1px solid #ccc;padding:4px 8px;background:#1e3a1e;color:#fff;font-size:11px;text-align:center;vertical-align:middle">Final</th>';
-    const hayIndiv = als.some(a => !!a.estructuraPersonal?.[trim]);
-    const filas = als.map((a,ri) => {
-      const bg = ri%2===0?'#fff':'#f5f5f5';
-      const indivMark = a.estructuraPersonal?.[trim] ? ' <span style="color:#7c3aed;font-size:9px">★</span>' : '';
-      let tds = '<td style="border:1px solid #ccc;padding:4px 8px;background:'+bg+';font-size:11px;white-space:nowrap">'+(a.apellidos||'')+', '+(a.nombre||'')+indivMark+'</td>';
-      insts.forEach((inst,iIdx) => {
-        const getCelda = (jIdx) => {
-          const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
-          const vr = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
-          const tieneRec = vr!==undefined&&vr!=='';
-          return '<td style="border:1px solid #ccc;padding:4px 5px;text-align:center;background:'+bg+';font-size:11px;font-family:monospace">'
-            +(v!==undefined&&v!==''?'<span style="'+(tieneRec?'text-decoration:line-through;opacity:0.6':'')+'">'+(+v).toFixed(2)+'</span>':'—')
-            +(tieneRec?'<br><small style="color:#c07800">↑'+(+vr).toFixed(2)+'</small>':'')
-            +'</td>';
-        };
-        if (!inst.items.length) tds += getCelda(0);
-        else inst.items.forEach((_,jIdx) => { tds += getCelda(jIdx); });
-      });
-      const nt = calcNotaTrimestre(a,trim);
-      const nr = redOn&&nt!==null?redondear(nt,umbral):null;
-      const nc = nt!==null?(nt<5?'#c0392b':nt>=9?'#1e7145':'#1a1a1a'):'#aaa';
-      tds += '<td style="border:1px solid #ccc;padding:4px 8px;text-align:center;background:'+bg+';font-weight:700;font-size:12px;color:'+nc+';font-family:monospace">'+(nt!==null?nt.toFixed(2):'—')+(nr!==null&&nr!==nt?'<br><small style="color:#2E74B5">('+nr+')</small>':'')+'</td>';
-      return '<tr>'+tds+'</tr>';
-    }).join('');
-    const leyenda = hayIndiv ? '<p style="font-size:10px;color:#7c3aed;margin-top:6px">★ Evaluación individual — nota calculada con % propios.</p>' : '';
-    return '<div style="page-break-after:always;margin-bottom:20px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid #1F3864;padding-bottom:6px">'
-      +'<div><strong style="font-size:15px;color:#1F3864">'+g.nombre+'</strong>'+(g.asignatura?'<br><span style="font-size:11px;color:#666">'+g.asignatura+'</span>':'')+'</div>'
-      +'<div style="text-align:right"><strong style="font-size:13px;color:#2E74B5">'+trimLabel+'</strong><br><span style="font-size:10px;color:#999">'+new Date().toLocaleDateString('es-ES')+'</span></div>'
-      +'</div>'
-      +'<table style="border-collapse:collapse;width:100%"><thead><tr>'+cabTh+'</tr><tr>'+subTh+'</tr></thead><tbody>'+filas+'</tbody></table>'
-      +leyenda+'</div>';
+    const nt = calcNotaTrimestre(a,trim);
+    const nr = redOn&&nt!==null?redondear(nt,umbral):null;
+    const nc = nt!==null?(nt<5?'#c0392b':nt>=9?'#1e7145':'#1a1a1a'):'#aaa';
+    tds += `<td style="border:1px solid #ccc;padding:4px 8px;text-align:center;background:${bg};font-weight:700;font-size:12px;color:${nc};font-family:monospace">${nt!==null?nt.toFixed(2):'—'}${nr!==null&&nr!==nt?`<br><small style="color:#2E74B5">(${nr})</small>`:''}</td>`;
+    return `<tr>${tds}</tr>`;
   }).join('');
 
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cuaderno '+g.nombre+'</title>'
-    +'<style>body{font-family:Calibri,sans-serif;margin:12px}@media print{@page{size:landscape;margin:8mm}button{display:none}div{page-break-after:auto}}</style>'
-    +'</head><body>'+sectiones+'</body></html>';
-  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Cuaderno ${g.nombre} — ${trimLabel}</title>
+    <style>body{font-family:Calibri,sans-serif;margin:12px}@media print{@page{size:landscape;margin:8mm}button{display:none}}</style>
+  </head><body>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid #1F3864;padding-bottom:6px">
+      <div><strong style="font-size:15px;color:#1F3864">${g.nombre}</strong>${g.asignatura?`<br><span style="font-size:11px;color:#666">${g.asignatura}</span>`:''}</div>
+      <div style="text-align:right"><strong style="font-size:13px;color:#2E74B5">${trimLabel}</strong><br><span style="font-size:10px;color:#999">${new Date().toLocaleDateString('es-ES')}</span></div>
+    </div>
+    <table style="border-collapse:collapse;width:100%">
+      <thead><tr>${cabTh}</tr><tr>${subTh}</tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+  </body></html>`;
+
+  const leyendaIndiv = hayEvalIndivPDF ? '<p style="font-size:10px;color:#7c3aed;margin-top:8px">\u2605 Alumno con evaluaci\u00f3n individual \u2014 su nota final se calcula con sus propios % de ponderaci\u00f3n.</p>' : '';
+  const html_final = html.replace('</body>', leyendaIndiv + '</body>');
+  const blob = new Blob([html_final], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const w = window.open(url,'_blank');
-  if (!w) { alert('El navegador bloqueó la ventana. Permite ventanas emergentes e inténtalo de nuevo.'); return; }
+  const w = window.open(url, '_blank');
+  if (!w) { alert('El navegador bloque\u00f3 la ventana emergente. Permite ventanas emergentes para esta p\u00e1gina e int\u00e9ntalo de nuevo.'); return; }
   setTimeout(() => { w.print(); URL.revokeObjectURL(url); }, 800);
 }
 
-function exportarCuadernoExcel(gid, trims) {
+function exportarCuadernoExcel(gid, trim) {
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
-  if (!trims) { abrirSelectorExportacion(gid, 'excel'); return; }
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  const insts = g.estructura?.[trim]||[];
+  const trimLabel = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'}[trim]||trim;
+  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
+  const redOn = APP.config.redondeoActivo !== false;
+
   if (!window.XLSX) {
     const s=document.createElement('script');
     s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=()=>exportarCuadernoExcel(gid,trims);
+    s.onload=()=>exportarCuadernoExcel(gid,trim);
     s.onerror=()=>alert('No se pudo cargar Excel.');
     document.head.appendChild(s); return;
   }
-  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado).sort((a,b) => {
-    const na = parseInt(a.nLista)||9999, nb = parseInt(b.nLista)||9999;
-    if (na !== nb) return na - nb;
-    return (a.apellidos||'').localeCompare(b.apellidos||'', 'es');
+
+  // Cabecera fila 1: instrumento (merged) + Final
+  const row1 = ['Alumno'];
+  // Cabecera fila 2: apartados + Rec + Final
+  const row2 = [''];
+
+  insts.forEach(inst => {
+    const nCols = inst.items.length || 1;
+    row1.push(inst.nombre + ' (' + inst.peso + '%)');
+    for (let i = 1; i < nCols; i++) row1.push('');
+    if (!inst.items.length) {
+      row2.push('Nota');
+    } else {
+      inst.items.forEach(it => row2.push(it.nombre + ' ' + it.peso + '%'));
+    }
+    // Columna recuperación por cada apartado
+    if (!inst.items.length) {
+      row1.push(''); row2.push('Rec.');
+    } else {
+      inst.items.forEach(() => { row1.push(''); row2.push('Rec.'); });
+    }
   });
-  const trimLabels = {T1:'1ª Evaluación',T2:'2ª Evaluación',T3:'3ª Evaluación'};
-  const redOn = APP.config.redondeoActivo !== false;
-  const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
-  const wb = XLSX.utils.book_new();
+  row1.push('Nota Final');
+  row2.push(redOn ? 'Redondeada' : '');
 
-  const qualLabel = n => {
-    if (n === null || n === '') return '';
-    if (n < 5) return 'SUSPENSO';
-    if (n < 6) return 'APROBADO';
-    if (n < 7) return 'BIEN';
-    if (n < 9) return 'NOTABLE';
-    return 'SOBRESALIENTE';
-  };
+  const hayEvalIndiv = als.some(a => !!a.estructuraPersonal?.[trim]);
+  if (hayEvalIndiv) { row1.push(''); row2.push('Eval. indiv.'); }
 
-  const valorEfectivo = (a, iIdx, jIdx, trim) => {
-    const vRec = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
-    if (vRec !== undefined && vRec !== '') return parseFloat(vRec);
-    const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
-    if (v !== undefined && v !== '') return parseFloat(v);
-    return null;
-  };
-
-  trims.forEach(trim => {
-    const insts = g.estructura?.[trim]||[];
-    const trimLabel = trimLabels[trim]||trim;
-    const hayEvalIndiv = als.some(a => !!a.estructuraPersonal?.[trim]);
-
-    // ── Fila 1: cabecera instrumentos ────────────────────────────
-    // Columnas: Nº | Alumno | [por cada inst: apartados... | Media inst] | Nota final | Nota cualitativa | Eval.indiv?
-    const row1 = ['Nº', 'Alumno'];
-    const row2 = ['', ''];
-    const merges = [{s:{r:0,c:0},e:{r:1,c:0}},{s:{r:0,c:1},e:{r:1,c:1}}];
-    let col = 2;
-
-    insts.forEach(inst => {
-      const nItems = inst.items.length || 1;
-      // Fila 1: nombre instrumento + peso, merged sobre sus apartados + columna media
-      row1.push(inst.nombre + ' (' + inst.peso + '%)');
-      for (let i = 1; i < nItems; i++) row1.push('');
-      row1.push(''); // columna Media inst
-      // Fila 2: nombres de apartados + "Media"
-      if (!inst.items.length) {
-        row2.push('Nota'); row2.push('Media');
-      } else {
-        inst.items.forEach(it => row2.push(it.nombre + (it.peso ? ' ('+it.peso+'%)' : '')));
-        row2.push('Media');
-      }
-      // Merge nombre instrumento sobre sus apartados (sin la columna Media)
-      if (nItems > 1) merges.push({s:{r:0,c:col},e:{r:0,c:col+nItems-1}});
-      else merges.push({s:{r:0,c:col},e:{r:0,c:col}});
-      col += nItems + 1; // apartados + media
-    });
-
-    // Nota final, cualitativa, eval indiv
-    row1.push('NOTA FINAL'); row2.push('');
-    merges.push({s:{r:0,c:col},e:{r:1,c:col}}); col++;
-    if (redOn) { row1.push('REDONDEADA'); row2.push(''); merges.push({s:{r:0,c:col},e:{r:1,c:col}}); col++; }
-    row1.push('CALIFICACIÓN'); row2.push(''); merges.push({s:{r:0,c:col},e:{r:1,c:col}}); col++;
-    if (hayEvalIndiv) { row1.push('EVAL. INDIV.'); row2.push(''); merges.push({s:{r:0,c:col},e:{r:1,c:col}}); }
-
-    // ── Filas de datos ────────────────────────────────────────────
-    const dataRows = als.map((a, ri) => {
-      const row = [a.nLista || (ri+1), (a.apellidos||'') + (a.nombre ? ', '+a.nombre : '')];
-      insts.forEach((inst, iIdx) => {
-        const nItems = inst.items.length || 1;
-        let suma = 0, count = 0, pesoTotal = 0;
-        if (!inst.items.length) {
-          const v = valorEfectivo(a, iIdx, 0, trim);
-          row.push(v !== null ? v : '');
-          row.push(v !== null ? v : ''); // media = mismo valor
-        } else {
-          const vals = inst.items.map((it, jIdx) => {
-            const v = valorEfectivo(a, iIdx, jIdx, trim);
-            row.push(v !== null ? v : '');
-            return { v, peso: it.peso || 0 };
-          });
-          // Media ponderada del instrumento
-          const esArit = inst.mediaAritmetica !== false;
-          let media = null;
-          if (esArit) {
-            const notas = vals.filter(x => x.v !== null).map(x => x.v);
-            media = notas.length ? notas.reduce((s,n)=>s+n,0)/notas.length : null;
-          } else {
-            let ps = 0, pw = 0;
-            vals.forEach(({v,peso}) => { if (v !== null) { ps += v*peso; pw += peso; } });
-            media = pw > 0 ? ps/pw : null;
-          }
-          row.push(media !== null ? parseFloat(media.toFixed(2)) : '');
-        }
-      });
-      const nt = calcNotaTrimestre(a, trim);
-      const nr = redOn && nt !== null ? redondear(nt, getUmbral(a)) : null;
-      row.push(nt !== null ? parseFloat(nt.toFixed(2)) : '');
-      if (redOn) row.push(nr !== null ? nr : '');
-      row.push(qualLabel(nr !== null ? nr : nt));
-      if (hayEvalIndiv) row.push(a.estructuraPersonal?.[trim] ? '★' : '');
-      return row;
-    });
-
-    // ── Fila de medias ────────────────────────────────────────────
-    const mediaRow = ['', 'MEDIA CLASE'];
+  const dataRows = als.map(a => {
+    const tieneIndiv = !!a.estructuraPersonal?.[trim];
+    const row = [(a.apellidos || '') + (a.nombre ? ', ' + a.nombre : '')];
     insts.forEach((inst, iIdx) => {
-      const nItems = inst.items.length || 1;
+      const renderApartado = (jIdx) => {
+        const v = a.notas?.[trim]?.[iIdx]?.[jIdx];
+        row.push(v !== undefined && v !== '' ? parseFloat(v) : '');
+        const vRec = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+        row.push(vRec !== undefined && vRec !== '' ? parseFloat(vRec) : '');
+      };
       if (!inst.items.length) {
-        const vals = als.map(a => valorEfectivo(a, iIdx, 0, trim)).filter(v => v !== null);
-        const m = vals.length ? parseFloat((vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(2)) : '';
-        mediaRow.push(m); mediaRow.push(m);
+        renderApartado(0);
       } else {
-        inst.items.forEach((_, jIdx) => {
-          const vals = als.map(a => valorEfectivo(a, iIdx, jIdx, trim)).filter(v => v !== null);
-          mediaRow.push(vals.length ? parseFloat((vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(2)) : '');
-        });
-        // media del instrumento
-        const medias = als.map(a => {
-          const esArit = inst.mediaAritmetica !== false;
-          if (esArit) {
-            const vs = inst.items.map((_,jIdx)=>valorEfectivo(a,iIdx,jIdx,trim)).filter(v=>v!==null);
-            return vs.length ? vs.reduce((s,v)=>s+v,0)/vs.length : null;
-          } else {
-            let ps=0,pw=0;
-            inst.items.forEach((it,jIdx) => { const v=valorEfectivo(a,iIdx,jIdx,trim); if(v!==null){ps+=v*it.peso;pw+=it.peso;} });
-            return pw>0?ps/pw:null;
-          }
-        }).filter(v=>v!==null);
-        mediaRow.push(medias.length ? parseFloat((medias.reduce((s,v)=>s+v,0)/medias.length).toFixed(2)) : '');
+        inst.items.forEach((_, jIdx) => renderApartado(jIdx));
       }
     });
-    const mf = als.map(a=>calcNotaTrimestre(a,trim)).filter(n=>n!==null);
-    mediaRow.push(mf.length ? parseFloat((mf.reduce((s,n)=>s+n,0)/mf.length).toFixed(2)) : '');
-    if (redOn) mediaRow.push('');
-    mediaRow.push('');
-    if (hayEvalIndiv) mediaRow.push('');
-
-    const ws = XLSX.utils.aoa_to_sheet([row1, row2, ...dataRows, mediaRow]);
-    ws['!merges'] = merges;
-
-    // Anchos de columna
-    const wscols = [{wch:5},{wch:28}];
-    insts.forEach(inst => {
-      const n = inst.items.length || 1;
-      for (let i=0;i<n;i++) wscols.push({wch:14});
-      wscols.push({wch:10}); // media
-    });
-    wscols.push({wch:12},{wch:12},{wch:14});
-    if (hayEvalIndiv) wscols.push({wch:12});
-    ws['!cols'] = wscols;
-
-    XLSX.utils.book_append_sheet(wb, ws, trimLabel.slice(0,31));
+    // Nota final con pesos reales del alumno (personal o grupo)
+    const nt = calcNotaTrimestre(a, trim);
+    row.push(nt !== null ? parseFloat(nt.toFixed(2)) : '');
+    if (hayEvalIndiv) row.push(tieneIndiv ? '✓' : '');
+    return row;
   });
 
-  XLSX.writeFile(wb, 'cuaderno_'+g.nombre.replace(/\s/g,'_')+'.xlsx');
+  // Fila de medias
+  const mediaRow = ['Media clase'];
+  insts.forEach((inst, iIdx) => {
+    const calcMedia = (jIdx) => {
+      const vals = als.map(a => a.notas?.[trim]?.[iIdx]?.[jIdx]).filter(v => v !== undefined && v !== '');
+      return vals.length ? parseFloat((vals.reduce((s,v) => s + parseFloat(v), 0) / vals.length).toFixed(2)) : '';
+    };
+    const calcMediaRec = (jIdx) => {
+      const vals = als.map(a => a.notas?.[trim]?.[iIdx]?.rec?.[jIdx]).filter(v => v !== undefined && v !== '');
+      return vals.length ? parseFloat((vals.reduce((s,v) => s + parseFloat(v), 0) / vals.length).toFixed(2)) : '';
+    };
+    if (!inst.items.length) {
+      mediaRow.push(calcMedia(0)); mediaRow.push(calcMediaRec(0));
+    } else {
+      inst.items.forEach((_, jIdx) => { mediaRow.push(calcMedia(jIdx)); mediaRow.push(calcMediaRec(jIdx)); });
+    }
+  });
+  const mediasFinales = als.map(a => calcNotaTrimestre(a, trim)).filter(n => n !== null);
+  mediaRow.push(mediasFinales.length ? parseFloat((mediasFinales.reduce((s,n) => s+n, 0) / mediasFinales.length).toFixed(2)) : '');
+  if (hayEvalIndiv) mediaRow.push('');
+
+  const ws = XLSX.utils.aoa_to_sheet([row1, row2, ...dataRows, mediaRow]);
+
+  // Merge celdas cabecera instrumento
+  const merges = [];
+  let col = 1;
+  insts.forEach(inst => {
+    const nCols = (inst.items.length || 1) * 2; // *2 por la col Rec
+    if (nCols > 1) merges.push({ s:{r:0,c:col}, e:{r:0,c:col+nCols-1} });
+    col += nCols;
+  });
+  if (merges.length) ws['!merges'] = merges;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, trimLabel.slice(0,31));
+  XLSX.writeFile(wb, `cuaderno_${g.nombre.replace(/\s/g,'_')}_${trim}.xlsx`);
 }
+
+
 function renderVistaMiniaturas(g, als) {
   const umbral = parseFloat(APP.config.redondeoAlza)||0.5;
   const col = getColorGrupo(g.id);
@@ -3715,6 +3682,7 @@ function renderTabNotas(a) {
         ${tieneEstrPersonal ? `<button class="btn btn-delete" title="Eliminar instrumento" onclick="event.stopPropagation();eliminarInstPersonal('${a.id}',${iIdx})" style="margin-left:4px">✕</button>` : ''}
         <span style="color:var(--text3);margin-left:4px">${isOpen ? '▾' : '▸'}</span>
       </div>
+      ${inst.criterios && !inst._criteriosOff ? `<div style="padding:2px 12px 6px;display:flex;flex-wrap:wrap;gap:4px">${inst.criterios.split(',').map(cr=>cr.trim()).filter(Boolean).map(cr=>'<span style="background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);font-family:monospace">'+cr+'</span>').join('')}</div>` : ''}
       <div class="instrumento-body ${isOpen ? '' : 'hidden'}" id="inst-body-${iIdx}">
         ${tieneEstrPersonal && inst.items.length > 0 ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--text2)">Suma apartados: ${badgeSuma(sumaPesos(inst.items,'peso'))}</div>` : ''}
         ${itemsHtml}
@@ -4980,6 +4948,15 @@ function eliminarGrupo(gid) {
   guardarDatos(); renderPage();
 }
 
+function renombrarGrupo(gid) {
+  const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+  const nuevo = prompt('Nuevo nombre del grupo:', g.nombre);
+  if (!nuevo || !nuevo.trim() || nuevo.trim() === g.nombre) return;
+  g.nombre = nuevo.trim();
+  guardarDatos();
+  renderPage();
+}
+
 function duplicarGrupo(gid) {
   const orig = APP.grupos.find(g=>g.id===gid); if(!orig) return;
   const nuevo = {
@@ -5861,18 +5838,6 @@ function renderAyuda() {
 
         ${tip('Si compartes tanto la programación como los documentos de Drive, pide a tus compañeros que dupliquen la programación antes de modificarla para que cada uno trabaje sobre su copia.')}
 
-        ${sec('☁️', '4. Sincronización en la nube (opcional)', [
-          `Por defecto la app funciona en <strong>modo local</strong>: los datos se guardan solo en el navegador de tu dispositivo. Para sincronizar con Google Drive y acceder desde cualquier dispositivo, hay que configurar un proyecto en Google Cloud. Hazlo una sola vez.`,
-          `<strong>Paso 1 — Crear proyecto en Google Cloud:</strong> entra en <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent)">console.cloud.google.com</a>, crea un proyecto nuevo (por ejemplo "ProfeApp"), activa la <strong>Google Drive API</strong> desde <em>APIs y servicios → Biblioteca</em>.`,
-          `<strong>Paso 2 — Credenciales OAuth:</strong> en <em>APIs y servicios → Credenciales</em>, crea unas credenciales de tipo <strong>ID de cliente OAuth 2.0</strong> para aplicación web. En <em>Orígenes autorizados</em> y <em>URIs de redirección</em> pon la URL desde donde abres la app (por ejemplo <code>https://tu-usuario.github.io/profeapp</code> o <code>http://localhost</code> si la usas en local). Copia el <strong>Client ID</strong> que te da.`,
-          `<strong>Paso 3 — Pantalla de consentimiento:</strong> en <em>APIs y servicios → Pantalla de consentimiento OAuth</em> configúrala como <em>Externa</em> y añade tu cuenta de Google como usuario de prueba. Así solo tú puedes acceder.`,
-          `<strong>Paso 4 — Conectar en la app:</strong> ve a <strong>Ajustes</strong> en la app, pega el Client ID en el campo de Google Drive y guarda. Al conectarte por primera vez te pedirá permiso para acceder a Drive. Desde entonces la app guardará automáticamente un archivo <code>profeapp_datos.json</code> en tu Drive.`,
-          `<strong>Conflictos:</strong> si editas desde dos dispositivos sin sincronizar, gana siempre el JSON <strong>más reciente</strong> por fecha de modificación en Drive. Para evitarlo, asegúrate de que el dispositivo anterior haya sincronizado antes de abrir la app en otro.`,
-          `<strong>Copia de seguridad manual:</strong> aunque tengas Drive, se recomienda exportar el JSON de vez en cuando desde Ajustes → <em>Exportar datos</em>. Sirve también para mover todos los datos a otro navegador sin pasar por Drive.`,
-        ])}
-
-        ${tip('Si en algún momento Google te pide verificar la app, es porque el proyecto está en modo de prueba. Basta con añadir tu cuenta como usuario de prueba en la pantalla de consentimiento — no necesitas publicar la app.')}
-
       </div>
     </div>`;
 }
@@ -6567,25 +6532,6 @@ function renderEstructuraModal() {
           Suma apartados: ${badgeSuma(sumaItems)}
           ${esAritmetica ? '<span style="font-size:11px;color:var(--accent)">— Media aritmética (pesos automáticos)</span>' : ''}
         </div>` : ''}
-        <!-- Campo criterios de evaluación -->
-        <div style="margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border2)">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${inst.criterios!==undefined&&inst.criterios!==null?'6px':'0'}">
-            <span style="font-size:11px;font-weight:600;color:var(--text3)">Criterios de evaluación</span>
-            <label onclick="event.stopPropagation();editarCriteriosInst(${iIdx},${inst.criterios!==undefined&&inst.criterios!==null?'null':`''`})" style="cursor:pointer">
-              <span style="padding:2px 8px;border-radius:10px;border:1px solid ${inst.criterios!==undefined&&inst.criterios!==null?'var(--accent)':'var(--border2)'};background:${inst.criterios!==undefined&&inst.criterios!==null?'var(--accent-bg)':'transparent'};color:${inst.criterios!==undefined&&inst.criterios!==null?'var(--accent)':'var(--text3)'};font-size:10px;font-weight:600">
-                ${inst.criterios!==undefined&&inst.criterios!==null?'● Activo':'○ Desactivado'}
-              </span>
-            </label>
-          </div>
-          ${inst.criterios!==undefined&&inst.criterios!==null?`
-          <input type="text" value="${(inst.criterios||'').replace(/"/g,'&quot;')}"
-            placeholder="Ej: 1.1, 1.2, 2.1, 4.2"
-            style="width:100%;border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:inherit;font-size:12px;background:var(--surface);color:var(--text);outline:none;box-sizing:border-box"
-            onclick="event.stopPropagation()"
-            onchange="editarCriteriosInstTexto(${iIdx},this.value)">
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Separa los códigos con comas: 1.1, 1.2, 2.1...</div>
-          `:''}
-        </div>
         ${itemsHtml}
         <div style="margin-top:8px">
           <button class="btn btn-secondary btn-sm" onclick="agregarItemGrupo(${iIdx})">+ Añadir apartado</button>
@@ -6641,21 +6587,45 @@ function toggleModoInstrumento(iIdx) {
 }
 
 function editarCriteriosInst(iIdx, valor) {
-  // Toggle: si valor es null → desactivar (undefined), si es string → activar
+  // Toggle: si valor es null → desactivar (guardamos texto pero marcamos inactivo)
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
   const inst = g.estructura[trimEstructura]?.[iIdx]; if(!inst) return;
   if (valor === 'null' || valor === null) {
-    delete inst.criterios;
+    inst._criteriosOff = true; // mark as inactive but preserve text
   } else {
-    inst.criterios = valor || '';
+    delete inst._criteriosOff;
+    inst.criterios = valor || inst.criterios || '';
   }
   guardarDatos();
   renderEstructuraModal();
 }
 
+
+function confirmarEditarCriteriosInst(iIdx, valor, inputEl) {
+  const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
+  const inst = g.estructura[trimEstructura]?.[iIdx]; if(!inst) return;
+  const niv = APP.programacion?.niveles?.find(n => (n.grupos||[]).includes(g.id));
+  const instProg = niv?._instruccionesEval?.T1?.find(x => x.nombre === inst.nombre);
+  const msg = instProg?.criterios
+    ? 'Al modificar los criterios aquí solo cambian en esta clase, no en la programación. ¿Continuar?'
+    : '¿Modificar los criterios de este instrumento?';
+  if (!confirm(msg)) {
+    if (inputEl) inputEl.value = inst.criterios || '';
+    return;
+  }
+  inst.criterios = valor;
+  guardarDatos();
+}
+
 function editarCriteriosInstTexto(iIdx, valor) {
   const g = APP.grupos.find(x=>x.id===grupoEstructuraId); if(!g) return;
   const inst = g.estructura[trimEstructura]?.[iIdx]; if(!inst) return;
+  // Aviso si los criterios vienen de una programación
+  const niv = APP.programacion?.niveles?.find(n => (n.grupos||[]).includes(g.id));
+  const instProg = niv?._instruccionesEval?.[trimEstructura]?.find(x => x.nombre === inst.nombre);
+  if (instProg?.criterios && instProg.criterios !== valor) {
+    mostrarToast('ℹ Los criterios de este instrumento también están en la programación. Si quieres actualizarlos allí, edítalos desde el apartado Programación.');
+  }
   inst.criterios = valor;
   guardarDatos();
 }
@@ -8171,6 +8141,34 @@ function calCerrarEvento() {
 // determinan qué sesión toca cada día y detectan retrasos.
 // =====================================================================
 
+
+
+function abrirEditarCriteriosProg(nivId, instNombre, valorActual) {
+  const nuevo = prompt('Editar criterios (separados por coma):\nEj: 1.1, 1.2, 2.1', valorActual || '');
+  if (nuevo === null) return; // cancelled
+  editarCriteriosEnProg(nivId, instNombre, nuevo.trim());
+  renderPage();
+}
+
+function editarCriteriosEnProg(nivId, instNombre, valor) {
+  // Edit criterios in the nivel's _instruccionesEval for all trims
+  const niv = APP.programacion.niveles.find(x => x.id === nivId);
+  if (!niv || !niv._instruccionesEval) return;
+  ['T1','T2','T3'].forEach(t => {
+    const inst = (niv._instruccionesEval[t] || []).find(x => x.nombre === instNombre);
+    if (inst) inst.criterios = valor;
+  });
+  // Also update in all assigned groups
+  (niv.grupos || []).forEach(gid => {
+    const g = APP.grupos.find(x => x.id === gid); if (!g) return;
+    ['T1','T2','T3'].forEach(t => {
+      const inst = (g.estructura?.[t] || []).find(x => x.nombre === instNombre);
+      if (inst && !inst._criteriosOff) inst.criterios = valor;
+    });
+  });
+  guardarDatos();
+}
+
 function renderInstrumentosEval(niv) {
   const instr = niv._instruccionesEval;
   if (!instr || !Object.keys(instr).length) return '';
@@ -8192,14 +8190,18 @@ function renderInstrumentosEval(niv) {
         ).join('');
         critHtml = '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">' + tags + '</div>';
       }
-      rows += '<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface)">'
+      const critTagsHtml2 = criterios.length
+          ? criterios.map(cr => '<span style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);font-family:monospace">' + cr + '</span>').join('')
+          : '';
+        const editBtn = '<button data-niv="' + niv.id.replace(/"/g,'&quot;') + '" data-inst="' + inst.nombre.replace(/"/g,'&quot;') + '" data-crit="' + (inst.criterios||'').replace(/"/g,'&quot;') + '" onclick="(function(b){abrirEditarCriteriosProg(b.dataset.niv,b.dataset.inst,b.dataset.crit)})(this)" style="font-size:10px;padding:2px 8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);cursor:pointer;color:var(--text2);margin-top:6px">✏ Editar criterios</button>';
+        rows += '<div style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface)">'
         + '<div style="display:flex;align-items:center;gap:8px">'
         + '<span style="font-weight:700;font-size:12px;color:var(--accent)">' + inst.nombre + '</span>'
         + '<span style="font-size:11px;font-weight:600;background:var(--accent);color:#fff;padding:1px 7px;border-radius:20px">' + inst.peso + '%</span>'
         + '</div>'
         + (criterios.length
-          ? '<div style="font-size:10px;color:var(--text3);margin-top:5px;font-weight:600">Criterios de evaluación asociados:</div>' + critHtml
-          : '<div style="font-size:10px;color:var(--text3);margin-top:3px">Sin criterios asociados</div>')
+          ? '<div style="font-size:10px;color:var(--text3);margin-top:5px;font-weight:600">Criterios de evaluación asociados:</div><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">' + critTagsHtml2 + '</div>' + editBtn
+          : '<div style="font-size:10px;color:var(--text3);margin-top:3px">Sin criterios.</div>' + editBtn)
         + '</div>';
     });
     panelContent += '<div style="margin-bottom:10px">'
@@ -8242,7 +8244,7 @@ function renderProgramacion() {
         <button onclick="toggleProgImportMenu();document.getElementById('prog-import-file').click()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text)">📋 Importar JSON ProfeApp</button>
         <input id="prog-import-file" type="file" accept=".json" style="display:none" onchange="importarProgramacion(this)">
         <div style="height:1px;background:var(--border)"></div>
-        <button onclick="toggleProgImportMenu();abrirModalAnota()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text)">🏫 Importar desde Anota (.docx / texto)</button>
+        <button onclick="toggleProgImportMenu();abrirModalAnota()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text)">🏫 Importar formato Anota (.docx / texto)</button>
       </div>
     </div>
     <button class="btn btn-secondary btn-sm" onclick="exportarProgramacion()">📤 Exportar</button>
@@ -8276,7 +8278,7 @@ function renderProgramacion() {
       <!-- Cabecera del nivel -->
       <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">
-          <div style="font-weight:700;font-size:15px">${niv.nombre}</div>
+          <div style="font-weight:700;font-size:15px;cursor:pointer" onclick="event.stopPropagation();toggleNivelUI(${ni})"><span id="pna-${ni}">&#9656;</span> ${niv.nombre}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px">
             ${grupNombres.join(' · ') || '<span style="color:var(--text3)">Sin grupos asignados</span>'}
             ${niv.fechaInicio ? ' · Inicio: <strong>' + niv.fechaInicio + '</strong>' : ''}
@@ -8301,14 +8303,15 @@ function renderProgramacion() {
           ${renderInstrumentosEval(niv)}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-secondary btn-sm" onclick="duplicarNivel(${ni})" title="Duplicar este nivel">⧉ Duplicar</button>
-          <button class="btn btn-secondary btn-sm" onclick="abrirEditarNivel(${ni})">✏</button>
-          <button class="btn btn-primary btn-sm" onclick="abrirModalBloque(${ni})">+ Bloque</button>
-          <button class="btn btn-delete" onclick="eliminarNivel(${ni})">✕</button>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();duplicarNivel(${ni})" title="Duplicar este nivel">⧉ Duplicar</button>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();abrirEditarNivel(${ni})">✏</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirModalBloque(${ni})">+ Bloque</button>
+          <button class="btn btn-delete" onclick="event.stopPropagation();eliminarNivel(${ni})">✕</button>
         </div>
       </div>
 
       <!-- Bloques -->
+      <div id="pnb-${ni}" style="display:none">
       ${bloques.length === 0
         ? `<div style="padding:16px 18px;color:var(--text3);font-size:13px">Sin bloques. Añade el primer bloque de contenido.</div>`
         : bloques.map((b, bi) => {
@@ -8364,12 +8367,14 @@ function renderProgramacion() {
                     </div>
                   </div>`;
                 }).join('')}
-              <div style="padding:10px 18px">
+              <div style="padding:10px 18px;display:flex;gap:8px;flex-wrap:wrap">
                 <button class="btn btn-secondary btn-sm" onclick="abrirModalSesion(${ni},${bi})">+ Añadir sesión al bloque</button>
+                <button class="btn btn-secondary btn-sm" onclick="abrirModalApartadosDeSesionesDesdeBloque(${ni},${bi})" title="Crear apartados en instrumentos desde estas sesiones">📋 Crear apartados</button>
               </div>
             </div>` : ''}
           </div>`;
         }).join('')}
+    </div>
     </div>`;
   }).join('');
 
@@ -8989,12 +8994,22 @@ function guardarNivel() {
     if (niv._instruccionesEval && Object.keys(niv._instruccionesEval).length) {
       gruposNuevos.forEach(gid => _aplicarInstruccionesEvalGrupo(gid, niv._instruccionesEval));
     }
+    guardarDatos();
+    document.getElementById('modal-nivel').classList.add('hidden');
+    const totalSes = (niv.bloques||[]).reduce((s,b)=>s+(b.sesiones?.length||0),0);
+    if (grupos.length > 0 && totalSes > 0) {
+      _apSelNi = APP.programacion.niveles.indexOf(niv);
+      _apSelGids = grupos;
+      document.getElementById('modal-ap-pregunta').classList.remove('hidden');
+    } else {
+      renderPage();
+    }
   } else {
     APP.programacion.niveles.push({ id: uid(), nombre, grupos, fechaInicio, bloques: [] });
+    guardarDatos();
+    document.getElementById('modal-nivel').classList.add('hidden');
+    renderPage();
   }
-  guardarDatos();
-  document.getElementById('modal-nivel').classList.add('hidden');
-  renderPage();
 }
 
 function _aplicarInstruccionesEvalGrupo(gid, instruccionesEval) {
@@ -12378,6 +12393,247 @@ function vozCancelar() {
 // =====================
 // MODO SIN CONEXIÓN (Service Worker)
 // =====================
+
+// ── Crear apartados desde sesiones de programación ────────────────────────
+let _apSelNi = null, _apSelGids = [];
+
+function _calcFechasSesiones(ni) {
+  const niv = APP.programacion.niveles[ni]; if (!niv?.fechaInicio) return [];
+  const gid = (niv.grupos||[])[0]; if (!gid) return [];
+  const franjas = APP.horario?.franjas || [];
+  const esDiaNoLect = (d) => {
+    const k = dKey(d);
+    return (APP.diasNoLectivos||[]).some(x => x.fecha===k || (x.hasta && x.fecha<=k && x.hasta>=k));
+  };
+  const tieneClase = (d) => {
+    const dow = d.getDay();
+    if (dow < 1 || dow > 5 || esDiaNoLect(d)) return false;
+    return franjas.some(f => {
+      const cel = (f.celdas||[])[dow-1]||{};
+      return cel.tipo==='clase' && (niv.grupos||[]).includes(cel.grupoId);
+    });
+  };
+  const total = (niv.bloques||[]).reduce((s,b)=>s+(b.sesiones?.length||0),0);
+  const fechas = [];
+  const cur = new Date(niv.fechaInicio+'T00:00');
+  let safety = 0;
+  while (fechas.length < total && safety++ < total + 365) {
+    if (tieneClase(new Date(cur))) fechas.push(dKey(new Date(cur)));
+    cur.setDate(cur.getDate()+1);
+  }
+  return fechas;
+}
+
+function _getInstsParaModal(ni) {
+  const niv = APP.programacion.niveles[ni];
+  const gid = (niv.grupos||[])[0];
+  const g = gid ? APP.grupos.find(x=>x.id===gid) : null;
+  return (niv._instruccionesEval?.T1?.length ? niv._instruccionesEval.T1 : null)
+    || g?.estructura?.T1 || g?.estructura?.T2 || g?.estructura?.T3 || [];
+}
+
+function _buildModalContent(sesiones, insts, titulo, trim) {
+  const instOpts = insts.map((inst,i)=>'<option value="'+i+'">'+inst.nombre+'</option>').join('');
+  const filas = sesiones.map((s,i)=>{
+    const selOpts = instOpts.replace('value="'+s.instIdx+'"','value="'+s.instIdx+'" selected');
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:6px 4px;text-align:center"><input type="checkbox" id="ap-cb-'+i+'" checked></td>'
+      +'<td style="padding:6px 8px;font-size:12px">'+s.tipoIcon+' <strong>'+s.titulo+'</strong>'+(s.bloque?'<br><span style="font-size:10px;color:var(--text3)">'+s.bloque+'</span>':'')+'</td>'
+      +'<td style="padding:6px 4px;font-size:11px;color:var(--text3);white-space:nowrap">'+(s.fecha||'—')+'</td>'
+      +'<td style="padding:6px 4px"><select onchange="_apSelSesiones['+i+'].instIdx=parseInt(this.value)" style="font-size:11px;padding:2px 4px;border:1px solid var(--border2);border-radius:4px;background:var(--surface)">'+selOpts+'</select></td>'
+      +'</tr>';
+  }).join('');
+  const trimSel = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+ '<label style="font-size:13px;font-weight:600;color:var(--text2)">Evaluaci\u00f3n:</label>'+ '<select id="ap-trim-sel" onchange="_rebuildApartadosModal(this.value)" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'+ '<option value="T1"'+(trim==='T1'?' selected':'')+'>1\u00aa Evaluaci\u00f3n</option>'+ '<option value="T2"'+(trim==='T2'?' selected':'')+'>2\u00aa Evaluaci\u00f3n</option>'+ '<option value="T3"'+(trim==='T3'?' selected':'')+'>3\u00aa Evaluaci\u00f3n</option>'+ '</select></div>';
+  const selectAllBtn = sesiones.length > 0
+    ? '<div style="display:flex;gap:8px;margin-bottom:8px">'
+      + '<button onclick="document.querySelectorAll(\'#ap-modal-body input[type=checkbox]\').forEach(cb=>cb.checked=true)" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);cursor:pointer">☑ Todos</button>'
+      + '<button onclick="document.querySelectorAll(\'#ap-modal-body input[type=checkbox]\').forEach(cb=>cb.checked=false)" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);cursor:pointer">☐ Ninguno</button>'
+      + '</div>'
+    : '';
+  return '<p style="font-size:13px;color:var(--text2);margin-bottom:10px">'+titulo+'</p>'+ trimSel
+    +'<p style="font-size:12px;background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:8px;margin-bottom:10px">'
+    +'ℹ️ Los % se repartirán igualmente entre todos los apartados del instrumento (modo aritmético, suman 100%). Para ponderarlos ve a <strong>Notas de clase</strong> después.</p>'
+    + selectAllBtn
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="border-bottom:2px solid var(--border)">'
+    +'<th style="padding:4px;font-size:11px;text-align:center">✓</th>'
+    +'<th style="padding:4px 8px;font-size:11px;text-align:left">Sesión</th>'
+    +'<th style="padding:4px;font-size:11px;text-align:left">Fecha</th>'
+    +'<th style="padding:4px;font-size:11px;text-align:left">Instrumento</th>'
+    +'</tr></thead><tbody>'+filas+'</tbody></table></div>';
+}
+
+function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
+  const examInstIdx = insts.findIndex(x => /exam|prueba|escrit|test|ev[ao]lu/i.test(x.nombre));
+  const defaultInstIdx = insts.findIndex(x => !/exam|prueba|escrit|test|ev[ao]lu/i.test(x.nombre));
+  const dIdx = defaultInstIdx >= 0 ? defaultInstIdx : 0;
+  const tipoIcon = {explicacion:'📘',practica:'🔬',examen:'📝',correccion:'✔️',mixta:'📚'};
+  let sesIdx = 0; const sesiones = [];
+  (niv.bloques||[]).forEach((b, bi) => {
+    const bSes = b.sesiones||[];
+    const bTrim = b.trim || null;
+    bSes.forEach((s, si) => {
+      const sTrim = s.trim || bTrim;
+      const incluir = (biFiltro === undefined || biFiltro === bi)
+        && (trimFiltro === undefined || !sTrim || sTrim === trimFiltro);
+      if (incluir) {
+        const esUltima = si === bSes.length - 1;
+        let instIdx = dIdx;
+        if ((s.tipo==='examen' || esUltima) && examInstIdx >= 0) instIdx = examInstIdx;
+        sesiones.push({
+          titulo: s.titulo||b.titulo, tipo: s.tipo,
+          tipoIcon: tipoIcon[s.tipo]||'📘',
+          fecha: fechas[sesIdx]||'',   // sesIdx counts ALL sessions for correct date
+          instIdx, bloque: biFiltro === undefined ? b.titulo : ''
+        });
+      }
+      sesIdx++; // always increment to keep date alignment
+    });
+  });
+  return sesiones;
+}
+
+function abrirModalApartadosDeSesiones(ni, gids) {
+  _apSelNi = ni; _apSelGids = gids;
+  const niv = APP.programacion.niveles[ni];
+  const insts = _getInstsParaModal(ni);
+  if (!insts.length) { renderPage(); return; }
+  const fechas = _calcFechasSesiones(ni);
+  window._apSelNivFechas = fechas;
+  window._apSelInsts = insts;
+  const trimDef = Object.keys(niv._instruccionesEval||{T1:1}).sort()[0] || 'T1';
+  _rebuildApartadosModal(trimDef);
+  document.getElementById('modal-ap-sesiones').classList.remove('hidden');
+}
+
+function _rebuildApartadosModal(trim) {
+  const niv = APP.programacion.niveles[_apSelNi];
+  const insts = window._apSelInsts;
+  const fechas = window._apSelNivFechas;
+  window._apSelSesiones = _buildSesiones(niv, insts, fechas, undefined, trim);
+  const titulo = window._apSelSesiones.length > 0
+    ? 'Sesiones de la <strong>' + {T1:'1ª',T2:'2ª',T3:'3ª'}[trim] + ' Evaluación</strong>. Desmarca las que no quieras o cambia el instrumento.'
+    : 'No hay sesiones asignadas a esta evaluación en la programación.';
+  document.getElementById('ap-modal-body').innerHTML = _buildModalContent(
+    window._apSelSesiones, insts, titulo, trim
+  );
+}
+
+function abrirModalApartadosDeSesionesDesdeBloque(ni, bi) {
+  const niv = APP.programacion.niveles[ni];
+  const gids = niv.grupos || [];
+  if (!gids.length) { alert('Asigna este nivel a al menos un grupo primero.'); return; }
+  _apSelNi = ni; _apSelGids = gids;
+  const insts = _getInstsParaModal(ni);
+  if (!insts.length) { mostrarToast('No se encontraron instrumentos de evaluación.'); return; }
+  const fechas = _calcFechasSesiones(ni);
+  window._apSelSesiones = _buildSesiones(niv, insts, fechas, bi);
+  document.getElementById('ap-modal-body').innerHTML = _buildModalContent(
+    window._apSelSesiones, insts,
+    'Sesiones del bloque <strong>'+(niv.bloques[bi]?.titulo||'')+'</strong>. Desmarca las que no quieras o cambia el instrumento.',
+    'T1'
+  );
+  document.getElementById('modal-ap-sesiones').classList.remove('hidden');
+}
+
+function confirmarApartadosDeSesiones() {
+  if (_apSelNi === null) return;
+  const niv = APP.programacion.niveles[_apSelNi];
+  const sesiones = window._apSelSesiones || [];
+  const hayPonderado = [];
+  const trimSel = document.getElementById('ap-trim-sel')?.value || 'T1';
+
+  // Use T1 instruments as base (same instruments for all trims)
+  const instsBase = (niv._instruccionesEval?.T1?.length ? niv._instruccionesEval.T1 : null)
+    || (niv._instruccionesEval?.[trimSel]?.length ? niv._instruccionesEval[trimSel] : null)
+    || null;
+
+  if (!instsBase) {
+    mostrarToast('No se encontraron instrumentos en la programación. Configúralos primero en Notas de clase.');
+    return;
+  }
+
+  // Build items to add per instrument index from selected sessions
+  const porInst = {};
+  sesiones.forEach((s, i) => {
+    const cb = document.getElementById('ap-cb-' + i);
+    if (!cb?.checked) return;
+    const iIdx = s.instIdx;
+    if (!porInst[iIdx]) porInst[iIdx] = [];
+    porInst[iIdx].push({ nombre: s.titulo, peso: 0, fecha: s.fecha });
+  });
+
+  if (!Object.keys(porInst).length) {
+    mostrarToast('No hay sesiones seleccionadas.');
+    return;
+  }
+
+  const trimsAplicar = ['T1', 'T2', 'T3'];
+  _apSelGids.forEach(gid => {
+    const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
+    if (!g.estructura) g.estructura = {};
+
+    trimsAplicar.forEach(trimAplicar => {
+    // Ensure each trim has instruments — preserve existing items
+    if (!g.estructura[trimAplicar]?.length) {
+      g.estructura[trimAplicar] = instsBase.map(inst => ({
+        nombre: inst.nombre, peso: inst.peso, items: [],
+        mediaAritmetica: true,
+        ...(inst.criterios ? { criterios: inst.criterios } : {})
+      }));
+    } else {
+      // Add missing instruments without overwriting existing
+      instsBase.forEach(instBase => {
+        if (!g.estructura[trimAplicar].some(x => x.nombre === instBase.nombre)) {
+          g.estructura[trimAplicar].push({
+            nombre: instBase.nombre, peso: instBase.peso, items: [],
+            mediaAritmetica: true,
+            ...(instBase.criterios ? { criterios: instBase.criterios } : {})
+          });
+        }
+      });
+    }
+
+    const insts = g.estructura[trimAplicar];
+    // Map instrument names to indices for safe lookup
+    const instNameToIdx = {};
+    insts.forEach((inst, i) => { instNameToIdx[inst.nombre] = i; });
+
+    // Aviso solo si hay instrumentos con nombres distintos a los de la programación
+    const nombresBase = new Set(instsBase.map(x => x.nombre));
+    const tieneInstDiferentes = insts.some(inst => !nombresBase.has(inst.nombre) && inst.items.length > 0);
+    if (tieneInstDiferentes) hayPonderado.push('__ya-habia__');
+
+    // Add items to each instrument (use name-based lookup for safety)
+    Object.entries(porInst).forEach(([iIdx, newItems]) => {
+      const origInst = instsBase[parseInt(iIdx)];
+      const realIdx = origInst ? (instNameToIdx[origInst.nombre] ?? parseInt(iIdx)) : parseInt(iIdx);
+      if (realIdx >= insts.length) return;
+      const inst = insts[realIdx];
+      newItems.forEach(item => inst.items.push({ nombre: item.nombre, peso: 0, fecha: item.fecha }));
+      // Recalculate equal weights using staggered rounding (no remainder pile-up)
+      if (inst.mediaAritmetica !== false) {
+        const n = inst.items.length;
+        inst.items.forEach((it, j) => {
+          it.peso = Math.round(100 * (j + 1) / n) - Math.round(100 * j / n);
+        });
+      } else {
+        hayPonderado.push(inst.nombre);
+      }
+    });
+    }); // end trimsAplicar
+  }); // end _apSelGids
+
+  guardarDatos();
+  document.getElementById('modal-ap-sesiones').classList.add('hidden');
+  _apSelNi = null; _apSelGids = [];
+  const avisos = [...new Set(hayPonderado)].filter(x => x !== '__ya-habia__');
+  const yaHabiaGlobal = hayPonderado.includes('__ya-habia__');
+  if (yaHabiaGlobal) mostrarToast('⚠ Ya había apartados en algunos instrumentos — revisa los % en Notas de clase.');
+  else if (avisos.length) mostrarToast('⚠ Instrumentos en modo ponderado: ' + avisos.join(', ') + ' — revisa los %.');
+  renderPage();
+}
+
 function registrarServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   const swCode = `
@@ -12413,6 +12669,8 @@ renderPage('inicio');
 applyBottomNav();
 driveSetStatus('off');
 registrarServiceWorker();
+// Set initial active nav item
+document.getElementById('nav-inicio')?.classList.add('active');
 // Inject programacion modals into body so they're accessible from any page
 (function() {
   const div = document.createElement('div');
