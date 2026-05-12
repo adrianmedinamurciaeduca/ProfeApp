@@ -12509,6 +12509,14 @@ function _buildModalContent(sesiones, insts, titulo, trim) {
     +'</tr></thead><tbody>'+filas+'</tbody></table></div>';
 }
 
+function _abreviarBloque(titulo) {
+  // Remove leading articles
+  const sinArticulo = titulo.replace(/^(el|la|los|las|un|una|unos|unas)\s+/i, '').trim();
+  // Take first 3 chars, capitalize first letter
+  const abrev = sinArticulo.slice(0, 3);
+  return abrev.charAt(0).toUpperCase() + abrev.slice(1).toLowerCase();
+}
+
 function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
   const examInstIdx = insts.findIndex(x => /exam|prueba|escrit|test|ev[ao]lu/i.test(x.nombre));
   const defaultInstIdx = insts.findIndex(x => !/exam|prueba|escrit|test|ev[ao]lu/i.test(x.nombre));
@@ -12518,22 +12526,26 @@ function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
   (niv.bloques||[]).forEach((b, bi) => {
     const bSes = b.sesiones||[];
     const bTrim = b.trim || null;
+    const abrev = _abreviarBloque(b.titulo || '');
+    let numEnBloque = 0;
     bSes.forEach((s, si) => {
       const sTrim = s.trim || bTrim;
       const incluir = (biFiltro === undefined || biFiltro === bi)
         && (trimFiltro === undefined || !sTrim || sTrim === trimFiltro);
+      numEnBloque++; // always count within bloque for consistent numbering
       if (incluir) {
         const esUltima = si === bSes.length - 1;
         let instIdx = dIdx;
         if ((s.tipo==='examen' || esUltima) && examInstIdx >= 0) instIdx = examInstIdx;
         sesiones.push({
-          titulo: s.titulo||b.titulo, tipo: s.tipo,
+          titulo: 'S' + numEnBloque + ' ' + abrev, tipo: s.tipo,
           tipoIcon: tipoIcon[s.tipo]||'📘',
-          fecha: fechas[sesIdx]||'',   // sesIdx counts ALL sessions for correct date
-          instIdx, bloque: biFiltro === undefined ? b.titulo : ''
+          fecha: fechas[sesIdx]||'',
+          instIdx, bloque: biFiltro === undefined ? b.titulo : '',
+          sesNumInBloque: numEnBloque
         });
       }
-      sesIdx++; // always increment to keep date alignment
+      sesIdx++; // always increment for date alignment
     });
   });
   return sesiones;
