@@ -152,7 +152,7 @@
   }
 
   /* ── MOBILE BREAKPOINT ──────────────────────────────── */
-  @media (max-width: 700px), (display-mode: standalone) {
+  @media (max-width: 700px) {
     body { font-size: 15px; }
 
     /* Sidebar se convierte en drawer deslizante */
@@ -216,6 +216,12 @@
     /* Topbar en móvil: ocultar búsqueda si hay poco espacio */
     .topbar .search-box { display: none; }
     .topbar .search-box.visible { display: flex; width: 100%; order: 10; flex-basis: 100%; }
+  }
+
+  /* Standalone (instalada como app) — solo bottom nav y ajustes menores, NO ocultar sidebar */
+  @media (display-mode: standalone) {
+    .bottom-nav { display: flex; }
+    .page { padding-bottom: 120px; }
   }
 
   @media (min-width: 701px) {
@@ -821,6 +827,23 @@
   .toggle::after { content: ''; position: absolute; width: 14px; height: 14px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
   .toggle.on::after { left: 19px; }
 </style>
+
+<link rel="manifest" id="pwa-manifest">
+<script>
+(function(){
+  const m = {
+    name: 'ProfeApp',
+    short_name: 'ProfeApp',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#ffffff',
+    theme_color: '#2563eb',
+    icons: [{src: document.querySelector('link[rel=icon]')?.href || '', sizes: '192x192', type: 'image/webp'}]
+  };
+  const blob = new Blob([JSON.stringify(m)], {type:'application/json'});
+  document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+})();
+</script>
 </head>
 <body>
 
@@ -2601,7 +2624,11 @@ function renderCuaderno(gid) {
   const el = document.getElementById('cuaderno-wrap-' + gid);
   if (!el) { renderPage(); return; }
   const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
-  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado);
+  const als = APP.alumnos.filter(a=>a.grupoId===gid&&!a.archivado).sort((a,b)=>{
+    const na=parseInt(a.nLista)||9999, nb=parseInt(b.nLista)||9999;
+    if(na!==nb) return na-nb;
+    return (a.apellidos||'').localeCompare(b.apellidos||'','es');
+  });
   el.outerHTML = renderVistaCuaderno(g, als);
 }
 
@@ -8382,20 +8409,39 @@ function renderProgramacion() {
 }
 
 function exportarProgramacion() {
-  if (!APP.programacion?.niveles?.length) {
-    alert('No hay ninguna programación para exportar.');
-    return;
-  }
-  // Exportar solo la programación, sin datos de alumnos
-  const datos = { programacion: APP.programacion };
-  const json = JSON.stringify(datos, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `programacion_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const niveles = APP.programacion?.niveles;
+  if (!niveles?.length) { alert('No hay ninguna programación para exportar.'); return; }
+  const opciones = niveles.map((niv, i) =>
+    '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">'
+    + '<input type="checkbox" id="exp-prog-' + i + '" checked style="width:16px;height:16px">'
+    + '<span style="font-size:13px">' + niv.nombre + '</span></label>'
+  ).join('');
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">📤 Exportar programaciones</h3>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Selecciona las que quieres exportar:</p>'
+    + '<div style="margin-bottom:16px">' + opciones + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button id="exp-prog-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="exp-prog-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Exportar</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  document.getElementById('exp-prog-cancel').onclick = () => div.remove();
+  document.getElementById('exp-prog-ok').onclick = () => {
+    const sel = niveles.filter((_, i) => document.getElementById('exp-prog-' + i)?.checked);
+    if (!sel.length) { alert('Selecciona al menos una programación.'); return; }
+    div.remove();
+    const datos = { programacion: { ...APP.programacion, niveles: sel } };
+    const json = JSON.stringify(datos, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'programacion_' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 }
 
 // ── Importar desde Anota ─────────────────────────────────────
