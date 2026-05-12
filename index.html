@@ -2752,7 +2752,7 @@ function renderVistaCuaderno(g, als) {
           ? `<input type="number" min="0" max="10" step="0.01" value="${val!==undefined&&val!==''?val:''}" placeholder="—"
               style="width:46px;text-align:center;border:1px solid var(--border2);border-radius:4px;padding:2px 3px;font-size:12px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--text);${tieneRec?'text-decoration:line-through;opacity:0.5':''}"
               onchange="cuadernoGuardarNota('${a.id}',${iIdx},${jIdx},this.value,this)">`
-          : `<span style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${val===undefined||val===''?'var(--text3)':parseFloat(val)<5?'var(--red)':'var(--text)'}">${val!==undefined&&val!==''?parseFloat(val).toFixed(2):'—'}</span>`;
+          : `<span style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m===null?'var(--text3)':m<5?'var(--red)':'var(--text)'})()}">${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m!==null?m.toFixed(2):'—'})()}</span>`;
 
         const undoBtn = edicion && hist?.length
           ? `<button onclick="cuadernoDeshacerNota('${a.id}',${iIdx},${jIdx})" title="↩ ${hist[0]}" style="padding:1px 3px;border-radius:3px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:9px;cursor:pointer">↩</button>`
@@ -3624,7 +3624,7 @@ function renderTabNotas(a) {
       const fechaVal = grupoItem?.fecha ?? item.fecha ?? '';
       // Peso: editable solo si personalizado, readonly si es del grupo
       const pesoInput = tieneEstrPersonal
-        ? `<input type="number" min="0" max="100" step="5" value="${item.peso||''}" placeholder="%" onchange="cambiarPesoItemPersonal('${a.id}',${iIdx},${jIdx},this.value)">`
+        ? `<input type="number" min="0" max="100" step="5" value="${item.peso||''}" placeholder="%" onchange="cambiarPesoItemPersonal('${a.id}',${iIdx},${jIdx},this.value)" onkeydown="if(event.key==='Enter'){this.blur()}">`
         : `<input type="number" value="${item.peso||''}" readonly tabindex="-1" style="pointer-events:none;opacity:0.55;cursor:default">`;
 
       // Calcular nota desde rúbrica si existe
@@ -3700,7 +3700,7 @@ function renderTabNotas(a) {
 
     // Peso instrumento: editable solo si personalizado
     const pesoInstInput = tieneEstrPersonal
-      ? `<input type="number" min="0" max="100" step="5" value="${pesoPct}" style="width:52px;padding:2px 6px;border:1px solid var(--border2);border-radius:5px;font-family:'DM Mono',monospace;font-size:12px;text-align:right;outline:none" onclick="event.stopPropagation()" onchange="cambiarPesoInstPersonal('${a.id}',${iIdx},this.value)">`
+      ? `<input type="number" min="0" max="100" step="5" value="${pesoPct}" style="width:52px;padding:2px 6px;border:1px solid var(--border2);border-radius:5px;font-family:'DM Mono',monospace;font-size:12px;text-align:right;outline:none" onclick="event.stopPropagation()" onchange="cambiarPesoInstPersonal('${a.id}',${iIdx},this.value)" onkeydown="if(event.key==='Enter'){this.blur()}">`
       : `<span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;opacity:0.7">${pesoPct}</span>`;
 
     instrHtml += `<div class="instrumento-card">
@@ -3711,7 +3711,6 @@ function renderTabNotas(a) {
         ${tieneEstrPersonal ? `<button class="btn btn-delete" title="Eliminar instrumento" onclick="event.stopPropagation();eliminarInstPersonal('${a.id}',${iIdx})" style="margin-left:4px">✕</button>` : ''}
         <span style="color:var(--text3);margin-left:4px">${isOpen ? '▾' : '▸'}</span>
       </div>
-      ${inst.criterios && !inst._criteriosOff ? `<div style="padding:2px 12px 6px;display:flex;flex-wrap:wrap;gap:4px">${inst.criterios.split(',').map(cr=>cr.trim()).filter(Boolean).map(cr=>'<span style="background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);font-family:monospace">'+cr+'</span>').join('')}</div>` : ''}
       <div class="instrumento-body ${isOpen ? '' : 'hidden'}" id="inst-body-${iIdx}">
         ${tieneEstrPersonal && inst.items.length > 0 ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--text2)">Suma apartados: ${badgeSuma(sumaPesos(inst.items,'peso'))}</div>` : ''}
         ${itemsHtml}
