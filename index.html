@@ -13789,7 +13789,7 @@ async function _generarWordRubricas(rubricas) {
     try {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js';
+        s.src = 'https://unpkg.com/docx@7.8.2/build/index.umd.js';
         s.onload = res; s.onerror = rej;
         document.head.appendChild(s);
       });
@@ -14056,6 +14056,7 @@ function renderBanco() {
       + (p.imagen ? '<img src="'+p.imagen+'" style="max-height:80px;max-width:140px;border-radius:6px;border:1px solid var(--border2);object-fit:contain;margin-top:6px">' : '')
       + '</div>'
       + '<div style="display:flex;gap:4px;flex-shrink:0">'
+      + '<button class="btn btn-secondary btn-sm" onclick="bancoVerHistorial('+realIdx+')" title="Historial de uso">📋</button>'
       + '<button class="btn btn-secondary btn-sm" onclick="bancoEditarPregunta('+realIdx+')">✏</button>'
       + '<button class="btn btn-delete" onclick="bancoBorrarPregunta('+realIdx+')">✕</button>'
       + '</div></div></div>';
@@ -14262,6 +14263,81 @@ function _bancoBuildBloqueList() {
   const all = [...new Set([...existing, ...fromAjustes])].sort();
   const dl = document.getElementById('bp-bloques-list');
   if (dl) dl.innerHTML = all.map(bl => '<option value="'+bl+'">'+bl+'</option>').join('');
+}
+
+
+function bancoVerHistorial(realIdx) {
+  const b = getBanco();
+  const p = b.preguntas[realIdx];
+  if (!p) return;
+
+  const _render = () => {
+    const usoCounts = {};
+    const usoList = (p.historial||[]);
+    // Group for display but keep individual entries for deletion
+    const items = usoList.map((h, i) => {
+      const curso = typeof h === 'object' ? h.curso : h;
+      return { curso, i };
+    }).sort((a,b) => b.curso.localeCompare(a.curso));
+
+    const rows = items.length
+      ? items.map(({curso, i}) =>
+          '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">'
+          + '<span style="flex:1;font-size:13px">'+curso+'</span>'
+          + '<button onclick="_bancoHistorialDelete('+realIdx+','+i+')" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;color:var(--red)">✕ Quitar</button>'
+          + '</div>'
+        ).join('')
+      : '<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Esta pregunta no se ha usado en ningún examen</div>';
+
+    const body = document.getElementById('hist-body');
+    if (body) body.innerHTML = rows;
+  };
+
+  const div = document.createElement('div');
+  div.id = 'historial-modal';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:440px;width:90%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+    + '<h3 style="font-size:15px;font-weight:700;margin:0">📋 Historial de uso</h3>'
+    + '<button onclick="document.getElementById(\'historial-modal\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>'
+    + '</div>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">'+p.enunciado.slice(0,80)+'...</p>'
+    + '<div id="hist-body" style="flex:1;overflow-y:auto"></div>'
+    + '<div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between;align-items:center">'
+    + '<div style="display:flex;gap:6px">'
+    + '<input type="text" id="hist-nuevo-curso" placeholder="2024-25" style="width:90px;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;background:var(--surface)">'
+    + '<button onclick="_bancoHistorialAdd('+realIdx+')" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">+ Añadir uso</button>'
+    + '</div>'
+    + '<button onclick="document.getElementById(\'historial-modal\').remove()" style="padding:6px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cerrar</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  _render();
+  // Store render fn for updates
+  window._bancoHistorialRender = _render;
+}
+
+function _bancoHistorialDelete(pregIdx, usoIdx) {
+  const b = getBanco();
+  const p = b.preguntas[pregIdx];
+  if (!p?.historial) return;
+  p.historial.splice(usoIdx, 1);
+  guardarDatos();
+  if (window._bancoHistorialRender) window._bancoHistorialRender();
+  renderPage(); // update uso display in background
+}
+
+function _bancoHistorialAdd(pregIdx) {
+  const b = getBanco();
+  const p = b.preguntas[pregIdx];
+  if (!p) return;
+  const curso = document.getElementById('hist-nuevo-curso')?.value?.trim();
+  if (!curso) { alert('Escribe el curso académico (ej: 2024-25)'); return; }
+  if (!p.historial) p.historial = [];
+  p.historial.push({ curso });
+  guardarDatos();
+  if (window._bancoHistorialRender) window._bancoHistorialRender();
+  document.getElementById('hist-nuevo-curso').value = '';
+  renderPage();
 }
 
 
@@ -14626,59 +14702,123 @@ function _bancoMostrarExamen(seleccion, nivel, curso) {
   document.body.appendChild(div);
 }
 
-function _bancoSwapPregunta(idx, nivel, bloque, excluirId) {
+function _bancoSwapPregunta(cardIdx, nivel, bloqueActual, excluirId) {
   const b = getBanco();
   const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
-  const candidatas = b.preguntas.filter(p => p.nivel === nivel && p.bloque === bloque && p.id !== excluirId);
-  if (!candidatas.length) { alert('No hay más preguntas disponibles para este bloque.'); return; }
+  window._swapCtx = { cardIdx, nivel, excluirId };
 
-  // Show swap selector
-  const opts = candidatas.map(p => {
-    const usos = p.historial?.length || 0;
-    const ultimo = usos ? ' (usado '+usos+'x, último: '+p.historial[p.historial.length-1]+')' : ' (sin usar)';
-    return '<option value="'+p.id+'">'+p.dificultad+' · '+p.enunciado.slice(0,60)+'...'+ultimo+'</option>';
-  }).join('');
+  // Build filter options for this nivel
+  const bloques = [...new Set(b.preguntas.filter(p => p.nivel === nivel && p.id !== excluirId).map(p => p.bloque))].sort();
+  const bloqueOpts = '<option value="">Todos los bloques</option>' + bloques.map(bl => '<option value="'+bl+'"'+(bl===bloqueActual?' selected':'')+'>'+bl+'</option>').join('');
+  const difs = b.dificultades?.length ? b.dificultades : ['Fácil','Media','Difícil'];
+  const difOpts = '<option value="">Todas las dificultades</option>' + difs.map(d => '<option value="'+d+'">'+d+'</option>').join('');
+  const tipoOpts = '<option value="">Todos los tipos</option>' + (b.tipos||[]).map(t => '<option value="'+t+'">'+t+'</option>').join('');
 
-  const selDiv = document.createElement('div');
-  selDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
-  selDiv.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:20px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
-    + '<h4 style="margin-bottom:12px;font-size:14px">Cambiar pregunta '+( idx+1)+' por:</h4>'
-    + '<select id="swap-sel" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface);margin-bottom:12px">'+opts+'</select>'
-    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
-    + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="padding:7px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12px">Cancelar</button>'
-    + '<button id="swap-ok" style="padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Cambiar</button>'
+  const div = document.createElement('div');
+  div.id = 'swap-modal';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:20px;max-width:580px;width:95%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    + '<h4 style="font-size:15px;font-weight:700;margin:0">🔄 Sustituir pregunta '+(cardIdx+1)+'</h4>'
+    + '<button onclick="document.getElementById(\'swap-modal\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>'
+    + '</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
+    + '<input id="swap-buscar" type="search" placeholder="🔍 Buscar..." oninput="_swapRenderLista()" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
+    + '<select id="swap-bloque" onchange="_swapRenderLista()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+bloqueOpts+'</select>'
+    + '<select id="swap-tipo" onchange="_swapRenderLista()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+tipoOpts+'</select>'
+    + '<select id="swap-dif" onchange="_swapRenderLista()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+difOpts+'</select>'
+    + '</div>'
+    + '<div id="swap-lista" style="flex:1;overflow-y:auto;border:1px solid var(--border2);border-radius:8px;max-height:350px"></div>'
+    + '<div style="margin-top:10px;text-align:right">'
+    + '<button onclick="document.getElementById(\'swap-modal\').remove()" style="padding:7px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
     + '</div></div>';
-  document.body.appendChild(selDiv);
-  document.getElementById('swap-ok').onclick = () => {
-    const newId = document.getElementById('swap-sel').value;
-    const newP = b.preguntas.find(p => p.id === newId);
-    if (!newP) return;
-    // Update the card in DOM
-    const card = document.getElementById('be-p-'+idx);
-    if (card) {
-      const usos = newP.historial?.length || 0;
-      const ultimoUso = usos ? ' · Último uso: ' + newP.historial[newP.historial.length-1] : '';
-      const alts = b.preguntas.filter(x => x.nivel === nivel && x.bloque === bloque && x.id !== newId);
-      card.innerHTML = '<div style="display:flex;align-items:flex-start;gap:10px">'
-        + '<div style="font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:24px">'+(idx+1)+'.</div>'
-        + '<div style="flex:1">'
-        + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
-        + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+newP.bloque+'</span>'
-        + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+newP.tipo+'</span>'
-        + '<span style="font-size:10px;font-weight:600;color:#fff;background:'+(DIF_COLOR[newP.dificultad]||'#888')+';padding:2px 8px;border-radius:10px">'+newP.dificultad+'</span>'
-        + (usos ? '<span style="font-size:10px;color:var(--text3)">Usado '+usos+'x'+ultimoUso+'</span>' : '<span style="font-size:10px;color:var(--green)">✓ Sin usar</span>')
-        + '</div>'
-        + '<div style="font-size:13px;line-height:1.6">'+newP.enunciado+'</div>'
-        + '</div>'
-        + '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
-        + (alts.length ? '<button class="btn btn-secondary btn-sm" onclick="_bancoSwapPregunta('+idx+',\''+nivel+'\',\''+bloque+'\',\''+newId+'\')" title="Cambiar por otra">🔄</button>' : '')
-        + '</div></div>';
-      card.dataset.pregId = newId;
-      card.dataset.imagen = newP.imagen || '';
-    }
-    selDiv.remove();
-  };
+  document.body.appendChild(div);
+  _swapRenderLista();
 }
+
+function _swapRenderLista() {
+  const b = getBanco();
+  const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
+  const { cardIdx, nivel, excluirId } = window._swapCtx || {};
+  const buscar = document.getElementById('swap-buscar')?.value?.toLowerCase() || '';
+  const bloque = document.getElementById('swap-bloque')?.value || '';
+  const tipo   = document.getElementById('swap-tipo')?.value   || '';
+  const dif    = document.getElementById('swap-dif')?.value    || '';
+
+  const candidatas = b.preguntas.filter(p =>
+    p.nivel === nivel &&
+    p.id !== excluirId &&
+    (!bloque || p.bloque === bloque) &&
+    (!tipo   || p.tipo   === tipo)   &&
+    (!dif    || p.dificultad === dif) &&
+    (!buscar || p.enunciado.toLowerCase().includes(buscar) || p.bloque.toLowerCase().includes(buscar))
+  ).sort((a, b) => (a.historial?.length||0) - (b.historial?.length||0));
+
+  const lista = document.getElementById('swap-lista');
+  if (!lista) return;
+
+  if (!candidatas.length) {
+    lista.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No hay preguntas que coincidan</div>';
+    return;
+  }
+
+  lista.innerHTML = candidatas.map(p => {
+    const usos = p.historial?.length || 0;
+    const usoCounts = {};
+    (p.historial||[]).forEach(h => { const curso = typeof h==='object'?h.curso:h; usoCounts[curso]=(usoCounts[curso]||0)+1; });
+    const usoStr = Object.entries(usoCounts).sort((a,b)=>b[0].localeCompare(a[0])).map(([c,n])=>c+(n>1?' ×'+n:'')).join(', ');
+    return '<div onclick="_swapElegir(\''+p.id+'\')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s" onmouseenter="this.style.background=\'var(--bg)\'" onmouseleave="this.style.background=\'\'">'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">'
+      + '<span style="font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:8px;color:var(--text2)">'+p.bloque+'</span>'
+      + '<span style="font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:8px;color:var(--text2)">'+p.tipo+'</span>'
+      + '<span style="font-size:10px;color:#fff;background:'+(DIF_COLOR[p.dificultad]||'#888')+';padding:1px 6px;border-radius:8px">'+p.dificultad+'</span>'
+      + (usoStr ? '<span style="font-size:10px;color:var(--text3)">Usado: '+usoStr+'</span>' : '<span style="font-size:10px;color:var(--green)">✓ Sin usar</span>')
+      + '</div>'
+      + '<div style="font-size:12px;line-height:1.5;color:var(--text)">'+p.enunciado.slice(0,150)+(p.enunciado.length>150?'...':'')+'</div>'
+      + (p.imagen ? '<img src="'+p.imagen+'" style="max-height:50px;margin-top:4px;border-radius:4px;border:1px solid var(--border2)">' : '')
+      + '</div>'
+      + '<span style="font-size:11px;color:var(--accent);font-weight:600;flex-shrink:0;align-self:center">Elegir →</span>'
+      + '</div>';
+  }).join('');
+}
+
+function _swapElegir(newId) {
+  const b = getBanco();
+  const { cardIdx, nivel } = window._swapCtx || {};
+  const newP = b.preguntas.find(p => p.id === newId);
+  if (!newP) return;
+  document.getElementById('swap-modal')?.remove();
+
+  const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
+  const card = document.getElementById('be-p-'+cardIdx);
+  if (!card) return;
+
+  const usos = newP.historial?.length || 0;
+  const usoCounts = {};
+  (newP.historial||[]).forEach(h => { const curso = typeof h==='object'?h.curso:h; usoCounts[curso]=(usoCounts[curso]||0)+1; });
+  const usoStr = Object.entries(usoCounts).sort((a,b)=>b[0].localeCompare(a[0])).map(([c,n])=>c+(n>1?' ×'+n:'')).join(', ');
+  const alts = b.preguntas.filter(x => x.nivel === nivel && x.id !== newId);
+
+  card.dataset.pregId = newId;
+  card.dataset.imagen = newP.imagen || '';
+  card.innerHTML = '<div style="display:flex;align-items:flex-start;gap:10px">'
+    + '<div style="font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:24px">'+(cardIdx+1)+'.</div>'
+    + '<div style="flex:1">'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+    + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+newP.bloque+'</span>'
+    + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+newP.tipo+'</span>'
+    + '<span style="font-size:10px;font-weight:600;color:#fff;background:'+(DIF_COLOR[newP.dificultad]||'#888')+';padding:2px 8px;border-radius:10px">'+newP.dificultad+'</span>'
+    + (usoStr ? '<span style="font-size:10px;color:var(--text3)">Usado: '+usoStr+'</span>' : '<span style="font-size:10px;color:var(--green)">✓ Sin usar</span>')
+    + '</div>'
+    + '<div style="font-size:13px;line-height:1.6">'+newP.enunciado+'</div>'
+    + (newP.imagen ? '<img src="'+newP.imagen+'" style="max-height:200px;max-width:100%;border-radius:8px;border:1px solid var(--border2);object-fit:contain;margin-top:8px">' : '')
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
+    + (alts.length ? '<button class="btn btn-secondary btn-sm" onclick="_bancoSwapPregunta('+cardIdx+',\''+nivel+'\',\''+newP.bloque+'\',\''+newId+'\')" title="Cambiar por otra">🔄</button>' : '')
+    + '</div></div>';
+}
+
 
 function _bancoConfirmarExamen() {
   const curso = window._bancoExamenCurso || '';
@@ -14720,7 +14860,8 @@ async function _bancoExportarWord(nivel, curso) {
     try {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js';
+        s.src = 'https://unpkg.com/docx@7.8.2/build/index.umd.js';
+        s.crossOrigin = 'anonymous';
         s.onload = res; s.onerror = rej;
         document.head.appendChild(s);
       });
