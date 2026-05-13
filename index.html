@@ -902,6 +902,9 @@
       <div class="nav-item" id="nav-rubricas" onclick="navTo('rubricas')">
         <span class="icon">📋</span><span>Rúbricas</span>
       </div>
+      <div class="nav-item" id="nav-banco" onclick="navTo('banco')">
+        <span class="icon">🗂</span><span>Banco preguntas</span>
+      </div>
       <div class="nav-section">Configuración</div>
       <div class="nav-item" id="nav-importar" onclick="navTo('importar')">
         <span class="icon">💾</span><span>Copia de seguridad</span>
@@ -1584,6 +1587,7 @@ function cargarDatos() {
       APP = JSON.parse(d);
       if (!APP.config) APP.config = {};
       if (!APP.rubricasGuardadas) APP.rubricasGuardadas = [];
+      if (!APP.banco) APP.banco = { niveles: ['3º ESO','4º ESO','1º Bach','2º Bach'], tipos: ['Desarrollo','Problema','Test','V/F','Definición'], preguntas: [] };
       if (!APP.archivo) APP.archivo = [];
       if (APP.config.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
     }
@@ -1882,7 +1886,7 @@ function notaLabel(nr) {
 function navTo(page) {
   if (page === 'grupos') page = 'alumnos';
   // Sidebar nav — use id-based lookup, completely reliable
-  const pages = ['inicio','alumnos','horario','calendario','programacion','estadisticas','importar','rubricas','archivo','criterios','ajustes','ayuda'];
+  const pages = ['inicio','alumnos','horario','calendario','programacion','estadisticas','importar','rubricas','banco','archivo','criterios','ajustes','ayuda'];
   pages.forEach(p => {
     const el = document.getElementById('nav-' + p);
     if (el) el.classList.toggle('active', p === page);
@@ -1930,6 +1934,7 @@ function renderPage(page) {
     case 'estadisticas': main.innerHTML = renderEstadisticas(); break;
     case 'grupos': main.innerHTML = renderGrupos(); break;
     case 'rubricas': main.innerHTML = renderRubricas(); break;
+    case 'banco': main.innerHTML = renderBanco(); break;
     case 'archivo': main.innerHTML = renderArchivo(); break;
     case 'archivo': main.innerHTML = renderArchivo(); break;
     case 'criterios': main.innerHTML = renderAjustes(); break;
@@ -13918,6 +13923,852 @@ function _exportarRubricasHtml(rubricas) {
   const w = window.open(url,'_blank');
   if (w) setTimeout(()=>{w.print();URL.revokeObjectURL(url);},800);
 }
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// BANCO DE PREGUNTAS
+// ══════════════════════════════════════════════════════════════════════════
+
+function getBanco() {
+  if (!APP.banco) APP.banco = {
+    niveles: ['3º ESO','4º ESO','1º Bach','2º Bach'],
+    tipos: ['Desarrollo','Problema','Test','V/F','Definición'],
+    preguntas: []
+  };
+  return APP.banco;
+}
+
+// ── renderBanco ────────────────────────────────────────────────────────────
+let _bancoFiltros = { nivel: '', bloque: '', tipo: '', dif: '', ano: '', buscar: '' };
+
+function renderBanco() {
+  const b = getBanco();
+  const fNivel  = _bancoFiltros.nivel;
+  const fBloque = _bancoFiltros.bloque;
+  const fDif    = _bancoFiltros.dif;
+  const fTipo   = _bancoFiltros.tipo;
+  const fAno    = _bancoFiltros.ano;
+  const fBuscar = _bancoFiltros.buscar;
+  const topbar = '<div class="topbar">'
+    + '<button class="hamburger-btn" onclick="abrirSidebar()">&#9776;</button>'
+    + '<h2>🗂 Banco de preguntas</h2>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">'
+    + '<button class="btn btn-secondary btn-sm" onclick="bancoVerInstrucciones()">📋 Instrucciones IA</button>'
+    + '<button class="btn btn-secondary btn-sm" onclick="bancoImportarJSON()">📥 JSON</button>'
+    + '<button class="btn btn-secondary btn-sm" onclick="bancoExportarJSON()">📤 JSON</button>'
+    + '<button class="btn btn-secondary btn-sm" onclick="bancoPanelAjustes()">⚙ Ajustes</button>'
+    + '<button class="btn btn-secondary btn-sm" onclick="bancoImportarWord()">📥 Word</button>'
+    + '<button class="btn btn-primary btn-sm" onclick="bancoNuevaPregunta()">+ Pregunta</button>'
+    + '</div></div>';
+
+  if (!b.preguntas.length) {
+    return topbar + '<div class="page" style="text-align:center;padding:60px 20px;color:var(--text3)">'
+      + '<div style="font-size:48px;margin-bottom:16px">🗂</div>'
+      + '<div style="font-size:18px;font-weight:600;margin-bottom:8px">Banco vacío</div>'
+      + '<div style="font-size:14px;margin-bottom:24px">Añade preguntas manualmente o importa desde Word o JSON</div>'
+      + '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'
+      + '<button class="btn btn-primary" onclick="bancoNuevaPregunta()">+ Añadir pregunta</button>'
+      + '<button class="btn btn-secondary" onclick="bancoImportarWord()">📥 Importar Word</button>'
+      + '<button class="btn btn-secondary" onclick="bancoImportarJSON()">📥 Importar JSON</button>'
+      + '</div></div>';
+  }
+
+  // Build filter options
+  const nivelOpts = ['<option value=""'+(fNivel?'':' selected')+'>Todos los niveles</option>',
+    ...b.niveles.map(n => '<option value="'+n+'"'+(fNivel===n?' selected':'')+'>'+n+'</option>')].join('');
+  // Filter bloques by selected nivel
+  const bloqueSet = [...new Set(b.preguntas
+    .filter(p => !fNivel || p.nivel === fNivel)
+    .map(p => p.bloque)
+  ), ...(fNivel && b.bloquesPorNivel?.[fNivel] ? b.bloquesPorNivel[fNivel] : [])]
+    .filter((v,i,a) => a.indexOf(v)===i).sort();
+  const bloqueOpts = ['<option value=""'+(fBloque?'':' selected')+'>Todos los bloques</option>',
+    ...bloqueSet.map(bl => '<option value="'+bl+'"'+(fBloque===bl?' selected':'')+'>'+bl+'</option>')].join('');
+  const tipoOpts = ['<option value=""'+(fTipo?'':' selected')+'>Todos los tipos</option>',
+    ...b.tipos.map(t => '<option value="'+t+'"'+(fTipo===t?' selected':'')+'>'+t+'</option>')].join('');
+  // Build year filter from all historiales
+  const todosAnos = [...new Set(b.preguntas.flatMap(p => (p.historial||[]).map(h => typeof h === 'object' ? h.curso : h)))].sort().reverse();
+  const anoOpts = ['<option value=""'+(fAno?'':' selected')+'>Cualquier uso</option>',
+    '<option value="__sin__"'+(fAno==='__sin__'?' selected':'')+'>Sin usar</option>',
+    ...todosAnos.map(a => '<option value="'+a+'"'+(fAno===a?' selected':'')+'>'+a+'</option>')].join('');
+
+  // Read current filter values
+
+
+  const filtros = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
+    + '<input id="banco-f-buscar" type="search" value="'+fBuscar.replace(/"/g,'&quot;')+'" placeholder="🔍 Buscar..." oninput="_bancoFiltros.buscar=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface);min-width:140px;flex:1">'
+    + '<select id="banco-f-nivel" onchange="_bancoFiltros.nivel=this.value;_bancoFiltros.bloque=String();renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+nivelOpts+'</select>'
+    + '<select id="banco-f-bloque" onchange="_bancoFiltros.bloque=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+bloqueOpts+'</select>'
+    + '<select id="banco-f-tipo" onchange="_bancoFiltros.tipo=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+tipoOpts+'</select>'
+    + '<select id="banco-f-dif" onchange="_bancoFiltros.dif=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
+    + (b.dificultades?.length ? b.dificultades : ['Fácil','Media','Difícil']).reduce((s,d)=>
+        s+'<option value="'+d+'"'+(fDif===d?' selected':'')+'>'+d+'</option>','<option value=""'+(fDif?'':' selected')+'>Todas las dificultades</option>')
+    + '</select>'
+    + '<select id="banco-f-ano" onchange="_bancoFiltros.ano=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+anoOpts+'</select>'
+    + '<button class="btn btn-primary btn-sm" onclick="bancoCrearExamen()">📄 Crear examen</button>'
+    + '</div>';
+
+  // Apply filters
+  const buscarLower = fBuscar.toLowerCase();
+  let pregs = b.preguntas.filter(p => {
+    if (fNivel  && p.nivel      !== fNivel)  return false;
+    if (fBloque && p.bloque     !== fBloque) return false;
+    if (fTipo   && p.tipo       !== fTipo)   return false;
+    if (fDif    && p.dificultad !== fDif)    return false;
+    if (fBuscar && !p.enunciado.toLowerCase().includes(buscarLower)
+                && !p.bloque.toLowerCase().includes(buscarLower)
+                && !p.tipo.toLowerCase().includes(buscarLower)) return false;
+    if (fAno) {
+      const cursos = (p.historial||[]).map(h => typeof h === 'object' ? h.curso : h);
+      if (fAno === '__sin__') { if (cursos.length > 0) return false; }
+      else { if (!cursos.includes(fAno)) return false; }
+    }
+    return true;
+  });
+
+  const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
+
+  const cards = pregs.map(p => {
+    const realIdx = b.preguntas.indexOf(p);
+    // Build usage display — group by year with counts
+    const usoCounts = {};
+    (p.historial||[]).forEach(h => {
+      const curso = typeof h === 'object' ? h.curso : h;
+      usoCounts[curso] = (usoCounts[curso]||0) + 1;
+    });
+    const usoStr = Object.entries(usoCounts).sort((a,b)=>b[0].localeCompare(a[0]))
+      .map(([curso, n]) => curso + (n>1?' ×'+n:'')).join(', ');
+    const usoTag = usoStr
+      ? '<span style="font-size:10px;color:var(--text3);padding:2px 4px">Usado: '+usoStr+'</span>'
+      : '<span style="font-size:10px;color:var(--green)">✓ Sin usar</span>';
+
+    return '<div class="card" style="padding:14px 16px;margin-bottom:10px">'
+      + '<div style="display:flex;align-items:flex-start;gap:10px">'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+      + '<span style="font-size:10px;font-weight:600;background:var(--accent-bg);color:var(--accent);padding:2px 8px;border-radius:10px">'+p.nivel+'</span>'
+      + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+p.bloque+'</span>'
+      + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+p.tipo+'</span>'
+      + '<span style="font-size:10px;font-weight:600;color:#fff;background:'+(DIF_COLOR[p.dificultad]||'#888')+';padding:2px 8px;border-radius:10px">'+p.dificultad+'</span>'
+      + usoTag
+      + '</div>'
+      + '<div style="font-size:13px;color:var(--text);line-height:1.5">'+p.enunciado.slice(0,200)+(p.enunciado.length>200?'...':'')+'</div>'
+      + (p.imagen ? '<img src="'+p.imagen+'" style="max-height:80px;max-width:140px;border-radius:6px;border:1px solid var(--border2);object-fit:contain;margin-top:6px">' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:4px;flex-shrink:0">'
+      + '<button class="btn btn-secondary btn-sm" onclick="bancoEditarPregunta('+realIdx+')">✏</button>'
+      + '<button class="btn btn-delete" onclick="bancoBorrarPregunta('+realIdx+')">✕</button>'
+      + '</div></div></div>';
+  }).join('');
+
+  const stats = '<div style="font-size:12px;color:var(--text3);margin-bottom:12px">'
+    + b.preguntas.length + ' preguntas en total · Mostrando ' + pregs.length + '</div>';
+
+  return topbar + '<div class="page">' + filtros + stats + cards + '</div>';
+}
+
+
+function bancoNuevaPregunta(idx) {
+  const b = getBanco();
+  const p = idx !== undefined ? b.preguntas[idx] : null;
+  const editing = idx !== undefined;
+
+  const nivelOpts = b.niveles.map(n =>
+    '<option value="'+n+'"'+(p?.nivel===n?' selected':'')+'>'+n+'</option>'
+  ).join('');
+  const tipoOpts = b.tipos.map(t =>
+    '<option value="'+t+'"'+(p?.tipo===t?' selected':'')+'>'+t+'</option>'
+  ).join('');
+  const dificultades = b.dificultades?.length ? b.dificultades : ['Fácil','Media','Difícil'];
+  const difOpts = dificultades.map(d =>
+    '<option value="'+d+'"'+(p?.dificultad===d?' selected':'')+'>'+d+'</option>'
+  ).join('');
+
+  // Get existing bloques for suggestions
+  const bloqueSet = [...new Set(b.preguntas.filter(x => !p || x.nivel===p.nivel).map(x => x.bloque))];
+  // Combine bloques from existing questions and from ajustes
+  const bloqueListFull = [...new Set([
+    ...bloqueSet,
+    ...(b.bloquesPorNivel?.[document.getElementById?.('bp-nivel')?.value] || [])
+  ])].sort();
+  const bloqueList = bloqueListFull.map(bl =>
+    '<option value="'+bl+'">'+bl+'</option>'
+  ).join('');
+
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:560px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:16px">'+(editing?'Editar pregunta':'Nueva pregunta')+'</h3>'
+    + '<div style="display:flex;flex-direction:column;gap:12px">'
+
+    + '<div style="display:flex;gap:8px">'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Nivel</label>'
+    + '<select id="bp-nivel" onchange="_bancoBuildBloqueList()" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'+nivelOpts+'</select></div>'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Dificultad</label>'
+    + '<select id="bp-dif" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'+difOpts+'</select></div>'
+    + '</div>'
+
+    + '<div style="display:flex;gap:8px">'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Bloque / Tema</label>'
+    + '<input list="bp-bloques-list" id="bp-bloque" value="'+(p?.bloque||'')+'" placeholder="Ej: Equilibrio químico" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface)">'
+    + '<datalist id="bp-bloques-list">'+bloqueList+'</datalist>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:3px">Escribe o elige un bloque existente para ese nivel</div></div>'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Tipo</label>'
+    + '<select id="bp-tipo" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'+tipoOpts+'</select></div>'
+    + '</div>'
+
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Enunciado</label>'
+    + '<textarea id="bp-enunciado" rows="4" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;background:var(--surface);font-family:inherit">'+(p?.enunciado||'')+'</textarea></div>'
+
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Solución <span style="font-weight:400;color:var(--text3)">(no aparece en el examen)</span></label>'
+    + '<textarea id="bp-solucion" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;background:var(--surface);font-family:inherit">'+(p?.solucion||'')+'</textarea></div>'
+
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Imagen adjunta <span style="font-weight:400;color:var(--text3)">(opcional, se incluye en el examen exportado)</span></label>'
+    + '<div style="display:flex;gap:8px;align-items:flex-start">'
+    + (p?.imagen ? '<img src="'+p.imagen+'" style="max-height:120px;max-width:200px;border-radius:8px;border:1px solid var(--border2);object-fit:contain">  ' : '')
+    + '<div style="display:flex;flex-direction:column;gap:6px">'
+    + '<label class="btn btn-secondary btn-sm" style="cursor:pointer">📷 '
+    + (p?.imagen ? 'Cambiar imagen' : 'Añadir imagen')
+    + '<input type="file" id="bp-imagen-input" accept="image/*" style="display:none" onchange="_bancoPreviewImagen(this)"></label>'
+    + (p?.imagen ? '<button class="btn btn-delete btn-sm" onclick="document.getElementById(&apos;bp-imagen-preview&apos;).style.display=&apos;none&apos;;window._bancoImagenData=null">✕ Quitar</button>' : '')
+    + '</div></div>'
+    + '<img id="bp-imagen-preview" style="max-height:120px;max-width:200px;border-radius:8px;border:1px solid var(--border2);object-fit:contain;display:none;margin-top:6px">'
+    + '</div>'
+
+    + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'
+    + '<button id="bp-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="bp-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">'+(editing?'Guardar cambios':'Añadir pregunta')+'</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+
+  document.getElementById('bp-cancel').onclick = () => div.remove();
+  document.getElementById('bp-ok').onclick = () => {
+    const nivel = document.getElementById('bp-nivel').value;
+    const bloque = document.getElementById('bp-bloque').value.trim();
+    const tipo = document.getElementById('bp-tipo').value;
+    const dif = document.getElementById('bp-dif').value;
+    const enunciado = document.getElementById('bp-enunciado').value.trim();
+    const solucion = document.getElementById('bp-solucion').value.trim();
+    if (!bloque) { alert('Indica el bloque/tema.'); return; }
+    if (!enunciado) { alert('El enunciado es obligatorio.'); return; }
+    const imagen = window._bancoImagenData || (editing ? p?.imagen : null);
+    window._bancoImagenData = null;
+    const pregunta = { id: editing ? p.id : uid(), nivel, bloque, tipo, dificultad: dif, enunciado, solucion, historial: p?.historial || [], ...(imagen ? {imagen} : {}) };
+    if (editing) b.preguntas[idx] = pregunta;
+    else b.preguntas.push(pregunta);
+    guardarDatos();
+    div.remove();
+    renderPage();
+  };
+}
+
+function _bancoPreviewImagen(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    window._bancoImagenData = e.target.result;
+    const prev = document.getElementById('bp-imagen-preview');
+    if (prev) { prev.src = e.target.result; prev.style.display = 'block'; }
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Exportar banco a JSON ─────────────────────────────────────────────────
+function bancoExportarJSON() {
+  const b = getBanco();
+  if (!b.preguntas.length) { alert('El banco está vacío.'); return; }
+
+  const niveles = b.niveles;
+  const opciones = niveles.map((n, i) =>
+    '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer">'
+    + '<input type="checkbox" id="bexp-'+i+'" checked>'
+    + '<span style="font-size:13px">'+n+'</span></label>'
+  ).join('');
+
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">📤 Exportar banco a JSON</h3>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Selecciona los niveles a exportar. El historial de uso no se incluye.</p>'
+    + '<div style="margin-bottom:16px">'+opciones+'</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button id="bexp-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="bexp-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Exportar</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  document.getElementById('bexp-cancel').onclick = () => div.remove();
+  document.getElementById('bexp-ok').onclick = () => {
+    const selNiveles = niveles.filter((_, i) => document.getElementById('bexp-'+i)?.checked);
+    if (!selNiveles.length) { alert('Selecciona al menos un nivel.'); return; }
+    div.remove();
+    const pregsExp = b.preguntas
+      .filter(p => selNiveles.includes(p.nivel))
+      .map(p => ({ nivel: p.nivel, bloque: p.bloque, tipo: p.tipo, dificultad: p.dificultad, enunciado: p.enunciado, solucion: p.solucion, ...(p.imagen ? {imagen: p.imagen} : {}) }));
+    const json = JSON.stringify({ version: 1, niveles: b.niveles, tipos: b.tipos, preguntas: pregsExp }, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'banco_preguntas.json'; a.click();
+    URL.revokeObjectURL(url);
+    mostrarToast('✓ Exportadas ' + pregsExp.length + ' preguntas');
+  };
+}
+
+// ── Importar banco desde JSON ─────────────────────────────────────────────
+function bancoImportarJSON() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.preguntas?.length) { alert('El archivo no contiene preguntas válidas.'); return; }
+        const b = getBanco();
+        let añadidas = 0, duplicadas = 0;
+        data.preguntas.forEach(p => {
+          if (!p.enunciado || !p.nivel) return;
+          // Duplicate check by enunciado (trimmed, case-insensitive)
+          const enuncNorm = p.enunciado.trim().toLowerCase();
+          const existe = b.preguntas.some(x => x.enunciado.trim().toLowerCase() === enuncNorm);
+          if (existe) { duplicadas++; return; }
+          b.preguntas.push({
+            id: uid(), nivel: p.nivel, bloque: p.bloque||'', tipo: p.tipo||'Desarrollo',
+            dificultad: p.dificultad||'Media', enunciado: p.enunciado, solucion: p.solucion||'',
+            historial: [], ...(p.imagen ? {imagen: p.imagen} : {})
+          });
+          añadidas++;
+        });
+        guardarDatos();
+        mostrarToast('✓ '+añadidas+' pregunta'+(añadidas!==1?'s':'')+' importada'+(añadidas!==1?'s':'')+(duplicadas?' · '+duplicadas+' omitida'+(duplicadas!==1?'s':'')+' (duplicada'+(duplicadas!==1?'s':'')+')':''));
+        renderPage();
+      } catch(err) { alert('Error al leer el JSON: ' + err.message); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+
+function bancoEditarPregunta(idx) { bancoNuevaPregunta(idx); }
+
+function _bancoBuildBloqueList() {
+  const b = getBanco();
+  const nivel = document.getElementById('bp-nivel')?.value || '';
+  const existing = [...new Set(b.preguntas.filter(p => !nivel || p.nivel === nivel).map(p => p.bloque))];
+  const fromAjustes = (nivel && b.bloquesPorNivel?.[nivel]) || [];
+  const all = [...new Set([...existing, ...fromAjustes])].sort();
+  const dl = document.getElementById('bp-bloques-list');
+  if (dl) dl.innerHTML = all.map(bl => '<option value="'+bl+'">'+bl+'</option>').join('');
+}
+
+
+function bancoVerInstrucciones() {
+  const b = getBanco();
+  const niveles = b.niveles.join(', ');
+  const tipos = b.tipos.join(', ');
+
+  const prompt = `Tengo un examen que quiero clasificar para mi banco de preguntas. Devuélveme ÚNICAMENTE el texto en el siguiente formato, sin añadir nada más antes ni después. Cada pregunta completa (con todos sus apartados juntos) va separada por ---
+
+Formato exacto:
+
+Nivel: [nivel exacto, uno de: ${niveles}]
+Bloque: [tema o bloque de la pregunta]
+Tipo: [uno de: ${tipos}]
+Dificultad: [Fácil, Media o Difícil]
+
+Enunciado:
+[enunciado completo con todos los apartados a), b), c)...]
+
+Solución:
+[solución completa]
+---
+Nivel: ...
+
+Reglas importantes:
+- Cada pregunta del examen va COMPLETA con todos sus apartados juntos, no separada por apartados
+- Usa exactamente los niveles y tipos indicados arriba
+- El separador entre preguntas es exactamente: ---
+- Si una pregunta tiene imagen y no puedes describirla, escribe en el enunciado: [VER IMAGEN ADJUNTA]
+- No añadas numeración ni encabezados propios
+
+Aquí está el examen:
+[PEGA AQUÍ EL TEXTO DEL EXAMEN]`;
+
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:600px;width:95%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    + '<h3 style="font-size:16px;font-weight:700;margin:0">📋 Instrucciones para la IA</h3>'
+    + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>'
+    + '</div>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:12px">Copia este texto y pégaselo a Claude (o cualquier IA) junto con tu examen. El Word resultante se puede importar directamente en el banco.</p>'
+    + '<textarea id="banco-prompt-text" readonly style="flex:1;min-height:300px;padding:12px;border:1px solid var(--border2);border-radius:8px;font-size:11px;font-family:monospace;line-height:1.6;background:var(--surface2);color:var(--text);resize:none;overflow-y:auto">'
+    + prompt.replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    + '</textarea>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">'
+    + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cerrar</button>'
+    + '<button onclick="navigator.clipboard.writeText(document.getElementById(\'banco-prompt-text\').value).then(()=>mostrarToast(\'✓ Copiado al portapapeles\'))" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">📋 Copiar</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+}
+
+
+
+function bancoBorrarPregunta(idx) {
+  const b = getBanco();
+  if (!confirm('¿Eliminar esta pregunta del banco?')) return;
+  b.preguntas.splice(idx, 1);
+  guardarDatos(); renderPage();
+}
+
+// ── Ajustes del banco ──────────────────────────────────────────────────────
+function bancoPanelAjustes() {
+  const b = getBanco();
+  if (!b.dificultades) b.dificultades = ['Fácil','Media','Difícil'];
+  // Collect all bloques from existing questions grouped by nivel
+  const bloquesPorNivel = {};
+  b.preguntas.forEach(p => {
+    if (!bloquesPorNivel[p.nivel]) bloquesPorNivel[p.nivel] = new Set();
+    bloquesPorNivel[p.nivel].add(p.bloque);
+  });
+
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:520px;width:95%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:16px">⚙ Ajustes del banco</h3>'
+    + '<div style="display:flex;flex-direction:column;gap:16px">'
+
+    + '<div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Niveles <span style="font-weight:400;color:var(--text3)">(uno por línea)</span></label>'
+    + '<textarea id="baj-niveles" rows="4" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface);font-family:inherit">'
+    + b.niveles.join('\n') + '</textarea></div>'
+
+    + '<div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Tipos de pregunta <span style="font-weight:400;color:var(--text3)">(uno por línea)</span></label>'
+    + '<textarea id="baj-tipos" rows="4" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface);font-family:inherit">'
+    + b.tipos.join('\n') + '</textarea></div>'
+
+    + '<div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Dificultades <span style="font-weight:400;color:var(--text3)">(uno por línea)</span></label>'
+    + '<textarea id="baj-difs" rows="3" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface);font-family:inherit">'
+    + b.dificultades.join('\n') + '</textarea></div>'
+
+    + '<div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Bloques por nivel <span style="font-weight:400;color:var(--text3)">(se añaden al autocompletar)</span></label>'
+    + b.niveles.map(niv => {
+        const bls = [...(bloquesPorNivel[niv]||[])].sort();
+        return '<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:3px">'+niv+'</div>'
+          + '<textarea id="baj-bloques-'+niv.replace(/[^a-z0-9]/gi,'_')+'" rows="3" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;box-sizing:border-box;background:var(--surface);font-family:inherit">'
+          + bls.join('\n') + '</textarea></div>';
+      }).join('')
+
+    + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+    + '<button id="baj-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="baj-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Guardar</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  document.getElementById('baj-cancel').onclick = () => div.remove();
+  document.getElementById('baj-ok').onclick = () => {
+    b.niveles = document.getElementById('baj-niveles').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    b.tipos   = document.getElementById('baj-tipos').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    b.dificultades = document.getElementById('baj-difs').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    // Save custom bloques per nivel
+    if (!b.bloquesPorNivel) b.bloquesPorNivel = {};
+    b.niveles.forEach(niv => {
+      const key = 'baj-bloques-'+niv.replace(/[^a-z0-9]/gi,'_');
+      const el = document.getElementById(key);
+      if (el) b.bloquesPorNivel[niv] = el.value.split('\n').map(s=>s.trim()).filter(Boolean);
+    });
+    guardarDatos(); div.remove(); renderPage();
+  };
+}
+
+// ── Importar desde Word ────────────────────────────────────────────────────
+function bancoImportarWord() {
+  const infoDiv = document.createElement('div');
+  infoDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  infoDiv.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:480px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:12px">📥 Importar preguntas desde Word</h3>'
+    + '<p style="font-size:13px;color:var(--text2);margin-bottom:14px">El documento debe seguir este formato — una pregunta por bloque, separadas por <strong>---</strong>:</p>'
+    + '<pre style="background:var(--surface2);border-radius:8px;padding:12px;font-size:11px;line-height:1.7;overflow-x:auto;border:1px solid var(--border2)">Nivel: 2º Bach\nBloque: Equilibrio químico\nTipo: Problema\nDificultad: Media\n\nEnunciado:\nCalcula la Kc de la reacción...\n\nSolución:\nKc = 0.25 mol/L...\n---\nNivel: 2º Bach\nBloque: Ácido-base\nTipo: Desarrollo\nDificultad: Fácil\n\nEnunciado:\nExplica el concepto de pH...\n\nSolución:\nEl pH es...</pre>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+    + '<button id="bi-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="bi-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Seleccionar archivo</button>'
+    + '</div></div>';
+  document.body.appendChild(infoDiv);
+  document.getElementById('bi-cancel').onclick = () => infoDiv.remove();
+  document.getElementById('bi-ok').onclick = () => { infoDiv.remove(); _bancoAbrirSelector(); };
+}
+
+async function _bancoAbrirSelector() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.docx';
+  input.onchange = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    if (!window.mammoth) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+      });
+    }
+    try {
+      const ab = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: ab });
+      const preguntas = _parsearBancoTexto(result.value);
+      if (!preguntas.length) { alert('No se encontraron preguntas en el formato esperado.\n\nRevisa el formato: Nivel:, Bloque:, Tipo:, Dificultad:, separadas por ---'); return; }
+      const b = getBanco();
+      preguntas.forEach(p => b.preguntas.push(p));
+      guardarDatos();
+      mostrarToast('✓ ' + preguntas.length + ' pregunta' + (preguntas.length!==1?'s':'') + ' importada' + (preguntas.length!==1?'s':''));
+      renderPage();
+    } catch(err) { alert('Error al leer el documento: ' + err.message); }
+  };
+  input.click();
+}
+
+function _parsearBancoTexto(texto) {
+  // Strip markdown bold/italic markers that mammoth adds
+  texto = texto.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+  const bloques = texto.split(/\n---+\n|\n---+$|^---+\n/m).map(s => s.trim()).filter(Boolean);
+  const preguntas = [];
+  bloques.forEach(bloque => {
+    const get = (key) => {
+      const m = bloque.match(new RegExp(key + ':\\s*(.+)', 'i'));
+      return m ? m[1].trim() : '';
+    };
+    const nivel = get('nivel');
+    const bl = get('bloque');
+    const tipo = get('tipo');
+    const dif = get('dificultad') || 'Media';
+    // Extract enunciado and solución sections
+    const enunciadoM = bloque.match(/enunciado:\s*\n([\s\S]*?)(?=\nsolución:|\nsolicion:|\n---|\Z)/i);
+    const solucionM = bloque.match(/solución:\s*\n([\s\S]*?)(?=\n---|\Z)/i) || bloque.match(/solicion:\s*\n([\s\S]*?)(?=\n---|\Z)/i);
+    const enunciado = enunciadoM ? enunciadoM[1].trim() : '';
+    const solucion = solucionM ? solucionM[1].trim() : '';
+    if (!enunciado || !nivel || !bl) return;
+    preguntas.push({ id: uid(), nivel, bloque: bl, tipo: tipo||'Desarrollo', dificultad: dif, enunciado, solucion, historial: [] });
+  });
+  return preguntas;
+}
+
+// ── Crear examen ──────────────────────────────────────────────────────────
+let _bancoExamen = { nivel: '', bloques: [], cursoAcademico: '' };
+
+function bancoCrearExamen() {
+  const b = getBanco();
+  if (!b.preguntas.length) { alert('El banco está vacío.'); return; }
+
+  const nivelOpts = b.niveles.map(n =>
+    '<option value="'+n+'"'+(n===_bancoExamen.nivel?' selected':'')+'>'+n+'</option>'
+  ).join('');
+
+  const cursoActual = new Date().getFullYear() + '-' + (new Date().getFullYear()+1);
+
+  const div = document.createElement('div');
+  div.id = 'banco-examen-modal';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:560px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:16px">📄 Crear examen</h3>'
+    + '<div style="display:flex;gap:8px;margin-bottom:16px">'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Nivel</label>'
+    + '<select id="be-nivel" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)" onchange="_bancoActualizarBloques()">'
+    + '<option value="">Selecciona nivel</option>'+nivelOpts+'</select></div>'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Curso académico</label>'
+    + '<input type="text" id="be-curso" value="'+(_bancoExamen.cursoAcademico||cursoActual)+'" placeholder="2024-2025" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface)"></div>'
+    + '</div>'
+    + '<div id="be-bloques-area">'
+    + '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">Selecciona un nivel para ver los bloques disponibles</div>'
+    + '</div>'
+    + '<button id="be-add-bloque" style="display:none;width:100%;padding:8px;border:1px dashed var(--border2);border-radius:8px;background:none;cursor:pointer;font-size:13px;color:var(--text3);margin-top:8px" onclick="_bancoAddBloqueRow()">+ Añadir otro bloque</button>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'
+    + '<button onclick="document.getElementById(\'banco-examen-modal\').remove()" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="be-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🎲 Generar examen</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  document.getElementById('be-ok').onclick = _bancoGenerarExamen;
+
+  // Init with saved nivel
+  if (_bancoExamen.nivel) _bancoActualizarBloques();
+}
+
+function _bancoActualizarBloques() {
+  const nivel = document.getElementById('be-nivel')?.value;
+  if (!nivel) return;
+  _bancoExamen.nivel = nivel;
+  const b = getBanco();
+  const bloques = [...new Set(b.preguntas.filter(p => p.nivel === nivel).map(p => p.bloque))].sort();
+  const area = document.getElementById('be-bloques-area');
+  const addBtn = document.getElementById('be-add-bloque');
+  if (!bloques.length) {
+    area.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">No hay preguntas para este nivel</div>';
+    return;
+  }
+  area.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:8px">Bloques y preguntas a incluir:</div>'
+    + '<div id="be-rows"></div>';
+  addBtn.style.display = '';
+  _bancoAddBloqueRow(bloques[0]);
+}
+
+function _bancoAddBloqueRow(defaultBloque) {
+  const nivel = document.getElementById('be-nivel')?.value;
+  const b = getBanco();
+  const bloques = [...new Set(b.preguntas.filter(p => p.nivel === nivel).map(p => p.bloque))].sort();
+  const bloqueOpts = bloques.map(bl => '<option value="'+bl+'"'+(bl===defaultBloque?' selected':'')+'>'+bl+'</option>').join('');
+  const rowId = 'be-row-' + Date.now();
+  const row = document.createElement('div');
+  row.id = rowId;
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
+  row.innerHTML = '<select style="flex:2;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+bloqueOpts+'</select>'
+    + '<select style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
+    + '<option value="Fácil">Fácil</option><option value="Media" selected>Media</option><option value="Difícil">Difícil</option><option value="">Cualquiera</option>'
+    + '</select>'
+    + '<input type="number" min="1" max="10" value="1" style="width:50px;padding:7px;border:1px solid var(--border2);border-radius:8px;font-size:12px;text-align:center;background:var(--surface)" title="Número de preguntas">'
+    + '<button onclick="document.getElementById(\''+rowId+'\').remove()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:4px">✕</button>';
+  document.getElementById('be-rows').appendChild(row);
+}
+
+function _bancoGenerarExamen() {
+  const nivel = document.getElementById('be-nivel')?.value;
+  const curso = document.getElementById('be-curso')?.value?.trim() || '';
+  if (!nivel) { alert('Selecciona un nivel.'); return; }
+
+  const rows = document.getElementById('be-rows')?.children;
+  if (!rows?.length) { alert('Añade al menos un bloque.'); return; }
+
+  const b = getBanco();
+  const seleccion = [];
+
+  for (const row of rows) {
+    const selects = row.querySelectorAll('select');
+    const input = row.querySelector('input[type=number]');
+    const bloque = selects[0]?.value;
+    const dif = selects[1]?.value;
+    const cantidad = parseInt(input?.value) || 1;
+
+    // Filter candidates
+    let candidatas = b.preguntas.filter(p =>
+      p.nivel === nivel && p.bloque === bloque && (!dif || p.dificultad === dif)
+    );
+    // Sort by usage: least recently used first
+    candidatas.sort((a, b) => {
+      const ua = a.historial?.length || 0;
+      const ub = b.historial?.length || 0;
+      if (ua !== ub) return ua - ub;
+      const la = (a.historial?.[a.historial.length-1]) || '';
+      const lb = (b.historial?.[b.historial.length-1]) || '';
+      const laStr = typeof la === 'object' ? la.curso : la;
+      const lbStr = typeof lb === 'object' ? lb.curso : lb;
+      return laStr.localeCompare(lbStr);
+    });
+
+    for (let i = 0; i < cantidad; i++) {
+      if (candidatas[i]) seleccion.push({ pregunta: candidatas[i], bloque, dif });
+      else seleccion.push({ pregunta: null, bloque, dif, falta: true });
+    }
+  }
+
+  document.getElementById('banco-examen-modal').remove();
+  _bancoMostrarExamen(seleccion, nivel, curso);
+}
+
+function _bancoMostrarExamen(seleccion, nivel, curso) {
+  const b = getBanco();
+  const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
+
+  const preguntasHtml = seleccion.map((item, i) => {
+    if (item.falta) {
+      return '<div class="card" style="padding:14px 16px;margin-bottom:10px;border:2px dashed var(--red);opacity:0.7">'
+        + '<span style="font-size:12px;color:var(--red)">⚠ No hay preguntas disponibles para ' + item.bloque + ' (' + (item.dif||'cualquier dificultad') + ')</span></div>';
+    }
+    const p = item.pregunta;
+    const usos = p.historial?.length || 0;
+    const ultimoUso = usos ? ' · Último uso: ' + p.historial[p.historial.length-1] : '';
+    // Find alternatives for swap
+    const alts = b.preguntas.filter(x =>
+      x.nivel === nivel && x.bloque === p.bloque && x.id !== p.id && (!item.dif || x.dificultad === item.dif)
+    );
+
+    return '<div class="card" style="padding:14px 16px;margin-bottom:10px" id="be-p-'+i+'" data-preg-id="'+p.id+'">'
+      + '<div style="display:flex;align-items:flex-start;gap:10px">'
+      + '<div style="font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:24px">'+(i+1)+'.</div>'
+      + '<div style="flex:1">'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+      + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+p.bloque+'</span>'
+      + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+p.tipo+'</span>'
+      + '<span style="font-size:10px;font-weight:600;color:#fff;background:'+(DIF_COLOR[p.dificultad]||'#888')+';padding:2px 8px;border-radius:10px">'+p.dificultad+'</span>'
+      + (usos ? '<span style="font-size:10px;color:var(--text3)">Usado '+usos+'x'+ultimoUso+'</span>' : '<span style="font-size:10px;color:var(--green)">✓ Sin usar</span>')
+      + '</div>'
+      + '<div style="font-size:13px;line-height:1.6">'+p.enunciado+'</div>'
+      + (p.imagen ? '<img src="'+p.imagen+'" style="max-height:200px;max-width:100%;border-radius:8px;border:1px solid var(--border2);object-fit:contain;margin-top:8px">' : '')
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
+      + (alts.length ? '<button class="btn btn-secondary btn-sm" onclick="_bancoSwapPregunta('+i+',\''+nivel+'\',\''+p.bloque+'\',\''+p.id+'\')" title="Cambiar por otra">🔄</button>' : '')
+      + '</div>'
+      + '</div></div>';
+  }).join('');
+
+  const div = document.createElement('div');
+  div.id = 'banco-resultado-modal';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:640px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'
+    + '<h3 style="font-size:16px;font-weight:700;margin:0">📄 Examen generado — '+nivel+' · '+curso+'</h3>'
+    + '<button onclick="document.getElementById(\'banco-resultado-modal\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>'
+    + '</div>'
+    + '<div id="be-resultado-preguntas">' + preguntasHtml + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+    + '<button onclick="document.getElementById(\'banco-resultado-modal\').remove()" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button onclick="_bancoExportarWord(\''+nivel+'\',\''+curso+'\')" style="padding:8px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-size:13px">📄 Exportar Word</button>'
+    + '<button onclick="_bancoConfirmarExamen(\''+curso+'\')" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600" onclick="_bancoConfirmarExamen()">✓ Confirmar y registrar uso</button>'
+    + '</div></div>';
+  window._bancoExamenCurso = curso;
+  document.body.appendChild(div);
+}
+
+function _bancoSwapPregunta(idx, nivel, bloque, excluirId) {
+  const b = getBanco();
+  const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
+  const candidatas = b.preguntas.filter(p => p.nivel === nivel && p.bloque === bloque && p.id !== excluirId);
+  if (!candidatas.length) { alert('No hay más preguntas disponibles para este bloque.'); return; }
+
+  // Show swap selector
+  const opts = candidatas.map(p => {
+    const usos = p.historial?.length || 0;
+    const ultimo = usos ? ' (usado '+usos+'x, último: '+p.historial[p.historial.length-1]+')' : ' (sin usar)';
+    return '<option value="'+p.id+'">'+p.dificultad+' · '+p.enunciado.slice(0,60)+'...'+ultimo+'</option>';
+  }).join('');
+
+  const selDiv = document.createElement('div');
+  selDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+  selDiv.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:20px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h4 style="margin-bottom:12px;font-size:14px">Cambiar pregunta '+( idx+1)+' por:</h4>'
+    + '<select id="swap-sel" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface);margin-bottom:12px">'+opts+'</select>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="padding:7px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12px">Cancelar</button>'
+    + '<button id="swap-ok" style="padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">Cambiar</button>'
+    + '</div></div>';
+  document.body.appendChild(selDiv);
+  document.getElementById('swap-ok').onclick = () => {
+    const newId = document.getElementById('swap-sel').value;
+    const newP = b.preguntas.find(p => p.id === newId);
+    if (!newP) return;
+    // Update the card in DOM
+    const card = document.getElementById('be-p-'+idx);
+    if (card) {
+      const usos = newP.historial?.length || 0;
+      const ultimoUso = usos ? ' · Último uso: ' + newP.historial[newP.historial.length-1] : '';
+      const alts = b.preguntas.filter(x => x.nivel === nivel && x.bloque === bloque && x.id !== newId);
+      card.innerHTML = '<div style="display:flex;align-items:flex-start;gap:10px">'
+        + '<div style="font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:24px">'+(idx+1)+'.</div>'
+        + '<div style="flex:1">'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+        + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+newP.bloque+'</span>'
+        + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+newP.tipo+'</span>'
+        + '<span style="font-size:10px;font-weight:600;color:#fff;background:'+(DIF_COLOR[newP.dificultad]||'#888')+';padding:2px 8px;border-radius:10px">'+newP.dificultad+'</span>'
+        + (usos ? '<span style="font-size:10px;color:var(--text3)">Usado '+usos+'x'+ultimoUso+'</span>' : '<span style="font-size:10px;color:var(--green)">✓ Sin usar</span>')
+        + '</div>'
+        + '<div style="font-size:13px;line-height:1.6">'+newP.enunciado+'</div>'
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
+        + (alts.length ? '<button class="btn btn-secondary btn-sm" onclick="_bancoSwapPregunta('+idx+',\''+nivel+'\',\''+bloque+'\',\''+newId+'\')" title="Cambiar por otra">🔄</button>' : '')
+        + '</div></div>';
+      card.dataset.pregId = newId;
+      card.dataset.imagen = newP.imagen || '';
+    }
+    selDiv.remove();
+  };
+}
+
+function _bancoConfirmarExamen() {
+  const curso = window._bancoExamenCurso || '';
+  const b = getBanco();
+  const cards = document.querySelectorAll('[id^="be-p-"]');
+  let registradas = 0;
+  cards.forEach(card => {
+    const pregId = card.dataset.pregId;
+    const p = pregId ? b.preguntas.find(x => x.id === pregId) : null;
+    if (p) {
+      if (!p.historial) p.historial = [];
+      // Store as objects {curso} to allow multiple uses per year
+      p.historial.push({ curso });
+      registradas++;
+    }
+  });
+  guardarDatos();
+  document.getElementById('banco-resultado-modal')?.remove();
+  mostrarToast('✓ Uso registrado en ' + registradas + ' pregunta' + (registradas!==1?'s':''));
+}
+
+async function _bancoExportarWord(nivel, curso) {
+  const cards = document.querySelectorAll('[id^="be-p-"]');
+  const b = getBanco();
+  const preguntas = [];
+  cards.forEach((card, i) => {
+    const texto = card.querySelector('div[style*="font-size:13px;line-height"]')?.textContent || '';
+    const imgEl = card.querySelector('img[src^="data:"]');
+    const imagen = imgEl?.src || card.dataset.imagen || '';
+    const tags = card.querySelectorAll('span[style*="border-radius:10px"]');
+    const bloque = tags[0]?.textContent || '';
+    const tipo = tags[1]?.textContent || '';
+    const dif = tags[2]?.textContent || '';
+      preguntas.push({ num: i+1, texto, bloque, tipo, dif, imagen });
+  });
+
+  // Load docx library (shared with rúbricas export)
+  if (!window.docx) {
+    try {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    } catch(e) {
+      alert('Para exportar en Word necesitas conexión a internet la primera vez (descarga la librería). Una vez cargada funciona sin conexión hasta que cierres la app.');
+      return;
+    }
+  }
+
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } = window.docx;
+  const children = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'Examen — ' + nivel, font: 'Arial', size: 32, bold: true })] }),
+    new Paragraph({ children: [new TextRun({ text: 'Curso académico: ' + curso, font: 'Arial', size: 22, color: '555555' })] }),
+    new Paragraph({ children: [new TextRun('')] }),
+    ...preguntas.flatMap(p => {
+      const rows = [
+        new Paragraph({
+          children: [
+            new TextRun({ text: p.num + '.  ', font: 'Arial', size: 24, bold: true }),
+            new TextRun({ text: '[' + p.bloque + ' · ' + p.tipo + ' · ' + p.dif + ']', font: 'Arial', size: 20, color: '888888', italics: true }),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 80 }, children: [new TextRun({ text: p.texto, font: 'Arial', size: 22 })] }),
+      ];
+      if (p.imagen) {
+        try {
+          const base64 = p.imagen.split(',')[1];
+          const mimeMatch = p.imagen.match(/data:image\/(\w+);/);
+          const imgType = mimeMatch ? mimeMatch[1] : 'png';
+          rows.push(new Paragraph({ spacing: { before: 80 }, children: [
+            new ImageRun({ data: Uint8Array.from(atob(base64), c => c.charCodeAt(0)), transformation: { width: 400, height: 250 }, type: imgType })
+          ] }));
+        } catch(e) { console.warn('Image error', e); }
+      }
+      rows.push(new Paragraph({ spacing: { before: 120 }, children: [new TextRun({ text: '_'.repeat(80), font: 'Courier New', size: 20, color: 'cccccc' })] }));
+      rows.push(new Paragraph({ children: [new TextRun('')] }));
+      return rows;
+    })
+  ];
+
+  const doc = new Document({ sections: [{ children }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'examen_' + nivel.replace(/\s/g,'_') + '_' + curso + '.docx';
+  a.click(); URL.revokeObjectURL(url);
+}
+
 
 function registrarServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
