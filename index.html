@@ -2312,6 +2312,8 @@ function renderAlumnos() {
                   <span style="width:8px;height:8px;border-radius:50%;background:#c07800;display:inline-block"></span> 🎨 Color</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();toggleTutor('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#c09000;display:inline-block"></span> ${g.esTutor?'★ Quitar tutoría':'☆ Marcar como tutoría'}</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirVincularClassroom('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#0369a1;display:inline-block"></span> 🎓 Vincular con Classroom</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirImportarAlumnosGrupo('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#0369a1;display:inline-block"></span> 📥 Importar alumnos</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirImportarFotosGrupo('${g.id}')">
@@ -6578,6 +6580,7 @@ function renderEstructuraModal() {
         </div>
         <input type="date" value="${item.fecha||''}" title="Fecha" style="padding:3px 6px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:11px;color:var(--text2);outline:none" onchange="editarFechaItemGrupo(${iIdx},${jIdx},this.value)">
         <button class="btn btn-delete" onclick="borrarItemGrupo(${iIdx},${jIdx})">✕</button>
+        <button style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;opacity:0.6;flex-shrink:0" title="Publicar en Classroom" onclick="abrirPublicarApartadoClassroom('${grupoEstructuraId}','${trimEstructura}',${iIdx},${jIdx})">🎓</button>
       </div>`;
     });
 
@@ -6755,6 +6758,7 @@ function agregarItemGrupo(iIdx) {
   const inst = g.estructura[trimEstructura][iIdx];
   const nuevoItem = {nombre:'Apartado '+(inst.items.length+1), peso: 0};
   inst.items.push(nuevoItem);
+  const jIdxNew = inst.items.length - 1;
   if (inst.mediaAritmetica !== false) {
     inst.mediaAritmetica = true;
     recalcularPesosAritmetica(iIdx);
@@ -6762,6 +6766,15 @@ function agregarItemGrupo(iIdx) {
   instAbiertasGrupo.add(iIdx);
   _resyncEvalPropias(g.id, trimEstructura);
   guardarDatos(); renderEstructuraModal();
+  // Ask if user wants to publish to Classroom (only if clase is linked)
+  const gVinculado = APP.grupos.find(x => x.id === grupoEstructuraId);
+  if (gVinculado?.classroomCursoId) {
+    setTimeout(() => {
+      if (confirm('¿Publicar este apartado como tarea en Classroom?')) {
+        abrirPublicarApartadoClassroom(grupoEstructuraId, trimEstructura, iIdx, jIdxNew);
+      }
+    }, 200);
+  }
 }
 // ── Modal de confirmación reutilizable ────────────────────────
 let _confirmarCallback = null;
@@ -11709,6 +11722,72 @@ async function classroomGetEntregas(courseId, courseWorkId) {
   return data?.studentSubmissions || [];
 }
 
+// ── Vincular clase con Classroom ──────────────────────────────────────────
+async function abrirVincularClassroom(gid) {
+  const g = APP.grupos.find(x => x.id === gid); if (!g) return;
+  mostrarToast('Cargando cursos de Classroom...');
+  let cursos;
+  try { cursos = await classroomGetCursos(); }
+  catch(e) { alert('Error conectando con Classroom: ' + e.message + '\n\nAsegúrate de haber reconectado Google con los nuevos permisos.'); return; }
+  if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
+
+  const cursoActual = g.classroomCursoId;
+  const opts = [
+    '<option value="">— Sin vincular —</option>',
+    ...cursos.map(cur =>
+      '<option value="' + cur.id + '"' + (cursoActual === cur.id ? ' selected' : '') + '>'
+      + cur.name + (cur.section ? ' · ' + cur.section : '') + '</option>'
+    )
+  ].join('');
+
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">🎓 Vincular con Classroom</h3>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Asocia <strong>' + g.nombre + '</strong> con un curso de Classroom. Así al publicar tareas desde la app no tendrás que elegir el curso cada vez.</p>'
+    + '<select id="vc-curso" style="width:100%;padding:10px 14px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface);margin-bottom:16px">' + opts + '</select>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button id="vc-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="vc-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Guardar</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  document.getElementById('vc-cancel').onclick = () => div.remove();
+  document.getElementById('vc-ok').onclick = () => {
+    const cursoId = document.getElementById('vc-curso').value;
+    g.classroomCursoId = cursoId || null;
+    guardarDatos();
+    div.remove();
+    mostrarToast(cursoId ? '✓ Clase vinculada con Classroom' : 'Vinculación eliminada');
+  };
+}
+
+// ── Publicar apartado existente en Classroom ──────────────────────────────
+async function abrirPublicarApartadoClassroom(gid, trim, iIdx, jIdx) {
+  const g = APP.grupos.find(x => x.id === gid); if (!g) return;
+  const inst = g.estructura?.[trim]?.[iIdx]; if (!inst) return;
+  const item = inst.items?.[jIdx]; if (!item) return;
+
+  mostrarToast('Cargando cursos de Classroom...');
+  let cursos;
+  try { cursos = await classroomGetCursos(); }
+  catch(e) { alert('Error conectando con Classroom: ' + e.message); return; }
+
+  const cursoPrevinculado = g.classroomCursoId ? cursos.find(c => c.id === g.classroomCursoId) : null;
+
+  _mostrarModalPublicarClassroom({
+    titulo: item.nombre,
+    tarea: '',
+    enlaceUrl: '',
+    enlaceTitulo: '',
+    fechaSes: item.fecha || '',
+    cursos,
+    cursoPrevinculado,
+    grupoIds: [gid],
+    defaultType: 'ASSIGNMENT'
+  });
+}
+
+
 // ── Modal: Importar alumnos desde Classroom ───────────────────────────────
 async function abrirImportarAlumnosClassroom(gid) {
   mostrarToast('Cargando cursos de Classroom...');
@@ -12142,11 +12221,11 @@ async function abrirPublicarEnClassroom() {
 
   _mostrarModalPublicarClassroom({
     titulo, tarea, enlaceUrl, enlaceTitulo, fechaSes,
-    cursos, cursoPrevinculado, grupoIds
+    cursos, cursoPrevinculado, grupoIds, defaultType: 'MATERIAL'
   });
 }
 
-function _mostrarModalPublicarClassroom({ titulo, tarea, enlaceUrl, enlaceTitulo, fechaSes, cursos, cursoPrevinculado, grupoIds }) {
+function _mostrarModalPublicarClassroom({ titulo, tarea, enlaceUrl, enlaceTitulo, fechaSes, cursos, cursoPrevinculado, grupoIds, defaultType = 'ASSIGNMENT' }) {
   const cursoOpts = cursos.map(c =>
     '<option value="' + c.id + '"' + (cursoPrevinculado?.id === c.id ? ' selected' : '') + '>' + c.name + (c.section ? ' · ' + c.section : '') + '</option>'
   ).join('');
@@ -12170,6 +12249,15 @@ function _mostrarModalPublicarClassroom({ titulo, tarea, enlaceUrl, enlaceTitulo
     + '<select id="cp-curso" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">' + cursoOpts + '</select>'
     + (grupoIds.length ? '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="cp-vincular"> Recordar este curso para esta clase</label>' : '')
     + '</div>'
+
+    // Tipo de publicación
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Tipo</label>'
+    + '<select id="cp-worktype" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'
+    + '<option value="ASSIGNMENT"' + (defaultType==='ASSIGNMENT'?' selected':'') + '>📝 Tarea (con calificación)</option>'
+    + '<option value="MATERIAL"' + (defaultType==='MATERIAL'?' selected':'') + '>📚 Material didáctico</option>'
+    + '<option value="SHORT_ANSWER_QUESTION"' + (defaultType==='SHORT_ANSWER_QUESTION'?' selected':'') + '>💬 Pregunta respuesta corta</option>'
+    + '<option value="MULTIPLE_CHOICE_QUESTION"' + (defaultType==='MULTIPLE_CHOICE_QUESTION'?' selected':'') + '>🔘 Pregunta opción múltiple</option>'
+    + '</select></div>'
 
     // Tema
     + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Tema</label>'
@@ -12255,7 +12343,8 @@ async function _confirmarPublicarClassroom(grupoIds) {
     }
 
     // Build task body
-    const body = { title: titulo, workType: 'ASSIGNMENT', state: 'PUBLISHED' };
+    const workType = document.getElementById('cp-worktype')?.value || 'ASSIGNMENT';
+    const body = { title: titulo, workType, state: 'PUBLISHED' };
     if (desc) body.description = desc;
     if (topicId) body.topicId = topicId;
     if (fechaStr) {
