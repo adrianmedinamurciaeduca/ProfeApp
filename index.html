@@ -5930,6 +5930,11 @@ function renderAjustes() {
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span style="color:var(--text2);min-width:130px">Tamaño del JSON:</span><strong>${kb} KB</strong><span style="color:var(--text3)">(${mb} MB · ${pct}% de los 15 GB de Drive)</span></div>
     <div style="display:flex;gap:6px;align-items:center"><span style="color:var(--text2);min-width:130px">Contenido:</span><span>${nGrupos} grupo${nGrupos!==1?'s':''} · ${nAlumnos} alumno${nAlumnos!==1?'s':''}</span></div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span style="color:var(--text2);min-width:130px">Google Drive:</span>${driveEl}</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+    <span style="color:var(--text2);min-width:130px">Carpeta raíz:</span>
+    <span style="font-size:12px;color:var(--text3)">${APP.config.driveCarpetaRaizNombre||'Mi Drive (raíz)'}</span>
+    <button class="btn btn-secondary btn-sm" onclick="elegirCarpetaRaizDrive()">📂 Cambiar</button>
+  </div>
   </div>`;
 
   return `
@@ -9019,10 +9024,14 @@ function renderModalesProg() {
         <div class="form-group" style="margin-top:12px">
           <label>📎 Enlace a material (opcional)</label>
           <input type="text" id="ses-enlace-titulo" placeholder="Título del documento (ej: Ficha de cinemática)" style="margin-bottom:6px">
-          <input type="url" id="ses-enlace-url" placeholder="URL de Drive u otro enlace (https://...)"></div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="url" id="ses-enlace-url" placeholder="URL de Drive u otro enlace (https://...)" style="flex:1">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="abrirSelectorDrive(function(f){document.getElementById('ses-enlace-url').value=f.url;document.getElementById('ses-enlace-titulo').value=f.nombre;})" title="Buscar en Google Drive">📂 Drive</button>
+          </div></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="document.getElementById('modal-sesion-prog').classList.add('hidden');window._sesDesdeCalendario=false;">Cancelar</button>
+        <button class="btn btn-secondary" onclick="abrirPublicarEnClassroom()" title="Publicar como tarea en Google Classroom" style="font-size:11px;line-height:1.3;padding:6px 10px;text-align:center">🎓 Publicar<br>en Classroom</button>
         <button class="btn btn-secondary" id="btn-impartir-sesion" onclick="impartirDesdeSesionProg()" style="display:none">▶ Impartir</button>
         <button class="btn btn-primary" onclick="guardarSesionProg()">Guardar sesión</button>
       </div>
@@ -11637,9 +11646,12 @@ const DRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.appdata';
 const CLASSROOM_SCOPES = [
   'https://www.googleapis.com/auth/classroom.courses.readonly',
   'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
-  'https://www.googleapis.com/auth/classroom.rosters.readonly'
+  'https://www.googleapis.com/auth/classroom.rosters.readonly',
+  'https://www.googleapis.com/auth/classroom.coursework.me',
+  'https://www.googleapis.com/auth/classroom.topics'
 ].join(' ');
-const ALL_SCOPES = DRIVE_SCOPE + ' ' + CLASSROOM_SCOPES;
+const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+const ALL_SCOPES = DRIVE_SCOPE + ' ' + DRIVE_READONLY_SCOPE + ' ' + CLASSROOM_SCOPES;
 const DRIVE_FILE_NAME = 'profeapp_datos.json';
 
 let _driveToken      = null;   // access token actual
@@ -11966,6 +11978,343 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
     + (duplicadas ? ' · ' + duplicadas + ' omitida' + (duplicadas!==1?'s':'') + ' (ya existía' + (duplicadas!==1?'n':'') + ')' : ''));
   renderPage();
 }
+
+
+// ── Google Drive Browser ───────────────────────────────────────────────────
+
+let _driveBrowserCallback = null;
+let _driveFolderStack = []; // [{id, name}] breadcrumb
+
+async function driveApiGet(endpoint) {
+  if (!_driveToken) { alert('Conecta primero con Google Drive desde el botón ☁️.'); return null; }
+  const resp = await fetch('https://www.googleapis.com/drive/v3/' + endpoint, {
+    headers: { Authorization: 'Bearer ' + _driveToken }
+  });
+  if (!resp.ok) throw new Error('Drive API error ' + resp.status);
+  return resp.json();
+}
+
+async function abrirSelectorDrive(callback) {
+  _driveBrowserCallback = callback;
+  _driveFolderStack = [{ id: APP.config.driveCarpetaRaizId || 'root', nombre: APP.config.driveCarpetaRaizNombre || 'Mi Drive' }];
+  await _renderDriveBrowser();
+}
+
+async function _renderDriveBrowser() {
+  const carpeta = _driveFolderStack[_driveFolderStack.length - 1];
+
+  // Show loading modal
+  let div = document.getElementById('drive-browser-modal');
+  if (!div) {
+    div = document.createElement('div');
+    div.id = 'drive-browser-modal';
+    div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+    document.body.appendChild(div);
+  }
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:540px;width:95%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    + '<h3 style="font-size:15px;font-weight:700;margin:0">📂 Google Drive</h3>'
+    + '<button onclick="document.getElementById(\'drive-browser-modal\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>'
+    + '</div>'
+    + '<div id="drive-breadcrumb" style="font-size:12px;color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:4px;flex-wrap:wrap"></div>'
+    + '<div id="drive-list" style="flex:1;overflow-y:auto;border:1px solid var(--border2);border-radius:8px;min-height:200px;max-height:400px">'
+    + '<div style="padding:20px;text-align:center;color:var(--text3)">Cargando...</div>'
+    + '</div>'
+    + '</div>';
+
+  // Breadcrumb
+  const bc = document.getElementById('drive-breadcrumb');
+  bc.innerHTML = _driveFolderStack.map((f, i) => {
+    if (i < _driveFolderStack.length - 1) {
+      return '<span style="cursor:pointer;color:var(--accent)" onclick="_driveBreadcrumbNav(' + i + ')">' + f.nombre + '</span><span style="margin:0 2px">/</span>';
+    }
+    return '<span style="font-weight:600;color:var(--text)">' + f.nombre + '</span>';
+  }).join('');
+
+  // Load files
+  try {
+    const q = encodeURIComponent("'" + carpeta.id + "' in parents and trashed=false");
+    const fields = 'files(id,name,mimeType,webViewLink,iconLink,size)';
+    const data = await driveApiGet('files?q=' + q + '&fields=' + encodeURIComponent(fields) + '&orderBy=folder,name&pageSize=100');
+    const files = data?.files || [];
+
+    if (!files.length) {
+      document.getElementById('drive-list').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Carpeta vacía</div>';
+      return;
+    }
+
+    const ICONS = {
+      'application/vnd.google-apps.folder': '📁',
+      'application/vnd.google-apps.document': '📝',
+      'application/vnd.google-apps.presentation': '📊',
+      'application/vnd.google-apps.spreadsheet': '📈',
+      'application/pdf': '📄',
+      'image/jpeg': '🖼', 'image/png': '🖼', 'image/gif': '🖼',
+      'video/mp4': '🎬',
+    };
+
+    const listHtml = files.map(f => {
+      const isFolder = f.mimeType === 'application/vnd.google-apps.folder';
+      const icon = ICONS[f.mimeType] || '📄';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s" '
+        + 'onmouseenter="this.style.background=\'var(--bg)\'" onmouseleave="this.style.background=\'\'" '
+        + 'onclick="_driveBrowserClick(\'' + f.id + '\',\'' + f.mimeType + '\',\'' + encodeURIComponent(f.name) + '\',\'' + encodeURIComponent(f.webViewLink||'') + '\')">'
+        + '<span style="font-size:18px;flex-shrink:0">' + icon + '</span>'
+        + '<span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + f.name + '</span>'
+        + (isFolder ? '<span style="font-size:11px;color:var(--text3)">▶</span>' : '<span style="font-size:11px;color:var(--accent);font-weight:600">Seleccionar</span>')
+        + '</div>';
+    }).join('');
+
+    document.getElementById('drive-list').innerHTML = listHtml;
+  } catch(e) {
+    document.getElementById('drive-list').innerHTML = '<div style="padding:20px;text-align:center;color:var(--red)">Error: ' + e.message + '</div>';
+  }
+}
+
+function _driveBrowserClick(id, mimeType, encodedName, encodedUrl) {
+  const name = decodeURIComponent(encodedName);
+  const url = decodeURIComponent(encodedUrl);
+  if (mimeType === 'application/vnd.google-apps.folder') {
+    if (window._driveBrowserAllowFolder) {
+      // Selecting a folder as root
+      window._driveBrowserAllowFolder = false;
+      document.getElementById('drive-browser-modal')?.remove();
+      if (_driveBrowserCallback) _driveBrowserCallback({ url: '', nombre: name, driveId: id });
+    } else {
+      _driveFolderStack.push({ id, nombre: name });
+      _renderDriveBrowser();
+    }
+  } else {
+    // File selected
+    window._driveBrowserAllowFolder = false;
+    document.getElementById('drive-browser-modal')?.remove();
+    if (_driveBrowserCallback) _driveBrowserCallback({ url, nombre: name, driveId: id });
+  }
+}
+
+function _driveBreadcrumbNav(idx) {
+  _driveFolderStack = _driveFolderStack.slice(0, idx + 1);
+  _renderDriveBrowser();
+}
+
+// ── Classroom: vincular clase y publicar tarea ─────────────────────────────
+
+async function classroomApiPost(endpoint, body) {
+  if (!_driveToken) { alert('Conecta primero con Google Drive/Classroom.'); return null; }
+  const resp = await fetch('https://classroom.googleapis.com/v1/' + endpoint, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + _driveToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message||'Error '+resp.status); }
+  return resp.json();
+}
+
+async function classroomGetTopics(courseId) {
+  const data = await classroomApiGet('courses/' + courseId + '/topics?pageSize=100');
+  return data?.topic || [];
+}
+
+async function abrirPublicarEnClassroom() {
+  // Get current session data from modal
+  const titulo = document.getElementById('ses-titulo')?.value?.trim();
+  const tarea = document.getElementById('ses-tarea')?.value?.trim();
+  const enlaceUrl = document.getElementById('ses-enlace-url')?.value?.trim();
+  const enlaceTitulo = document.getElementById('ses-enlace-titulo')?.value?.trim();
+  const fechaSes = document.getElementById('ses-fecha')?.value;
+
+  if (!titulo) { alert('Añade primero un título a la sesión.'); return; }
+
+  // Find linked grupo
+  const { ni } = _sesProgEdit || {};
+  const niv = ni !== undefined ? APP.programacion?.niveles?.[ni] : null;
+  const grupoIds = niv?.grupos || [];
+
+  // Get courses - try linked first
+  mostrarToast('Cargando cursos de Classroom...');
+  let cursos;
+  try { cursos = await classroomGetCursos(); }
+  catch(e) { alert('Error conectando con Classroom: ' + e.message); return; }
+
+  // Find pre-linked course for any of the grupos
+  const grupoConCurso = grupoIds.map(gid => APP.grupos.find(g => g.id === gid)).find(g => g?.classroomCursoId);
+  const cursoPrevinculado = grupoConCurso ? cursos.find(c => c.id === grupoConCurso.classroomCursoId) : null;
+
+  _mostrarModalPublicarClassroom({
+    titulo, tarea, enlaceUrl, enlaceTitulo, fechaSes,
+    cursos, cursoPrevinculado, grupoIds
+  });
+}
+
+function _mostrarModalPublicarClassroom({ titulo, tarea, enlaceUrl, enlaceTitulo, fechaSes, cursos, cursoPrevinculado, grupoIds }) {
+  const cursoOpts = cursos.map(c =>
+    '<option value="' + c.id + '"' + (cursoPrevinculado?.id === c.id ? ' selected' : '') + '>' + c.name + (c.section ? ' · ' + c.section : '') + '</option>'
+  ).join('');
+
+  // Parse fecha for date inputs
+  let dueYear = '', dueMonth = '', dueDay = '';
+  if (fechaSes) {
+    const parts = fechaSes.split('-');
+    if (parts.length === 3) { dueYear = parts[0]; dueMonth = parts[1]; dueDay = parts[2]; }
+  }
+
+  const div = document.createElement('div');
+  div.id = 'classroom-publish-modal';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9998;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:500px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:16px">🎓 Publicar tarea en Classroom</h3>'
+    + '<div style="display:flex;flex-direction:column;gap:12px">'
+
+    // Curso
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Curso</label>'
+    + '<select id="cp-curso" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">' + cursoOpts + '</select>'
+    + (grupoIds.length ? '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="cp-vincular"> Recordar este curso para esta clase</label>' : '')
+    + '</div>'
+
+    // Tema
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Tema</label>'
+    + '<div style="display:flex;gap:6px">'
+    + '<select id="cp-topic" style="flex:1;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)"><option value="">Cargando temas...</option></select>'
+    + '<button onclick="_cargarTemasClassroom()" style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12px">🔄</button>'
+    + '</div>'
+    + '<div style="margin-top:6px;display:flex;gap:6px;align-items:center">'
+    + '<input type="text" id="cp-newtopic" placeholder="O escribe un tema nuevo..." style="flex:1;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
+    + '</div></div>'
+
+    // Título
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Título de la tarea</label>'
+    + '<input type="text" id="cp-titulo" value="' + titulo.replace(/"/g,'&quot;') + '" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface)"></div>'
+
+    // Instrucciones
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Instrucciones (opcional)</label>'
+    + '<textarea id="cp-desc" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;resize:vertical;min-height:60px;box-sizing:border-box;background:var(--surface)">' + (tarea||'') + '</textarea></div>'
+
+    // Fecha
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Fecha límite</label>'
+    + '<input type="date" id="cp-fecha" value="' + (fechaSes||'') + '" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface)"></div>'
+
+    // Archivo adjunto
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Archivo adjunto (opcional)</label>'
+    + '<div style="display:flex;gap:6px;align-items:center">'
+    + '<input type="url" id="cp-enlace" value="' + (enlaceUrl||'').replace(/"/g,'&quot;') + '" placeholder="URL de Drive..." style="flex:1;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;box-sizing:border-box;background:var(--surface)">'
+    + '<button onclick="abrirSelectorDrive(function(f){document.getElementById(\'cp-enlace\').value=f.url;document.getElementById(\'cp-enlace-titulo\').value=f.nombre})" style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12px">📂 Drive</button>'
+    + '</div>'
+    + '<input type="text" id="cp-enlace-titulo" value="' + (enlaceTitulo||'').replace(/"/g,'&quot;') + '" placeholder="Título del archivo" style="width:100%;margin-top:6px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;box-sizing:border-box;background:var(--surface)">'
+    + '</div>'
+
+    + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'
+    + '<button onclick="document.getElementById(\'classroom-publish-modal\').remove()" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="cp-ok" onclick="_confirmarPublicarClassroom(' + JSON.stringify(grupoIds) + ')" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">📤 Publicar</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+
+  // Auto-load topics for pre-linked course
+  _cargarTemasClassroom();
+}
+
+async function _cargarTemasClassroom() {
+  const cursoId = document.getElementById('cp-curso')?.value;
+  if (!cursoId) return;
+  const sel = document.getElementById('cp-topic');
+  if (sel) sel.innerHTML = '<option value="">Cargando...</option>';
+  try {
+    const topics = await classroomGetTopics(cursoId);
+    if (sel) {
+      sel.innerHTML = '<option value="">Sin tema</option>'
+        + topics.map(t => '<option value="' + t.topicId + '">' + t.name + '</option>').join('');
+    }
+  } catch(e) {
+    if (sel) sel.innerHTML = '<option value="">Error cargando temas</option>';
+  }
+}
+
+async function _confirmarPublicarClassroom(grupoIds) {
+  const cursoId = document.getElementById('cp-curso')?.value;
+  if (!cursoId) { alert('Selecciona un curso.'); return; }
+
+  const titulo = document.getElementById('cp-titulo')?.value?.trim();
+  if (!titulo) { alert('El título es obligatorio.'); return; }
+
+  const desc = document.getElementById('cp-desc')?.value?.trim();
+  const fechaStr = document.getElementById('cp-fecha')?.value;
+  const enlace = document.getElementById('cp-enlace')?.value?.trim();
+  const enlaceTitulo = document.getElementById('cp-enlace-titulo')?.value?.trim() || titulo;
+  let topicId = document.getElementById('cp-topic')?.value;
+  const nuevoTema = document.getElementById('cp-newtopic')?.value?.trim();
+  const vincular = document.getElementById('cp-vincular')?.checked;
+
+  const btn = document.getElementById('cp-ok');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando...'; }
+
+  try {
+    // Create new topic if specified
+    if (nuevoTema) {
+      const t = await classroomApiPost('courses/' + cursoId + '/topics', { name: nuevoTema });
+      topicId = t.topicId;
+    }
+
+    // Build task body
+    const body = { title: titulo, workType: 'ASSIGNMENT', state: 'PUBLISHED' };
+    if (desc) body.description = desc;
+    if (topicId) body.topicId = topicId;
+    if (fechaStr) {
+      const [y, m, d] = fechaStr.split('-');
+      body.dueDate = { year: parseInt(y), month: parseInt(m), day: parseInt(d) };
+      body.dueTime = { hours: 23, minutes: 59 };
+    }
+    if (enlace) {
+      body.materials = [{ link: { url: enlace, title: enlaceTitulo } }];
+    }
+
+    await classroomApiPost('courses/' + cursoId + '/courseWork', body);
+
+    // Save course link if requested
+    if (vincular && grupoIds?.length) {
+      grupoIds.forEach(gid => {
+        const g = APP.grupos.find(x => x.id === gid);
+        if (g) g.classroomCursoId = cursoId;
+      });
+      guardarDatos();
+    }
+
+    document.getElementById('classroom-publish-modal')?.remove();
+    mostrarToast('✓ Tarea publicada en Classroom');
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Publicar'; }
+    alert('Error al publicar: ' + e.message);
+  }
+}
+
+// ── Ajustes: carpeta raíz de Drive ─────────────────────────────────────────
+
+async function elegirCarpetaRaizDrive() {
+  window._driveBrowserAllowFolder = true;
+  _driveBrowserCallback = function(f) {
+    APP.config.driveCarpetaRaizId = f.driveId;
+    APP.config.driveCarpetaRaizNombre = f.nombre;
+    guardarDatos();
+    mostrarToast('✓ Carpeta raíz guardada: ' + f.nombre);
+    renderPage();
+  };
+  _driveFolderStack = [{ id: 'root', nombre: 'Mi Drive' }];
+  await _renderDriveBrowser();
+  // Add "Seleccionar esta carpeta" button at top
+  const listEl = document.getElementById('drive-list');
+  if (listEl) {
+    const selBtn = document.createElement('div');
+    selBtn.style.cssText = 'padding:10px 12px;background:var(--accent-bg);border-bottom:2px solid var(--accent);cursor:pointer;font-size:13px;font-weight:600;color:var(--accent);text-align:center';
+    selBtn.textContent = '📁 Usar esta carpeta como raíz';
+    selBtn.onclick = function() {
+      const cur = _driveFolderStack[_driveFolderStack.length-1];
+      window._driveBrowserAllowFolder = false;
+      document.getElementById('drive-browser-modal')?.remove();
+      if (_driveBrowserCallback) _driveBrowserCallback({ url: '', nombre: cur.nombre, driveId: cur.id });
+    };
+    listEl.insertBefore(selBtn, listEl.firstChild);
+  }
+}
+
 
 // ── Estado visual ─────────────────────────────────────────────
 function driveSetStatus(estado) {
