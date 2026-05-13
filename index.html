@@ -14591,14 +14591,17 @@ function _bancoAddBloqueRow(defaultBloque) {
   const b = getBanco();
   const bloques = [...new Set(b.preguntas.filter(p => p.nivel === nivel).map(p => p.bloque))].sort();
   const bloqueOpts = bloques.map(bl => '<option value="'+bl+'"'+(bl===defaultBloque?' selected':'')+'>'+bl+'</option>').join('');
+  const tipos = b.tipos?.length ? b.tipos : ['Desarrollo','Problema','Test','V/F','Definición'];
+  const tipoOpts = '<option value="">Cualquier tipo</option>' + tipos.map(t => '<option value="'+t+'">'+t+'</option>').join('');
+  const difs = b.dificultades?.length ? b.dificultades : ['Fácil','Media','Difícil'];
+  const difOpts = difs.map((d,i) => '<option value="'+d+'"'+(i===1?' selected':'')+'>'+d+'</option>').join('') + '<option value="">Cualquiera</option>';
   const rowId = 'be-row-' + Date.now();
   const row = document.createElement('div');
   row.id = rowId;
-  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
-  row.innerHTML = '<select style="flex:2;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+bloqueOpts+'</select>'
-    + '<select style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
-    + '<option value="Fácil">Fácil</option><option value="Media" selected>Media</option><option value="Difícil">Difícil</option><option value="">Cualquiera</option>'
-    + '</select>'
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap';
+  row.innerHTML = '<select style="flex:2;min-width:120px;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+bloqueOpts+'</select>'
+    + '<select style="flex:1;min-width:100px;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+tipoOpts+'</select>'
+    + '<select style="flex:1;min-width:80px;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+difOpts+'</select>'
     + '<input type="number" min="1" max="10" value="1" style="width:50px;padding:7px;border:1px solid var(--border2);border-radius:8px;font-size:12px;text-align:center;background:var(--surface)" title="Número de preguntas">'
     + '<button onclick="document.getElementById(\''+rowId+'\').remove()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:4px">✕</button>';
   document.getElementById('be-rows').appendChild(row);
@@ -14619,12 +14622,15 @@ function _bancoGenerarExamen() {
     const selects = row.querySelectorAll('select');
     const input = row.querySelector('input[type=number]');
     const bloque = selects[0]?.value;
-    const dif = selects[1]?.value;
+    const tipo   = selects[1]?.value;
+    const dif    = selects[2]?.value;
     const cantidad = parseInt(input?.value) || 1;
 
     // Filter candidates
     let candidatas = b.preguntas.filter(p =>
-      p.nivel === nivel && p.bloque === bloque && (!dif || p.dificultad === dif)
+      p.nivel === nivel && p.bloque === bloque &&
+      (!tipo || p.tipo === tipo) &&
+      (!dif || p.dificultad === dif)
     );
     // Sort by usage: least recently used first
     candidatas.sort((a, b) => {
@@ -14638,9 +14644,15 @@ function _bancoGenerarExamen() {
       return laStr.localeCompare(lbStr);
     });
 
+    const usadas = new Set(); // track IDs already selected in this exam
     for (let i = 0; i < cantidad; i++) {
-      if (candidatas[i]) seleccion.push({ pregunta: candidatas[i], bloque, dif });
-      else seleccion.push({ pregunta: null, bloque, dif, falta: true });
+      const disponible = candidatas.find(p => !usadas.has(p.id));
+      if (disponible) {
+        usadas.add(disponible.id);
+        seleccion.push({ pregunta: disponible, bloque, tipo, dif });
+      } else {
+        seleccion.push({ pregunta: null, bloque, tipo, dif, falta: true });
+      }
     }
   }
 
@@ -14654,8 +14666,19 @@ function _bancoMostrarExamen(seleccion, nivel, curso) {
 
   const preguntasHtml = seleccion.map((item, i) => {
     if (item.falta) {
-      return '<div class="card" style="padding:14px 16px;margin-bottom:10px;border:2px dashed var(--red);opacity:0.7">'
-        + '<span style="font-size:12px;color:var(--red)">⚠ No hay preguntas disponibles para ' + item.bloque + ' (' + (item.dif||'cualquier dificultad') + ')</span></div>';
+      return '<div class="card" style="padding:14px 16px;margin-bottom:10px;border:2px dashed var(--amber)">'
+        + '<div style="display:flex;align-items:center;gap:10px">'
+        + '<div style="font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:24px">'+(i+1)+'.</div>'
+        + '<div style="flex:1">'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">'
+        + '<span style="font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:8px;color:var(--text2)">'+item.bloque+'</span>'
+        + (item.dif ? '<span style="font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:8px;color:var(--text2)">'+item.dif+'</span>' : '')
+        + '</div>'
+        + '<div style="font-size:13px;color:var(--amber);font-weight:600">⚠ No hay suficientes preguntas con estos criterios</div>'
+        + '<div style="font-size:12px;color:var(--text3);margin-top:3px">Usa el botón 🔄 para sustituir por otra pregunta disponible</div>'
+        + '</div>'
+        + '<button class="btn btn-secondary btn-sm" onclick="_bancoSwapPregunta('+i+',\''+nivel+'\',\''+item.bloque+'\',\'__none__\')" title="Buscar pregunta">🔄</button>'
+        + '</div></div>';
     }
     const p = item.pregunta;
     const usos = p.historial?.length || 0;
@@ -14844,15 +14867,18 @@ async function _bancoExportarWord(nivel, curso) {
   const cards = document.querySelectorAll('[id^="be-p-"]');
   const b = getBanco();
   const preguntas = [];
+  const b2 = getBanco();
   cards.forEach((card, i) => {
-    const texto = card.querySelector('div[style*="font-size:13px;line-height"]')?.textContent || '';
-    const imgEl = card.querySelector('img[src^="data:"]');
-    const imagen = imgEl?.src || card.dataset.imagen || '';
-    const tags = card.querySelectorAll('span[style*="border-radius:10px"]');
-    const bloque = tags[0]?.textContent || '';
-    const tipo = tags[1]?.textContent || '';
-    const dif = tags[2]?.textContent || '';
-      preguntas.push({ num: i+1, texto, bloque, tipo, dif, imagen });
+    // Read from dataset (reliable) - stored when exam was built
+    const pregId = card.dataset.pregId;
+    const p2 = pregId ? b2.preguntas.find(x => x.id === pregId) : null;
+    if (p2) {
+      preguntas.push({ num: i+1, texto: p2.enunciado||'', bloque: p2.bloque||'', tipo: p2.tipo||'', dif: p2.dificultad||'', imagen: p2.imagen||'' });
+    } else {
+      // Falta card - read what we can
+      const bloque = card.dataset.bloque ? decodeURIComponent(card.dataset.bloque) : '';
+      preguntas.push({ num: i+1, texto: '[Sin pregunta asignada — bloque: '+bloque+']', bloque, tipo:'', dif:'', imagen:'' });
+    }
   });
 
   // Load docx library (shared with rúbricas export)
