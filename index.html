@@ -904,7 +904,7 @@
       </div>
       <div class="nav-section">Configuración</div>
       <div class="nav-item" id="nav-importar" onclick="navTo('importar')">
-        <span class="icon">📥</span><span>Importar</span>
+        <span class="icon">💾</span><span>Copia de seguridad</span>
       </div>
       <div class="nav-item" id="nav-archivo" onclick="navTo('archivo')">
         <span class="icon">🗄</span><span>Archivo</span>
@@ -1668,6 +1668,64 @@ function exportarExcelGrupo(grupoId) {
   XLSX.writeFile(wb, `notas_${grupo.nombre.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ ]/g,'_')}_${fecha}.xlsx`);
   document.getElementById('modal-exportar').classList.add('hidden');
 }
+
+function abrirImportarAlumnosGrupo(gid) {
+  window._importTargetGid = gid;
+  navTo('importar-alumnos');
+}
+
+function abrirImportarFotosGrupo(gid) {
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/jpeg,image/png,image/webp';
+  inp.multiple = true;
+  inp.onchange = onFotosCarpeta;
+  inp.click();
+}
+
+function renderImportarAlumnos() {
+  var gid = window._importTargetGid;
+  var g = gid ? APP.grupos.find(function(x){ return x.id===gid; }) : null;
+  var opts = APP.grupos.map(function(g2){
+    return '<option value="'+g2.id+'"'+(g2.id===gid?' selected':'')+'>'+ g2.nombre+'</option>';
+  }).join('');
+  var nom = g ? ' — '+g.nombre : '';
+  return [
+    '<div class="topbar">',
+    '<button class="hamburger-btn" onclick="abrirSidebar()">&#9776;</button>',
+    '<button class="btn btn-ghost btn-sm" onclick="navTo(&apos;alumnos&apos;)" style="margin-right:8px">← Volver</button>',
+    '<h2>Importar alumnos'+nom+'</h2></div>',
+    '<div class="page"><div class="card" style="padding:24px;margin-bottom:20px">',
+    '<h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Importar desde Excel / CSV (Plumier u otro)</h3>',
+    '<div class="drop-zone" id="drop-zone" onclick="document.getElementById(&apos;file-import&apos;).click()">',
+    '<div class="dz-icon">&#128196;</div>',
+    '<h4>Arrastra aquí el archivo o pulsa para seleccionar</h4>',
+    '<p>Excel (.xlsx, .xls) · CSV · Página guardada de Plumier (.htm, .html)</p>',
+    '</div>',
+    '<input type="file" id="file-import" accept=".xlsx,.xls,.csv,.htm,.html" style="display:none" onchange="onImportFile(event)">',
+    '<div id="import-config" class="hidden" style="margin-top:20px">',
+    '<div style="margin-bottom:16px;padding:16px;background:var(--amber-bg);border:2px solid var(--amber);border-radius:12px">',
+    '<div style="font-size:13px;font-weight:700;color:var(--amber);margin-bottom:10px">&#9888;&#65039; Elige bien el grupo antes de importar</div>',
+    '<label style="font-size:13px;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Importar alumnos en:</label>',
+    '<select id="import-grupo" style="width:100%;padding:10px 14px;font-size:15px;border:2px solid var(--amber);border-radius:8px;background:var(--surface);color:var(--text);outline:none">'+opts+'</select>',
+    '<div style="font-size:11px;color:var(--amber);margin-top:6px">Los alumnos se añadirán a este grupo.</div>',
+    '</div>',
+    '<div class="mapa-columnas" id="mapa-columnas-area"></div>',
+    '<div style="margin-top:8px;padding:10px 14px;background:var(--accent-bg);border-radius:8px;font-size:12px;color:var(--accent)"><strong>Vista previa:</strong> <span id="import-preview-count"></span> filas detectadas.</div>',
+    '<div style="margin-top:16px;display:flex;gap:10px">',
+    '<button class="btn btn-primary" onclick="ejecutarImportacion()">&#10003; Importar alumnos</button>',
+    '<button class="btn btn-secondary" onclick="document.getElementById(&apos;import-config&apos;).classList.add(&apos;hidden&apos;)">Cancelar</button>',
+    '</div></div>',
+    '<div id="import-result" class="hidden" style="margin-top:16px;padding:14px;background:var(--green-bg);border-radius:var(--radius);color:var(--green);font-weight:500"></div>',
+    '</div>',
+    '<div class="card" style="padding:24px;margin-top:0">',
+    '<h3 style="font-size:15px;font-weight:600;margin-bottom:8px">🎓 Importar desde Google Classroom</h3>',
+    '<p style="font-size:13px;color:var(--text2);margin-bottom:16px">Importa la lista de alumnos de un curso de Classroom. Si después importas el Excel de Plumier, los datos se combinarán por email sin duplicar.</p>',
+    '<button class="btn btn-secondary" onclick="abrirImportarAlumnosClassroom(window._importTargetGid)">🎓 Importar desde Classroom</button>',
+    '</div></div>'
+  ].join('');
+}
+
 function importarBackup(e) {
   const file = e.target.files[0]; if (!file) return;
   const r = new FileReader();
@@ -1855,6 +1913,7 @@ function renderPage(page) {
     case 'inicio': main.innerHTML = renderInicio(); break;
     case 'alumnos': main.innerHTML = renderAlumnos(); break;
     case 'importar': main.innerHTML = renderImportar(); break;
+    case 'importar-alumnos': main.innerHTML = renderImportarAlumnos(); break;
     case 'ayuda': main.innerHTML = renderAyuda(); break;
     case 'horario': main.innerHTML = renderHorario(); break;
     case 'calendario': main.innerHTML = renderCalendario(); break;
@@ -2125,9 +2184,7 @@ function renderInicio() {
       ${gruposHtml}
     </div>
 
-    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-secondary btn-sm" onclick="navTo('importar')">📥 Importar alumnos</button>
-      <button class="btn btn-secondary btn-sm" onclick="exportarDatos()">💾 Exportar backup</button>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">      <button class="btn btn-secondary btn-sm" onclick="exportarDatos()">💾 Exportar backup</button>
     </div>
   </div>`;
 }
@@ -2255,6 +2312,10 @@ function renderAlumnos() {
                   <span style="width:8px;height:8px;border-radius:50%;background:#c07800;display:inline-block"></span> 🎨 Color</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();toggleTutor('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#c09000;display:inline-block"></span> ${g.esTutor?'★ Quitar tutoría':'☆ Marcar como tutoría'}</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirImportarAlumnosGrupo('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#0369a1;display:inline-block"></span> 📥 Importar alumnos</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirImportarFotosGrupo('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#0369a1;display:inline-block"></span> 📸 Importar fotos</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();renombrarGrupo('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#2a5a9a;display:inline-block"></span> ✏ Renombrar grupo</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();duplicarGrupo('${g.id}')">
@@ -2269,7 +2330,7 @@ function renderAlumnos() {
         </div>
         <div id="grupo-body-${g.id}" ${exp?'':'class="hidden"'}>
           ${als.length === 0
-            ? `<div class="empty-state" style="padding:28px"><div class="es-icon">👤</div><h4>Sin alumnos en este grupo</h4></div>`
+            ? `<div class="empty-state" style="padding:28px"><div class="es-icon">👤</div><h4>Sin alumnos en este grupo</h4><button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="abrirImportarAlumnosGrupo('${g.id}')">📥 Importar alumnos</button></div>`
             : vistaAlumnos === 'miniaturas' ? renderVistaMiniaturas(g, als)
             : vistaAlumnos === 'plano'      ? renderVistaPlano(g, als)
             : vistaAlumnos === 'cuaderno'   ? renderVistaCuaderno(g, als)
@@ -5516,57 +5577,20 @@ let headerPreview = [];
 let grupoImportId = '';
 
 function renderImportar() {
-  return `
-  <div class="topbar"><h2>Importar alumnos</h2></div>
-  <div class="page">
-    <div class="card" style="padding:24px;margin-bottom:20px">
-      <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Importar desde Excel / CSV (Plumier u otro)</h3>
-      <div class="drop-zone" onclick="document.getElementById('file-import').click()" id="drop-zone">
-        <div class="dz-icon">📄</div>
-        <h4>Arrastra aquí el archivo o pulsa para seleccionar</h4>
-        <p>Excel (.xlsx, .xls) · CSV · Página guardada de Plumier (.htm, .html)</p>
-        <p style="margin-top:6px;font-size:12px;color:var(--text3)">Podrás elegir qué columnas importar y añadir campos extra como el NRE.</p>
-      </div>
-      <div id="import-config" class="hidden" style="margin-top:20px">
-        <div style="margin-bottom:16px;padding:16px;background:var(--amber-bg);border:2px solid var(--amber);border-radius:12px">
-          <div style="font-size:13px;font-weight:700;color:var(--amber);margin-bottom:10px">⚠️ Elige bien el grupo antes de importar</div>
-          <label style="font-size:13px;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Importar alumnos en:</label>
-          <select id="import-grupo" style="width:100%;padding:10px 14px;font-size:15px;font-weight:700;border:2px solid var(--amber);border-radius:8px;font-family:inherit;background:var(--surface);color:var(--text);outline:none">
-            ${APP.grupos.map(g=>`<option value="${g.id}">${g.nombre}</option>`).join('')}
-          </select>
-          <div style="font-size:11px;color:var(--amber);margin-top:6px">Los alumnos se añadirán a este grupo. Esta acción no se puede deshacer fácilmente.</div>
-        </div>
-        <div class="mapa-columnas" id="mapa-columnas-area"></div>
-        <div style="margin-top:8px;padding:10px 14px;background:var(--accent-bg);border-radius:8px;font-size:12px;color:var(--accent)">
-          <strong>Vista previa:</strong> <span id="import-preview-count"></span> filas detectadas.
-        </div>
-        <div style="margin-top:16px;display:flex;gap:10px">
-          <button class="btn btn-primary" onclick="ejecutarImportacion()">✓ Importar alumnos</button>
-          <button class="btn btn-secondary" onclick="document.getElementById('import-config').classList.add('hidden')">Cancelar</button>
-        </div>
-      </div>
-      <div id="import-result" class="hidden" style="margin-top:16px;padding:14px;background:var(--green-bg);border-radius:var(--radius);color:var(--green);font-weight:500"></div>
-    </div>
-    <div class="card" style="padding:20px;margin-bottom:20px">
-      <h3 style="font-size:15px;font-weight:600;margin-bottom:12px">📸 Importar fotos por carpeta (NRE)</h3>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:6px">Selecciona todas las fotos de una carpeta. Cada foto debe llamarse con el <strong>NRE del alumno</strong> (ej: <code style="background:var(--bg);padding:1px 5px;border-radius:4px">12345678.jpg</code>). La app buscará en todos los grupos y asignará la foto automáticamente.</p>
-      <p style="font-size:12px;color:var(--text3);margin-bottom:14px">Requiere que los alumnos tengan el campo NRE relleno (se importa desde Plumier).</p>
-      <div id="foto-import-result" class="hidden" style="margin-bottom:12px;padding:10px 14px;background:var(--green-bg);border-radius:8px;color:var(--green);font-size:13px;font-weight:500"></div>
-      <label class="btn btn-primary" style="cursor:pointer">
-        📁 Seleccionar fotos (múltiple)
-        <input type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="onFotosCarpeta(event)" style="display:none">
-      </label>
-      <p style="font-size:11px;color:var(--text3);margin-top:10px">En Android: mantén pulsado en la galería para seleccionar varias fotos. En Windows: Ctrl+A para seleccionar todas en la carpeta.</p>
-    </div>
-    <div class="card" style="padding:20px">
-      <h3 style="font-size:15px;font-weight:600;margin-bottom:12px">Importar backup de ProfeApp</h3>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Carga un archivo .json guardado previamente con el botón "Exportar". <strong>Sustituirá todos los datos actuales.</strong></p>
-      <label class="btn btn-secondary">
-        📂 Seleccionar backup .json
-        <input type="file" accept=".json" onchange="importarBackup(event)" style="display:none">
-      </label>
-    </div>
-  </div>`;
+  return [
+    '<div class="topbar"><button class="hamburger-btn" onclick="abrirSidebar()">&#9776;</button><h2>&#128190; Copia de seguridad</h2></div>',
+    '<div class="page">',
+    '<div class="card" style="padding:24px;margin-bottom:20px">',
+    '<h3 style="font-size:15px;font-weight:600;margin-bottom:8px">&#128228; Exportar datos</h3>',
+    '<p style="font-size:13px;color:var(--text2);margin-bottom:16px">Guarda una copia completa de todos tus datos.</p>',
+    '<button class="btn btn-secondary" onclick="exportarDatos()">&#128190; Exportar backup .json</button>',
+    '</div>',
+    '<div class="card" style="padding:24px">',
+    '<h3 style="font-size:15px;font-weight:600;margin-bottom:8px">&#128193; Restaurar backup</h3>',
+    '<p style="font-size:13px;color:var(--text2);margin-bottom:6px">Carga un archivo .json guardado anteriormente. <strong style="color:var(--red)">Sustituir&#225; todos los datos actuales.</strong></p>',
+    '<label class="btn btn-secondary" style="cursor:pointer;margin-top:12px">&#128193; Seleccionar backup .json<input type="file" accept=".json" onchange="importarBackup(event)" style="display:none"></label>',
+    '</div></div>'
+  ].join('');
 }
 
 function onImportFile(e) {
@@ -5713,11 +5737,22 @@ function ejecutarImportacion() {
     const email = columnasMapeadas.email>=0    ? String(row[columnasMapeadas.email]||'').trim()    : '';
     const nre   = columnasMapeadas.nre>=0      ? String(row[columnasMapeadas.nre]||'').trim()      : '';
 
-    // Comprobar duplicado
+    // Comprobar duplicado — si existe por email, actualizar campos vacíos (Classroom+Plumier merge)
     const dup = buscarDuplicado(nre, email, null);
     if (dup) {
-      duplicados.push(`${apellidos}, ${nombre} (${nre||email})`);
-      return; // saltar este alumno
+      // Si tiene email coincidente y le faltan campos, actualizarlos
+      const alumnoExistente = email ? APP.alumnos.find(a => a.email === email && a.grupoId === grupoId) : null;
+      if (alumnoExistente) {
+        if (!alumnoExistente.nre && nre) alumnoExistente.nre = nre;
+        if (!alumnoExistente.nombre && nombre) alumnoExistente.nombre = nombre;
+        if (!alumnoExistente.apellidos && apellidos) alumnoExistente.apellidos = apellidos;
+        if (!alumnoExistente.nLista && columnasMapeadas.nLista>=0) alumnoExistente.nLista = String(row[columnasMapeadas.nLista]||'').trim();
+        if (!alumnoExistente.telefono && columnasMapeadas.telefono>=0) alumnoExistente.telefono = String(row[columnasMapeadas.telefono]||'').trim();
+        count++; // cuenta como procesado
+      } else {
+        duplicados.push(`${apellidos}, ${nombre} (${nre||email})`);
+      }
+      return;
     }
 
     const extras = camposExtra
@@ -6573,6 +6608,7 @@ function renderEstructuraModal() {
   });
 
   html += `<button class="btn btn-secondary btn-sm" style="margin-top:4px" onclick="agregarInstGrupo()">+ Añadir instrumento</button>`;
+  html += `<button class="btn btn-secondary btn-sm" style="margin-top:4px;margin-left:8px" onclick="abrirImportarTareasClassroom('${grupoEstructuraId}')">🎓 Importar desde Classroom</button>`;
 
   // ── Sección pesos de evaluación final ─────────────────────────
   if (!g.pesosEval) g.pesosEval = { T1: 33, T2: 33, T3: 34 };
@@ -11598,12 +11634,338 @@ function inicializarTema() {
 // =====================
 const DRIVE_CLIENT_ID = '132802016070-vsoa0ae73b2nqq8bhvutb89l1g1ec0dk.apps.googleusercontent.com';
 const DRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.appdata';
+const CLASSROOM_SCOPES = [
+  'https://www.googleapis.com/auth/classroom.courses.readonly',
+  'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
+  'https://www.googleapis.com/auth/classroom.rosters.readonly'
+].join(' ');
+const ALL_SCOPES = DRIVE_SCOPE + ' ' + CLASSROOM_SCOPES;
 const DRIVE_FILE_NAME = 'profeapp_datos.json';
 
 let _driveToken      = null;   // access token actual
 let _driveFileId     = null;   // id del archivo en Drive
 let _driveSyncTimer  = null;   // timer de debounce
 let _driveInited     = false;
+
+
+// ── Google Classroom Integration ──────────────────────────────────────────
+
+async function classroomGetToken() {
+  if (!_driveToken) {
+    alert('Conecta primero con Google Drive/Classroom desde el botón ☁️.');
+    return null;
+  }
+  return _driveToken;
+}
+
+async function classroomApiGet(endpoint) {
+  const token = await classroomGetToken();
+  if (!token) return null;
+  const resp = await fetch('https://classroom.googleapis.com/v1/' + endpoint, {
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Error ' + resp.status);
+  }
+  return resp.json();
+}
+
+// Obtener lista de cursos del profesor
+async function classroomGetCursos() {
+  const data = await classroomApiGet('courses?teacherId=me&courseStates=ACTIVE&pageSize=20');
+  return data?.courses || [];
+}
+
+// Obtener alumnos de un curso
+async function classroomGetAlumnos(courseId) {
+  const data = await classroomApiGet('courses/' + courseId + '/students?pageSize=200');
+  return data?.students || [];
+}
+
+// Obtener tareas de un curso
+async function classroomGetTareas(courseId) {
+  const data = await classroomApiGet('courses/' + courseId + '/courseWork?pageSize=100&orderBy=dueDate');
+  return data?.courseWork || [];
+}
+
+// Obtener entregas (con notas) de una tarea
+async function classroomGetEntregas(courseId, courseWorkId) {
+  const data = await classroomApiGet(
+    'courses/' + courseId + '/courseWork/' + courseWorkId + '/studentSubmissions?pageSize=200'
+  );
+  return data?.studentSubmissions || [];
+}
+
+// ── Modal: Importar alumnos desde Classroom ───────────────────────────────
+async function abrirImportarAlumnosClassroom(gid) {
+  mostrarToast('Cargando cursos de Classroom...');
+  let cursos;
+  try {
+    cursos = await classroomGetCursos();
+  } catch(e) {
+    alert('Error al conectar con Classroom: ' + e.message + '\n\nAsegúrate de haber conectado Google Drive con los permisos de Classroom.');
+    return;
+  }
+  if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
+
+  const opcs = cursos.map((cur, i) =>
+    '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">'
+    + '<input type="radio" name="cl-curso" value="' + cur.id + '"' + (i===0?' checked':'') + '>'
+    + '<span style="font-size:13px"><strong>' + cur.name + '</strong>'
+    + (cur.section ? ' · ' + cur.section : '') + '</span></label>'
+  ).join('');
+
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:440px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">🎓 Importar desde Classroom</h3>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Selecciona el curso de Classroom que corresponde a este grupo:</p>'
+    + '<div style="margin-bottom:16px">' + opcs + '</div>'
+    + '<p style="font-size:11px;color:var(--text3);margin-bottom:16px">ℹ️ Se importarán nombre, apellidos y email. Si después importas el Excel de Plumier, los alumnos se actualizarán por email sin duplicar.</p>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button id="cl-imp-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="cl-imp-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Importar alumnos</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  document.getElementById('cl-imp-cancel').onclick = () => div.remove();
+  document.getElementById('cl-imp-ok').onclick = async () => {
+    const cursoId = div.querySelector('input[name=cl-curso]:checked')?.value;
+    if (!cursoId) return;
+    div.remove();
+    await _ejecutarImportarAlumnosClassroom(gid, cursoId);
+  };
+}
+
+async function _ejecutarImportarAlumnosClassroom(gid, cursoId) {
+  mostrarToast('Cargando alumnos del curso...');
+  let estudiantes;
+  try {
+    estudiantes = await classroomGetAlumnos(cursoId);
+  } catch(e) {
+    alert('Error al obtener alumnos: ' + e.message);
+    return;
+  }
+  if (!estudiantes.length) { alert('No se encontraron alumnos en ese curso.'); return; }
+
+  const g = APP.grupos.find(x => x.id === gid);
+  if (!g) return;
+  if (!APP.alumnos) APP.alumnos = [];
+
+  let nuevos = 0, actualizados = 0;
+  estudiantes.forEach((est, idx) => {
+    const prof = est.profile;
+    const email = prof?.emailAddress || '';
+    const nombre = prof?.name?.givenName || '';
+    const apellidos = prof?.name?.familyName || '';
+
+    // Check if already exists by email
+    const existing = email ? APP.alumnos.find(a => a.email === email && a.grupoId === gid) : null;
+    if (existing) {
+      // Update missing fields
+      if (!existing.nombre && nombre) existing.nombre = nombre;
+      if (!existing.apellidos && apellidos) existing.apellidos = apellidos;
+      actualizados++;
+    } else {
+      APP.alumnos.push({
+        id: uid(), grupoId: gid,
+        nombre, apellidos, email,
+        nLista: (APP.alumnos.filter(a => a.grupoId === gid).length + 1),
+        camposExtra: [], observaciones: [], reuniones: []
+      });
+      nuevos++;
+    }
+  });
+
+  reordenarGrupo(gid);
+  guardarDatos();
+  mostrarToast('✓ ' + nuevos + ' alumno' + (nuevos!==1?'s':'') + ' importado' + (nuevos!==1?'s':'')
+    + (actualizados ? ' · ' + actualizados + ' actualizado' + (actualizados!==1?'s':'') : ''));
+  renderPage();
+}
+
+// ── Modal: Importar tareas desde Classroom ────────────────────────────────
+async function abrirImportarTareasClassroom(gid) {
+  mostrarToast('Cargando cursos de Classroom...');
+  let cursos;
+  try {
+    cursos = await classroomGetCursos();
+  } catch(e) {
+    alert('Error al conectar con Classroom: ' + e.message);
+    return;
+  }
+  if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
+
+  const g = APP.grupos.find(x => x.id === gid);
+  const trim = 'T1'; // default, user will pick
+  const insts = g?.estructura?.[trim] || [];
+
+  const cursoOpts = cursos.map((cur, i) =>
+    '<option value="' + cur.id + '">' + cur.name + (cur.section ? ' · ' + cur.section : '') + '</option>'
+  ).join('');
+
+  const instOpts = insts.map((inst, i) =>
+    '<option value="' + i + '">' + inst.nombre + '</option>'
+  ).join('');
+
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
+    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:14px">📚 Importar tareas desde Classroom</h3>'
+    + '<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">'
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Curso de Classroom</label>'
+    + '<select id="cl-t-curso" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">' + cursoOpts + '</select></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Evaluación</label>'
+    + '<select id="cl-t-trim" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'
+    + '<option value="T1">1ª Evaluación</option><option value="T2">2ª Evaluación</option><option value="T3">3ª Evaluación</option>'
+    + '</select></div>'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Instrumento</label>'
+    + '<select id="cl-t-inst" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">' + instOpts + '</select></div>'
+    + '</div>'
+    + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">'
+    + '<input type="checkbox" id="cl-t-notas"> Importar también las calificaciones</label>'
+    + '</div>'
+    + '<button id="cl-t-cargar" style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-size:13px;margin-bottom:14px">🔄 Cargar tareas del curso</button>'
+    + '<div id="cl-t-lista" style="display:none">'
+    + '<div style="display:flex;gap:8px;margin-bottom:8px">'
+    + '<button onclick="document.querySelectorAll(\'#cl-t-lista input[type=checkbox]\').forEach(cb=>cb.checked=true)" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);cursor:pointer">☑ Todos</button>'
+    + '<button onclick="document.querySelectorAll(\'#cl-t-lista input[type=checkbox]\').forEach(cb=>cb.checked=false)" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);cursor:pointer">☐ Ninguno</button>'
+    + '</div>'
+    + '<div id="cl-t-items" style="max-height:200px;overflow-y:auto;border:1px solid var(--border2);border-radius:8px;padding:8px"></div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+    + '<button id="cl-t-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="cl-t-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600" disabled>Importar seleccionadas</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+
+  let tareasCache = [];
+
+  document.getElementById('cl-t-cancel').onclick = () => div.remove();
+  document.getElementById('cl-t-cargar').onclick = async () => {
+    const cursoId = document.getElementById('cl-t-curso').value;
+    document.getElementById('cl-t-cargar').textContent = '⏳ Cargando...';
+    try {
+      tareasCache = await classroomGetTareas(cursoId);
+    } catch(e) {
+      alert('Error: ' + e.message);
+      document.getElementById('cl-t-cargar').textContent = '🔄 Cargar tareas del curso';
+      return;
+    }
+    document.getElementById('cl-t-cargar').textContent = '🔄 Cargar tareas del curso';
+    if (!tareasCache.length) { alert('No se encontraron tareas en ese curso.'); return; }
+
+    const items = tareasCache.map((t, i) => {
+      const fecha = t.dueDate ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0') : '';
+      return '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer">'
+        + '<input type="checkbox" data-idx="' + i + '" checked>'
+        + '<span><strong>' + t.title + '</strong>' + (fecha ? ' <span style="color:var(--text3)">· ' + fecha + '</span>' : '') + '</span></label>';
+    }).join('');
+
+    document.getElementById('cl-t-items').innerHTML = items;
+    document.getElementById('cl-t-lista').style.display = '';
+    document.getElementById('cl-t-ok').disabled = false;
+  };
+
+  // Update inst options when trim changes
+  document.getElementById('cl-t-trim').onchange = function() {
+    const t = this.value;
+    const insts2 = g?.estructura?.[t] || [];
+    document.getElementById('cl-t-inst').innerHTML = insts2.map((inst,i) =>
+      '<option value="' + i + '">' + inst.nombre + '</option>'
+    ).join('');
+  };
+
+  document.getElementById('cl-t-ok').onclick = async () => {
+    const selIdx = Array.from(div.querySelectorAll('#cl-t-lista input[type=checkbox]:checked'))
+      .map(cb => parseInt(cb.dataset.idx));
+    if (!selIdx.length) { alert('Selecciona al menos una tarea.'); return; }
+
+    const trimSel = document.getElementById('cl-t-trim').value;
+    const instIdx = parseInt(document.getElementById('cl-t-inst').value);
+    const conNotas = document.getElementById('cl-t-notas').checked;
+    const cursoId = document.getElementById('cl-t-curso').value;
+
+    div.remove();
+    await _ejecutarImportarTareasClassroom(gid, cursoId, tareasCache, selIdx, trimSel, instIdx, conNotas);
+  };
+}
+
+async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, trim, instIdx, conNotas) {
+  const g = APP.grupos.find(x => x.id === gid); if (!g) return;
+  if (!g.estructura) g.estructura = {};
+  if (!g.estructura[trim]) g.estructura[trim] = [];
+  const insts = g.estructura[trim];
+  const inst = insts[instIdx]; if (!inst) { alert('Instrumento no encontrado.'); return; }
+
+  const tareasSelec = selIdx.map(i => tareas[i]);
+  let duplicadas = 0, añadidas = 0;
+
+  // Check for duplicates
+  tareasSelec.forEach(t => {
+    if (inst.items.some(it => it.nombre === t.title)) {
+      duplicadas++;
+    }
+  });
+
+  if (duplicadas > 0) {
+    if (!confirm(duplicadas + ' tarea' + (duplicadas!==1?'s':'') + ' ya existe' + (duplicadas!==1?'n':'') + ' como apartado. ¿Importar solo las nuevas?')) return;
+  }
+
+  // Add new items
+  tareasSelec.forEach(t => {
+    if (inst.items.some(it => it.nombre === t.title)) return; // skip duplicate
+    const fecha = t.dueDate
+      ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0')
+      : '';
+    inst.items.push({ nombre: t.title, peso: 0, fecha, _classroomId: t.id });
+    añadidas++;
+  });
+
+  // Recalculate weights
+  if (inst.mediaAritmetica !== false) {
+    const n = inst.items.length;
+    inst.items.forEach((it, j) => {
+      it.peso = Math.round(100 * (j+1) / n) - Math.round(100 * j / n);
+    });
+  } else {
+    mostrarToast('⚠ Instrumento en modo ponderado — revisa los % en Notas de clase.');
+  }
+
+  // Import grades if requested
+  if (conNotas && añadidas > 0) {
+    mostrarToast('Importando calificaciones...');
+    for (const t of tareasSelec) {
+      if (inst.items.findIndex(it => it._classroomId === t.id) < 0) continue; // was duplicate
+      const jIdx = inst.items.findIndex(it => it._classroomId === t.id);
+      if (jIdx < 0) continue;
+      try {
+        const entregas = await classroomGetEntregas(cursoId, t.id);
+        const als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
+        entregas.forEach(sub => {
+          if (sub.assignedGrade == null) return;
+          // Match by email
+          const email = sub.userId; // in Classroom API, userId is the Google ID
+          // Try to find alumno — we stored email during import
+          const alumno = als.find(a => a._classroomUserId === sub.userId || a.email === sub.userProfile?.emailAddress);
+          if (!alumno) return;
+          if (!alumno.notas) alumno.notas = {};
+          if (!alumno.notas[trim]) alumno.notas[trim] = {};
+          if (!alumno.notas[trim][instIdx]) alumno.notas[trim][instIdx] = {};
+          alumno.notas[trim][instIdx][jIdx] = sub.assignedGrade;
+        });
+      } catch(e) {
+        console.warn('Error importando notas de', t.title, e);
+      }
+    }
+  }
+
+  guardarDatos();
+  mostrarToast('✓ ' + añadidas + ' tarea' + (añadidas!==1?'s':'') + ' importada' + (añadidas!==1?'s':'')
+    + (duplicadas ? ' · ' + duplicadas + ' omitida' + (duplicadas!==1?'s':'') + ' (ya existía' + (duplicadas!==1?'n':'') + ')' : ''));
+  renderPage();
+}
 
 // ── Estado visual ─────────────────────────────────────────────
 function driveSetStatus(estado) {
@@ -11665,7 +12027,7 @@ function driveConectar() {
 function driveIniciarAuth() {
   const client = google.accounts.oauth2.initTokenClient({
     client_id: DRIVE_CLIENT_ID,
-    scope: DRIVE_SCOPE,
+    scope: ALL_SCOPES,
     callback: async (resp) => {
       if (resp.error) { driveSetStatus('error'); return; }
       _driveToken = resp.access_token;
