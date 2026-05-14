@@ -903,7 +903,7 @@
         <span class="icon">📋</span><span>Rúbricas</span>
       </div>
       <div class="nav-item" id="nav-banco" onclick="navTo('banco')">
-        <span class="icon">🗂</span><span>Banco preguntas</span>
+        <span class="icon">📝</span><span>Banco preguntas</span>
       </div>
       <div class="nav-section">Configuración</div>
       <div class="nav-item" id="nav-importar" onclick="navTo('importar')">
@@ -14909,7 +14909,8 @@ function _bancoMostrarExamen(seleccion, nivel, curso) {
     + '<div id="be-resultado-preguntas">' + preguntasHtml + '</div>'
     + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
     + '<button onclick="document.getElementById(\'banco-resultado-modal\').remove()" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
-    + '<button onclick="_bancoExportarWord(\''+nivel+'\',\''+curso+'\')" style="padding:8px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-size:13px">📄 Exportar Word</button>'
+    + '<button onclick="_bancoExportarWord(\\\'\'+nivel+\'\\\',\\\'\'+curso+\'\\\')" style="padding:8px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-size:13px">📄 HTML</button>'
+    + '<button onclick="_bancoExportarDocx(\\\'\'+nivel+\'\\\',\\\'\'+curso+\'\\\')" style="padding:8px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-size:13px">📝 Word</button>'
     + '<button onclick="_bancoConfirmarExamen(\''+curso+'\')" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600" onclick="_bancoConfirmarExamen()">✓ Confirmar y registrar uso</button>'
     + '</div></div>';
   window._bancoExamenCurso = curso;
@@ -14921,8 +14922,9 @@ function _bancoSwapPregunta(cardIdx, nivel, bloqueActual, excluirId) {
   const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
   window._swapCtx = { cardIdx: parseInt(cardIdx), nivel, excluirId };
 
-  // Build filter options for this nivel
-  const bloques = [...new Set(b.preguntas.filter(p => p.nivel === nivel && p.id !== excluirId).map(p => p.bloque))].sort();
+  // Build filter options — nivel not restricted so teacher can pick from any level
+  const nivelOpts = '<option value="">Todos los niveles</option>' + b.niveles.map(n => '<option value="'+n+'"'+(n===nivel?' selected':'')+'>'+n+'</option>').join('');
+  const bloques = [...new Set(b.preguntas.filter(p => p.id !== excluirId).map(p => p.bloque))].sort();
   const bloqueOpts = '<option value="">Todos los bloques</option>' + bloques.map(bl => '<option value="'+bl+'"'+(bl===bloqueActual?' selected':'')+'>'+bl+'</option>').join('');
   const difs = b.dificultades?.length ? b.dificultades : ['Fácil','Media','Difícil'];
   const difOpts = '<option value="">Todas las dificultades</option>' + difs.map(d => '<option value="'+d+'">'+d+'</option>').join('');
@@ -14938,6 +14940,7 @@ function _bancoSwapPregunta(cardIdx, nivel, bloqueActual, excluirId) {
     + '</div>'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
     + '<input id="swap-buscar" type="search" placeholder="🔍 Buscar..." oninput="_swapRenderLista()" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
+    + '<select id="swap-nivel" onchange="_swapUpdateBloques();_swapRenderLista()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+nivelOpts+'</select>'
     + '<select id="swap-bloque" onchange="_swapRenderLista()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+bloqueOpts+'</select>'
     + '<select id="swap-tipo" onchange="_swapRenderLista()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+tipoOpts+'</select>'
     + '<select id="swap-dif" onchange="_swapRenderLista()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+difOpts+'</select>'
@@ -14959,13 +14962,14 @@ function _swapRenderLista() {
   const tipo   = document.getElementById('swap-tipo')?.value   || '';
   const dif    = document.getElementById('swap-dif')?.value    || '';
 
+  const nivelSel = document.getElementById('swap-nivel')?.value || '';
   const candidatas = b.preguntas.filter(p =>
-    p.nivel === nivel &&
+    (!nivelSel || p.nivel === nivelSel) &&
     p.id !== excluirId &&
     (!bloque || p.bloque === bloque) &&
     (!tipo   || p.tipo   === tipo)   &&
     (!dif    || p.dificultad === dif) &&
-    (!buscar || p.enunciado.toLowerCase().includes(buscar) || p.bloque.toLowerCase().includes(buscar))
+    (!buscar || p.enunciado.toLowerCase().includes(buscar) || p.bloque.toLowerCase().includes(buscar) || p.nivel.toLowerCase().includes(buscar))
   ).sort((a, b) => (a.historial?.length||0) - (b.historial?.length||0));
 
   const lista = document.getElementById('swap-lista');
@@ -14997,6 +15001,19 @@ function _swapRenderLista() {
   }).join('');
 }
 
+function _swapUpdateBloques() {
+  const b = getBanco();
+  const nivel = document.getElementById('swap-nivel')?.value || '';
+  const bloques = [...new Set(b.preguntas
+    .filter(p => !nivel || p.nivel === nivel)
+    .map(p => p.bloque))].sort();
+  const sel = document.getElementById('swap-bloque');
+  if (sel) {
+    sel.innerHTML = '<option value="">Todos los bloques</option>'
+      + bloques.map(bl => '<option value="'+bl+'">'+bl+'</option>').join('');
+  }
+}
+
 function _swapElegir(newId) {
   const b = getBanco();
   const ctx = window._swapCtx || {};
@@ -15006,37 +15023,92 @@ function _swapElegir(newId) {
   if (!newP) { alert('Pregunta no encontrada'); return; }
   document.getElementById('swap-modal')?.remove();
 
-  const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
-  const card = document.getElementById('be-p-'+cardIdx);
-  if (!card) {
-    // Modal may have been closed - just close swap
-    return;
-  }
+  const card = document.getElementById('be-p-' + cardIdx);
+  if (!card) return;
 
-  const usos = newP.historial?.length || 0;
+  const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
   const usoCounts = {};
-  (newP.historial||[]).forEach(h => { const curso = typeof h==='object'?h.curso:h; usoCounts[curso]=(usoCounts[curso]||0)+1; });
-  const usoStr = Object.entries(usoCounts).sort((a,b)=>b[0].localeCompare(a[0])).map(([c,n])=>c+(n>1?' ×'+n:'')).join(', ');
-  const alts = b.preguntas.filter(x => x.nivel === nivel && x.id !== newId);
+  (newP.historial||[]).forEach(h => {
+    const curso = typeof h === 'object' ? h.curso : h;
+    usoCounts[curso] = (usoCounts[curso]||0) + 1;
+  });
+  const usoStr = Object.entries(usoCounts).sort((a,b) => b[0].localeCompare(a[0]))
+    .map(([c,n]) => c + (n > 1 ? ' ×'+n : '')).join(', ');
 
   card.dataset.pregId = newId;
   card.dataset.imagen = newP.imagen || '';
-  card.innerHTML = '<div style="display:flex;align-items:flex-start;gap:10px">'
-    + '<div style="font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:24px">'+(cardIdx+1)+'.</div>'
-    + '<div style="flex:1">'
-    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
-    + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+newP.bloque+'</span>'
-    + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+newP.tipo+'</span>'
-    + '<span style="font-size:10px;font-weight:600;color:#fff;background:'+(DIF_COLOR[newP.dificultad]||'#888')+';padding:2px 8px;border-radius:10px">'+newP.dificultad+'</span>'
-    + (usoStr ? '<span style="font-size:10px;color:var(--text3)">Usado: '+usoStr+'</span>' : '<span style="font-size:10px;color:var(--green)">✓ Sin usar</span>')
-    + '</div>'
-    + '<div style="font-size:13px;line-height:1.6">'+newP.enunciado+'</div>'
-    + (newP.imagen ? '<img src="'+newP.imagen+'" style="max-height:200px;max-width:100%;border-radius:8px;border:1px solid var(--border2);object-fit:contain;margin-top:8px">' : '')
-    + '</div>'
-    + '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
-    + (alts.length ? '<button class="btn btn-secondary btn-sm" onclick="_bancoSwapPregunta('+cardIdx+',\''+nivel+'\',\''+newP.bloque+'\',\''+newId+'\')" title="Cambiar por otra">🔄</button>' : '')
-    + '</div></div>';
+
+  // Build swap button using data attributes to avoid quote escaping issues
+  const swapBtn = document.createElement('button');
+  swapBtn.className = 'btn btn-secondary btn-sm';
+  swapBtn.title = 'Cambiar por otra';
+  swapBtn.textContent = '🔄';
+  swapBtn.dataset.cardIdx = cardIdx;
+  swapBtn.dataset.nivel = nivel;
+  swapBtn.dataset.bloque = newP.bloque;
+  swapBtn.dataset.excluir = newId;
+  swapBtn.onclick = function() {
+    _bancoSwapPregunta(
+      parseInt(this.dataset.cardIdx),
+      this.dataset.nivel,
+      this.dataset.bloque,
+      this.dataset.excluir
+    );
+  };
+
+  card.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:flex-start;gap:10px';
+
+  const numEl = document.createElement('div');
+  numEl.style.cssText = 'font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:24px';
+  numEl.textContent = (cardIdx + 1) + '.';
+
+  const body = document.createElement('div');
+  body.style.cssText = 'flex:1';
+
+  const tags = document.createElement('div');
+  tags.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px';
+  const mkTag = (txt, bg, color) => {
+    const s = document.createElement('span');
+    s.style.cssText = 'font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+bg+';color:'+color;
+    s.textContent = txt;
+    return s;
+  };
+  tags.appendChild(mkTag(newP.nivel, 'var(--accent-bg)', 'var(--accent)'));
+  tags.appendChild(mkTag(newP.bloque, 'var(--surface2)', 'var(--text2)'));
+  tags.appendChild(mkTag(newP.tipo, 'var(--surface2)', 'var(--text2)'));
+  tags.appendChild(mkTag(newP.dificultad, DIF_COLOR[newP.dificultad]||'#888', '#fff'));
+  const usoEl = document.createElement('span');
+  usoEl.style.cssText = 'font-size:10px;color:' + (usoStr ? 'var(--text3)' : 'var(--green)');
+  usoEl.textContent = usoStr ? 'Usado: ' + usoStr : '✓ Sin usar';
+  tags.appendChild(usoEl);
+
+  const enuncEl = document.createElement('div');
+  enuncEl.style.cssText = 'font-size:13px;line-height:1.6';
+  enuncEl.textContent = newP.enunciado;
+
+  body.appendChild(tags);
+  body.appendChild(enuncEl);
+
+  if (newP.imagen) {
+    const img = document.createElement('img');
+    img.src = newP.imagen;
+    img.style.cssText = 'max-height:200px;max-width:100%;border-radius:8px;border:1px solid var(--border2);object-fit:contain;margin-top:8px';
+    body.appendChild(img);
+  }
+
+  const btnWrap = document.createElement('div');
+  btnWrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;flex-shrink:0';
+  btnWrap.appendChild(swapBtn);
+
+  wrap.appendChild(numEl);
+  wrap.appendChild(body);
+  wrap.appendChild(btnWrap);
+  card.appendChild(wrap);
 }
+
+
 
 
 function _bancoConfirmarExamen() {
@@ -15058,6 +15130,161 @@ function _bancoConfirmarExamen() {
   document.getElementById('banco-resultado-modal')?.remove();
   mostrarToast('✓ Uso registrado en ' + registradas + ' pregunta' + (registradas!==1?'s':''));
 }
+
+async function _bancoExportarDocx(nivel, curso) {
+  const cards = document.querySelectorAll('[id^="be-p-"]');
+  const b2 = getBanco();
+  const centro = APP.config.nombreCentro || 'I.E.S. _______________';
+  const logo = APP.config.logocentro || null;
+  const preguntas = [];
+
+  cards.forEach((card, i) => {
+    const pregId = card.dataset.pregId;
+    const p2 = pregId ? b2.preguntas.find(x => x.id === pregId) : null;
+    if (p2) preguntas.push({ num: i+1, texto: p2.enunciado||'', imagen: p2.imagen||'' });
+    else preguntas.push({ num: i+1, texto: '[Sin pregunta asignada]', imagen: '' });
+  });
+
+  // Load docx
+  if (!window.docx) {
+    mostrarToast('Cargando librería Word...');
+    try {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/docx@7.8.2/build/index.umd.js';
+        s.crossOrigin = 'anonymous';
+        s.onload = res;
+        s.onerror = () => rej(new Error('Sin conexión — usa "Exportar HTML" y ábrelo con Word'));
+        document.head.appendChild(s);
+      });
+    } catch(e) { alert(e.message); return; }
+  }
+
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+          WidthType, BorderStyle, AlignmentType, ImageRun, HeadingLevel,
+          VerticalAlign } = window.docx;
+
+  const CM = (n) => n * 360000; // EMUs per cm
+  const PT = (n) => n * 20;     // half-points
+
+  const children = [];
+
+  // Header row: logo | centro | nota box
+  const logoCell = logo
+    ? new TableCell({
+        width: { size: 20, type: WidthType.PERCENTAGE },
+        borders: { top:{style:BorderStyle.NONE}, bottom:{style:BorderStyle.NONE}, left:{style:BorderStyle.NONE}, right:{style:BorderStyle.NONE} },
+        children: [new Paragraph({ children: [
+          new ImageRun({ data: await fetch(logo).then(r=>r.arrayBuffer()), transformation:{width:90,height:60}, type:'png' })
+        ]})]
+      })
+    : new TableCell({
+        width: { size: 20, type: WidthType.PERCENTAGE },
+        borders: { top:{style:BorderStyle.NONE}, bottom:{style:BorderStyle.NONE}, left:{style:BorderStyle.NONE}, right:{style:BorderStyle.NONE} },
+        children: [new Paragraph('')]
+      });
+
+  const centroCell = new TableCell({
+    width: { size: 60, type: WidthType.PERCENTAGE },
+    borders: { top:{style:BorderStyle.NONE}, bottom:{style:BorderStyle.NONE}, left:{style:BorderStyle.NONE}, right:{style:BorderStyle.NONE} },
+    verticalAlign: VerticalAlign.BOTTOM,
+    children: [new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: centro, bold: true, size: PT(14), font: 'Arial' })]
+    })]
+  });
+
+  const notaCell = new TableCell({
+    width: { size: 20, type: WidthType.PERCENTAGE },
+    borders: { top:{style:BorderStyle.SINGLE,size:12}, bottom:{style:BorderStyle.SINGLE,size:12}, left:{style:BorderStyle.SINGLE,size:12}, right:{style:BorderStyle.SINGLE,size:12} },
+    children: [new Paragraph({ children: [new TextRun({ text: '\n\n\n', size: PT(28) })] })]
+  });
+
+  children.push(new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: { top:{style:BorderStyle.NONE}, bottom:{style:BorderStyle.NONE}, left:{style:BorderStyle.NONE}, right:{style:BorderStyle.NONE}, insideH:{style:BorderStyle.NONE}, insideV:{style:BorderStyle.NONE} },
+    rows: [new TableRow({ children: [logoCell, centroCell, notaCell] })]
+  }));
+  children.push(new Paragraph(''));
+
+  // Alumno table
+  children.push(new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({ children: [
+        new TableCell({ width:{size:75,type:WidthType.PERCENTAGE}, children: [
+          new Paragraph({ children: [
+            new TextRun({ text: 'Nombre: ', bold:true, font:'Arial', size:PT(11) }),
+            new TextRun({ text: '_'.repeat(40) + '   ', font:'Arial', size:PT(11) }),
+            new TextRun({ text: nivel, bold:true, font:'Arial', size:PT(11) }),
+          ]})
+        ]}),
+        new TableCell({ width:{size:25,type:WidthType.PERCENTAGE}, children: [
+          new Paragraph({ children: [
+            new TextRun({ text: 'Fecha: ', bold:true, font:'Arial', size:PT(11) }),
+            new TextRun({ text: '_'.repeat(20), font:'Arial', size:PT(11) }),
+          ]})
+        ]})
+      ]}),
+    ]
+  }));
+  children.push(new Paragraph(''));
+
+  // Questions
+  for (const p of preguntas) {
+    const lineas = (p.texto||'').split('\n');
+    const primera = lineas[0] || '';
+    const resto = lineas.slice(1);
+
+    // First line with bold number
+    children.push(new Paragraph({
+      spacing: { before: 200 },
+      children: [
+        new TextRun({ text: p.num + '.  ', bold: true, font: 'Arial', size: PT(11) }),
+        new TextRun({ text: primera, font: 'Arial', size: PT(11) }),
+      ]
+    }));
+
+    // Remaining lines indented
+    for (const linea of resto) {
+      children.push(new Paragraph({
+        indent: { left: 360 },
+        children: [new TextRun({ text: linea, font: 'Arial', size: PT(11) })]
+      }));
+    }
+
+    // Image if any
+    if (p.imagen) {
+      try {
+        const imgData = await fetch(p.imagen).then(r => r.arrayBuffer());
+        const mimeMatch = p.imagen.match(/data:image\/(\w+);/);
+        const imgType = mimeMatch ? mimeMatch[1] : 'png';
+        children.push(new Paragraph({
+          indent: { left: 360 },
+          children: [new ImageRun({ data: imgData, transformation: { width: 400, height: 250 }, type: imgType })]
+        }));
+      } catch(e) { console.warn('Image error:', e); }
+    }
+  }
+
+  const doc = new Document({
+    styles: { default: { document: { run: { font: 'Arial', size: PT(11) } } } },
+    sections: [{
+      properties: { page: { size: { width: CM(21), height: CM(29.7) }, margin: { top: CM(2), right: CM(2), bottom: CM(2), left: CM(2) } } },
+      children
+    }]
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'examen_' + nivel.replace(/\s/g,'_') + '.docx';
+  a.click();
+  URL.revokeObjectURL(url);
+  mostrarToast('✓ Exportado como Word (.docx)');
+}
+
 
 function _ajCentroLogo(input) {
   const file = input.files[0]; if (!file) return;
@@ -15093,82 +15320,63 @@ function _bancoExportarWord(nivel, curso) {
 
   const pregHtml = preguntas.map(p => {
     const imgHtml = p.imagen
-      ? `<div style="margin:10px 0 6px"><img src="${p.imagen}" style="max-width:100%;max-height:280px;object-fit:contain;display:block"></div>`
+      ? `<img src="${p.imagen}" style="max-width:100%;max-height:280px;object-fit:contain;display:block;margin:10px 0 10px 22px">`
       : '';
-    const lines = (p.texto||'').split('\n')
-      .map(l => l.trim() ? `<p style="margin:3px 0">${l}</p>` : `<p style="margin:1px 0">&nbsp;</p>`)
-      .join('');
-    return `<div style="margin-bottom:28px;page-break-inside:avoid;display:flex;gap:10px;align-items:flex-start">
-      <span style="font-size:14px;font-weight:700;color:#1f3864;flex-shrink:0;min-width:22px">${p.num}.</span>
-      <div style="flex:1">
-        <div style="font-size:13px;line-height:1.75;color:#111">${lines}</div>
-        ${p.imagen ? imgHtml : ''}
+    const lineas = (p.texto||'').split('\n');
+    const primera = lineas[0] || '';
+    const resto = lineas.slice(1).map(l =>
+      l.trim()
+        ? `<div style="margin:2px 0 2px 22px;font-size:13px;line-height:1.7">${l}</div>`
+        : `<div style="margin:1px 0">&nbsp;</div>`
+    ).join('');
+    return `<div style="margin-bottom:22px;page-break-inside:avoid">
+      <div style="font-size:13px;line-height:1.7;color:#111">
+        <span style="font-weight:700;color:#111;margin-right:4px">${p.num}.</span>${primera}
       </div>
+      ${resto}${imgHtml}
     </div>`;
   }).join('');
 
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
-<title>Examen ${nivel} ${curso}</title>
+<title>Examen ${nivel}</title>
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; font-size: 13px; color: #111;
-         max-width: 820px; margin: 0 auto; padding: 24px; }
-  .tip { background:#eff6ff; border:1px solid #93c5fd; border-radius:6px;
-         padding:10px 14px; margin-bottom:20px; font-size:12px; color:#1d4ed8; }
-  .header-table { width:100%; border-collapse:collapse; margin-bottom:20px; }
-  .header-table td { padding:6px 8px; vertical-align:middle; }
-  .nota-box { border:2px solid #111; width:90px; height:70px; float:right;
-              display:flex; align-items:center; justify-content:center;
-              font-size:11px; color:#888; flex-direction:column; gap:4px; }
-  .line { border-bottom:1px solid #555; display:inline-block; }
-  @media print {
-    .tip { display:none; }
-    body { max-width:none; padding:12mm; font-size:12px; }
-    @page { margin:12mm; }
-  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#111;max-width:820px;margin:0 auto;padding:24px}
+  table{border-collapse:collapse;width:100%}
+  td{padding:7px 10px;font-size:12px}
+  @media print{body{max-width:none;padding:12mm}@page{margin:12mm}}
 </style></head><body>
 
-<div class="tip">💡 Imprime con <strong>Ctrl+P</strong> · Elige "Guardar como PDF" para exportar en PDF</div>
-
 <!-- CABECERA -->
-<table class="header-table">
+<table style="margin-bottom:14px">
   <tr>
-    <td style="width:140px;vertical-align:top">
-      ${logoHtml}
+    <td style="vertical-align:top;width:140px;padding:0 12px 0 0">${logoHtml}</td>
+    <td style="vertical-align:bottom;text-align:center;padding-bottom:4px">
+      <div style="font-size:18px;font-weight:700">${centro}</div>
     </td>
-    <td style="vertical-align:top">
-      <div style="font-size:16px;font-weight:700;color:#1f3864;margin-bottom:8px">${centro}</div>
-      <table style="border-collapse:collapse;width:100%">
-        <tr>
-          <td style="padding:5px 6px;border:1px solid #999;font-size:12px">
-            <span style="color:#555">Nombre:</span>
-            <span class="line" style="width:260px">&nbsp;</span>
-            &nbsp;&nbsp;
-            <span style="color:#555">Grupo:</span>
-            <strong>${nivel}</strong>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:5px 6px;border:1px solid #999;border-top:none;font-size:12px">
-            <span style="color:#555">Fecha:</span>
-            <span class="line" style="width:120px">&nbsp;</span>
-            &nbsp;&nbsp;
-            <span style="color:#555">Curso académico:</span>
-            <strong>${curso}</strong>
-          </td>
-        </tr>
-      </table>
-    </td>
-    <td style="width:100px;vertical-align:top;text-align:right">
-      <div class="nota-box">
-        <span style="font-size:10px;color:#888">Nota</span>
-      </div>
+    <td style="vertical-align:top;text-align:right;padding:0 0 0 12px;width:120px">
+      <div style="border:2px solid #111;width:100px;height:100px;display:inline-block"></div>
     </td>
   </tr>
 </table>
 
-<hr style="border:none;border-top:2px solid #1f3864;margin-bottom:24px">
+<!-- TABLA DATOS ALUMNO -->
+<table style="border:1.5px solid #333;margin-bottom:20px">
+  <tr>
+    <td style="border:1px solid #555;width:75%">
+      <strong>Nombre:</strong>
+      <span style="display:inline-block;border-bottom:1px solid #555;width:65%">&nbsp;</span>
+      &nbsp;&nbsp;<strong>${nivel}</strong>
+    </td>
+    <td style="border:1px solid #555;width:25%">
+      <strong>Fecha:</strong>
+      <span style="display:inline-block;border-bottom:1px solid #555;width:55%">&nbsp;</span>
+    </td>
+  </tr>
+</table>
+
+<hr style="border:none;border-top:1.5px solid #333;margin-bottom:20px">
 
 <!-- PREGUNTAS -->
 ${pregHtml}
@@ -15179,10 +15387,10 @@ ${pregHtml}
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'examen_' + nivel.replace(/\s/g,'_') + '_' + curso + '.html';
+  a.download = 'examen_' + nivel.replace(/\s/g,'_') + '.html';
   a.click();
   URL.revokeObjectURL(url);
-  mostrarToast('✓ Examen exportado — ábrelo en el navegador e imprime con Ctrl+P');
+  mostrarToast('✓ Examen exportado — ábrelo en Word o en el navegador para imprimir');
 }
 
 
