@@ -1587,7 +1587,7 @@ function cargarDatos() {
       APP = JSON.parse(d);
       if (!APP.config) APP.config = {};
       if (!APP.rubricasGuardadas) APP.rubricasGuardadas = [];
-      if (!APP.banco) APP.banco = { niveles: ['3º ESO','4º ESO','1º Bach','2º Bach'], tipos: ['Desarrollo','Problema','Test','V/F','Definición'], preguntas: [] };
+      if (!APP.banco) APP.banco = { niveles: ['1º ESO','2º ESO','3º ESO','4º ESO','1º Bach','2º Bach'], tipos: ['Desarrollo','Problema','Test','V/F','Definición'], preguntas: [] };
       if (!APP.archivo) APP.archivo = [];
       if (APP.config.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
     }
@@ -13929,6 +13929,40 @@ function _exportarRubricasHtml(rubricas) {
 // BANCO DE PREGUNTAS
 // ══════════════════════════════════════════════════════════════════════════
 
+function _normalizeNivel(s) {
+  if (!s) return s;
+  let r = s.trim();
+  // Normalize degree symbol variants
+  r = r.replace(/\u00b0/g, '\u00ba'); // ° -> º
+  // Normalize spaces around degree: "3 º" -> "3º", "3º " -> "3º"
+  r = r.replace(/(\d)\s*\u00ba\s*/g, '$1\u00ba ').trim();
+  // Ensure space before ESO/Bach if missing: "3ºESO" -> "3º ESO"
+  r = r.replace(/(\d\u00ba)([A-Za-z])/g, '$1 $2');
+  // Normalize ESO uppercase, Bach capitalized
+  r = r.replace(/\beso\b/gi, 'ESO');
+  r = r.replace(/\bbach(illerato)?\b/gi, 'Bach');
+  // Normalize number+º if missing º: "3 ESO" -> "3º ESO"
+  r = r.replace(/^(\d)\s+(ESO|Bach)/i, '$1\u00ba $2');
+  return r.trim();
+}
+
+function _matchNivel(nivel) {
+  if (!nivel) return nivel;
+  const normalized = _normalizeNivel(nivel);
+  const b = getBanco();
+  // Try exact match first
+  if (b.niveles.includes(normalized)) return normalized;
+  // Try case-insensitive match
+  const lower = normalized.toLowerCase();
+  const match = b.niveles.find(n => _normalizeNivel(n).toLowerCase() === lower);
+  if (match) return match;
+  // Try partial match (e.g. "3" matches "3º ESO" if only one nivel starts with 3)
+  const partial = b.niveles.filter(n => n.startsWith(normalized.charAt(0)));
+  if (partial.length === 1) return partial[0];
+  // Return normalized even if not in bank (user can fix)
+  return normalized;
+}
+
 function getBanco() {
   if (!APP.banco) APP.banco = {
     niveles: ['3º ESO','4º ESO','1º Bach','2º Bach'],
@@ -14159,8 +14193,10 @@ function bancoNuevaPregunta(idx) {
     if (editing) b.preguntas[idx] = pregunta;
     else b.preguntas.push(pregunta);
     guardarDatos();
+    // Reset filters so new question is visible
+    _bancoFiltros = { nivel: nivel, bloque: '', tipo: '', dif: '', ano: '', buscar: '' };
     div.remove();
-    renderPage();
+    if (paginaActual === 'banco') renderPage();
   };
 }
 
@@ -14490,30 +14526,128 @@ async function _bancoAbrirSelector() {
     }
     try {
       const ab = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer: ab });
-      const preguntas = _parsearBancoTexto(result.value);
+      // Use convertToHtml to get both text and images (base64 embedded)
+      const imageMap = {}; // index -> base64 dataUrl
+      let imgIdx = 0;
+      const result = await mammoth.convertToHtml({ arrayBuffer: ab }, {
+        convertImage: mammoth.images.imgElement(function(image) {
+          return image.read('base64').then(function(imageContent) {
+            const dataUrl = 'data:' + image.contentType + ';base64,' + imageContent;
+            const placeholder = '__IMG_' + imgIdx + '__';
+            imageMap[placeholder] = dataUrl;
+            imgIdx++;
+            // Return img with placeholder src so we can find it in text
+            return { src: placeholder };
+          });
+        })
+      });
+      const preguntas = _parsearBancoHtmlConImagenes(result.value, imageMap);
       if (!preguntas.length) { alert('No se encontraron preguntas en el formato esperado.\n\nRevisa el formato: Nivel:, Bloque:, Tipo:, Dificultad:, separadas por ---'); return; }
       const b = getBanco();
-      preguntas.forEach(p => b.preguntas.push(p));
+      let duplicadas = 0;
+      preguntas.forEach(p => {
+        const enuncNorm = p.enunciado.trim().toLowerCase();
+        const existe = b.preguntas.some(x => x.enunciado.trim().toLowerCase() === enuncNorm);
+        if (existe) { duplicadas++; return; }
+        b.preguntas.push(p);
+      });
       guardarDatos();
-      mostrarToast('✓ ' + preguntas.length + ' pregunta' + (preguntas.length!==1?'s':'') + ' importada' + (preguntas.length!==1?'s':''));
+      const importadas = preguntas.length - duplicadas;
+      const conImg = preguntas.filter(p => p.imagen).length;
+      mostrarToast('✓ ' + importadas + ' pregunta' + (importadas!==1?'s':'') + ' importada' + (importadas!==1?'s':'')
+        + (conImg ? ' · ' + conImg + ' con imagen' : '')
+        + (duplicadas ? ' · ' + duplicadas + ' duplicada' + (duplicadas!==1?'s':'') + ' omitida' + (duplicadas!==1?'s':'') : ''));
       renderPage();
     } catch(err) { alert('Error al leer el documento: ' + err.message); }
   };
   input.click();
 }
 
+function _parsearBancoHtmlConImagenes(html, imageMap) {
+  // Convert HTML to text but preserve image placeholders
+  const div = document.createElement('div');
+  div.innerHTML = html;
+
+  // Replace img elements with their placeholder text
+  div.querySelectorAll('img').forEach(img => {
+    const placeholder = img.getAttribute('src') || '';
+    if (imageMap[placeholder]) {
+      // Insert placeholder as text node
+      const span = document.createElement('span');
+      span.textContent = '\n' + placeholder + '\n';
+      img.replaceWith(span);
+    } else {
+      img.remove();
+    }
+  });
+
+  // Get text with placeholders
+  // innerText preserves block formatting; textContent as fallback
+  // Force block elements to have newlines
+  div.querySelectorAll('p,br,h1,h2,h3,h4,li').forEach(el => {
+    el.insertAdjacentText('afterend', '\n');
+  });
+  const texto = div.textContent || '';
+
+  // Strip markdown bold markers
+  const textoClean = texto.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+
+  // Split by --- separator
+  const bloques = textoClean.split(/\n\s*---+\s*\n|\n\s*---+\s*$|^\s*---+\s*\n/m).map(s => s.trim()).filter(Boolean);
+  const preguntas = [];
+
+  bloques.forEach(bloque => {
+    const get = (key) => {
+      const m = bloque.match(new RegExp(key + ':\\s*(.+)', 'i'));
+      return m ? m[1].trim() : '';
+    };
+    const nivel = _normalizeNivel(get('nivel'));
+    const bl = get('bloque');
+    const tipo = get('tipo');
+    const dif = get('dificultad') || 'Media';
+    const enunciadoM = bloque.match(/enunciado:\s*\n([\s\S]*?)(?=\nsolución:|\nsolicion:)/i);
+    const solucionM = bloque.match(/solución:\s*\n([\s\S]*?)$/i) || bloque.match(/solicion:\s*\n([\s\S]*?)$/i);
+    if (!nivel || !bl) return;
+
+    let enunciado = enunciadoM ? enunciadoM[1].trim() : '';
+    let solucion = solucionM ? solucionM[1].trim() : '';
+
+    // Extract first image placeholder from enunciado or full block
+    let imagen = null;
+    const imgPlaceholderRe = /__IMG_(\d+)__/g;
+    const searchIn = bloque;
+    let imgMatch = imgPlaceholderRe.exec(searchIn);
+    if (imgMatch) {
+      const placeholder = imgMatch[0];
+      imagen = imageMap[placeholder] || null;
+      // Remove placeholder from enunciado and solucion
+      enunciado = enunciado.replace(/__IMG_\d+__/g, '').trim();
+      solucion = solucion.replace(/__IMG_\d+__/g, '').trim();
+    }
+
+    if (!enunciado && !imagen) return; // skip empty blocks
+
+    preguntas.push({
+      id: uid(), nivel: _matchNivel(nivel), bloque: bl, tipo: tipo||'Desarrollo',
+      dificultad: dif, enunciado, solucion, historial: [],
+      ...(imagen ? { imagen } : {})
+    });
+  });
+
+  return preguntas;
+}
+
 function _parsearBancoTexto(texto) {
   // Strip markdown bold/italic markers that mammoth adds
   texto = texto.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
-  const bloques = texto.split(/\n---+\n|\n---+$|^---+\n/m).map(s => s.trim()).filter(Boolean);
+  const bloques = texto.split(/\n\s*---+\s*\n|\n\s*---+\s*$|^\s*---+\s*\n/m).map(s => s.trim()).filter(Boolean);
   const preguntas = [];
   bloques.forEach(bloque => {
     const get = (key) => {
       const m = bloque.match(new RegExp(key + ':\\s*(.+)', 'i'));
       return m ? m[1].trim() : '';
     };
-    const nivel = get('nivel');
+    const nivel = _normalizeNivel(get('nivel'));
     const bl = get('bloque');
     const tipo = get('tipo');
     const dif = get('dificultad') || 'Media';
@@ -14523,7 +14657,7 @@ function _parsearBancoTexto(texto) {
     const enunciado = enunciadoM ? enunciadoM[1].trim() : '';
     const solucion = solucionM ? solucionM[1].trim() : '';
     if (!enunciado || !nivel || !bl) return;
-    preguntas.push({ id: uid(), nivel, bloque: bl, tipo: tipo||'Desarrollo', dificultad: dif, enunciado, solucion, historial: [] });
+    preguntas.push({ id: uid(), nivel: _matchNivel(nivel), bloque: bl, tipo: tipo||'Desarrollo', dificultad: dif, enunciado, solucion, historial: [] });
   });
   return preguntas;
 }
@@ -14728,7 +14862,7 @@ function _bancoMostrarExamen(seleccion, nivel, curso) {
 function _bancoSwapPregunta(cardIdx, nivel, bloqueActual, excluirId) {
   const b = getBanco();
   const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
-  window._swapCtx = { cardIdx, nivel, excluirId };
+  window._swapCtx = { cardIdx: parseInt(cardIdx), nivel, excluirId };
 
   // Build filter options for this nivel
   const bloques = [...new Set(b.preguntas.filter(p => p.nivel === nivel && p.id !== excluirId).map(p => p.bloque))].sort();
@@ -14808,14 +14942,19 @@ function _swapRenderLista() {
 
 function _swapElegir(newId) {
   const b = getBanco();
-  const { cardIdx, nivel } = window._swapCtx || {};
+  const ctx = window._swapCtx || {};
+  const cardIdx = ctx.cardIdx;
+  const nivel = ctx.nivel;
   const newP = b.preguntas.find(p => p.id === newId);
-  if (!newP) return;
+  if (!newP) { alert('Pregunta no encontrada'); return; }
   document.getElementById('swap-modal')?.remove();
 
   const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
   const card = document.getElementById('be-p-'+cardIdx);
-  if (!card) return;
+  if (!card) {
+    // Modal may have been closed - just close swap
+    return;
+  }
 
   const usos = newP.historial?.length || 0;
   const usoCounts = {};
