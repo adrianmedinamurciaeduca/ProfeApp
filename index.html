@@ -36573,6 +36573,7 @@ function getBanco() {
 
 // ── renderBanco ────────────────────────────────────────────────────────────
 let _bancoFiltros = { nivel: '', bloque: '', tipo: '', dif: '', ano: '', buscar: '' };
+let _bancoOpen = {}; // tracks open/closed state of nivel/bloque nodes
 
 function renderBanco() {
   const b = getBanco();
@@ -36582,9 +36583,11 @@ function renderBanco() {
   const fTipo   = _bancoFiltros.tipo;
   const fAno    = _bancoFiltros.ano;
   const fBuscar = _bancoFiltros.buscar;
+  const hayFiltros = fNivel||fBloque||fDif||fTipo||fAno||fBuscar;
+
   const topbar = '<div class="topbar">'
     + '<button class="hamburger-btn" onclick="abrirSidebar()">&#9776;</button>'
-    + '<h2>🗂 Banco de preguntas</h2>'
+    + '<h2>📝 Banco de preguntas</h2>'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">'
     + '<button class="btn btn-secondary btn-sm" onclick="bancoVerInstrucciones()">📋 Instrucciones IA</button>'
     + '<button class="btn btn-secondary btn-sm" onclick="bancoImportarJSON()">📥 JSON</button>'
@@ -36606,75 +36609,112 @@ function renderBanco() {
       + '</div></div>';
   }
 
-  // Build filter options
-  const nivelOpts = ['<option value=""'+(fNivel?'':' selected')+'>Todos los niveles</option>',
-    ...b.niveles.map(n => '<option value="'+n+'"'+(fNivel===n?' selected':'')+'>'+n+'</option>')].join('');
-  // Filter bloques by selected nivel
-  const bloqueSet = [...new Set(b.preguntas
-    .filter(p => !fNivel || p.nivel === fNivel)
-    .map(p => p.bloque)
-  ), ...(fNivel && b.bloquesPorNivel?.[fNivel] ? b.bloquesPorNivel[fNivel] : [])]
-    .filter((v,i,a) => a.indexOf(v)===i).sort();
-  const bloqueOpts = ['<option value=""'+(fBloque?'':' selected')+'>Todos los bloques</option>',
-    ...bloqueSet.map(bl => '<option value="'+bl+'"'+(fBloque===bl?' selected':'')+'>'+bl+'</option>')].join('');
-  const tipoOpts = ['<option value=""'+(fTipo?'':' selected')+'>Todos los tipos</option>',
-    ...b.tipos.map(t => '<option value="'+t+'"'+(fTipo===t?' selected':'')+'>'+t+'</option>')].join('');
-  // Build year filter from all historiales
-  const todosAnos = [...new Set(b.preguntas.flatMap(p => (p.historial||[]).map(h => typeof h === 'object' ? h.curso : h)))].sort().reverse();
-  const anoOpts = ['<option value=""'+(fAno?'':' selected')+'>Cualquier uso</option>',
-    '<option value="__sin__"'+(fAno==='__sin__'?' selected':'')+'>Sin usar</option>',
-    ...todosAnos.map(a => '<option value="'+a+'"'+(fAno===a?' selected':'')+'>'+a+'</option>')].join('');
+  // ── Filter options ────────────────────────────────────────────────────
+  const nivelOpts = '<option value=""'+(fNivel?'':' selected')+'>Todos los niveles</option>'
+    + b.niveles.map(n => '<option value="'+n+'"'+(fNivel===n?' selected':'')+'>'+n+'</option>').join('');
+  const bloqueSet = [...new Set(b.preguntas.filter(p => !fNivel||p.nivel===fNivel).map(p => p.bloque))].sort();
+  const bloqueOpts = '<option value=""'+(fBloque?'':' selected')+'>Todos los bloques</option>'
+    + bloqueSet.map(bl => '<option value="'+bl+'"'+(fBloque===bl?' selected':'')+'>'+bl+'</option>').join('');
+  const difs = b.dificultades?.length ? b.dificultades : ['Fácil','Media','Difícil'];
+  const difOpts = '<option value=""'+(fDif?'':' selected')+'>Todas las dificultades</option>'
+    + difs.map(d => '<option value="'+d+'"'+(fDif===d?' selected':'')+'>'+d+'</option>').join('');
+  const tipoOpts = '<option value=""'+(fTipo?'':' selected')+'>Todos los tipos</option>'
+    + (b.tipos||[]).map(t => '<option value="'+t+'"'+(fTipo===t?' selected':'')+'>'+t+'</option>').join('');
+  const todosAnos = [...new Set(b.preguntas.flatMap(p =>
+    (p.historial||[]).map(h => typeof h==='object'?h.curso:h)
+  ))].sort().reverse();
+  const anoOpts = '<option value=""'+(fAno?'':' selected')+'>Cualquier año</option>'
+    + '<option value="__sin__"'+(fAno==='__sin__'?' selected':'')+'>Sin usar</option>'
+    + todosAnos.map(a=>'<option value="'+a+'"'+(fAno===a?' selected':'')+'>'+a+'</option>').join('');
 
-  // Read current filter values
-
-
-  const filtros = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
-    + '<input id="banco-f-buscar" type="search" value="'+fBuscar.replace(/"/g,'&quot;')+'" placeholder="🔍 Buscar..." oninput="_bancoFiltros.buscar=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface);min-width:140px;flex:1">'
+  // ── Sticky filter bar ─────────────────────────────────────────────────
+  const stickyBar = '<div style="position:sticky;top:0;z-index:100;background:var(--surface);padding:10px 0 10px;margin-bottom:14px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    + '<input id="banco-f-buscar" type="search" value="'+fBuscar.replace(/"/g,'&quot;')+'" placeholder="🔍 Buscar..." oninput="_bancoFiltros.buscar=this.value;renderPage()" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
     + '<select id="banco-f-nivel" onchange="_bancoFiltros.nivel=this.value;_bancoFiltros.bloque=String();renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+nivelOpts+'</select>'
     + '<select id="banco-f-bloque" onchange="_bancoFiltros.bloque=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+bloqueOpts+'</select>'
     + '<select id="banco-f-tipo" onchange="_bancoFiltros.tipo=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+tipoOpts+'</select>'
-    + '<select id="banco-f-dif" onchange="_bancoFiltros.dif=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
-    + (b.dificultades?.length ? b.dificultades : ['Fácil','Media','Difícil']).reduce((s,d)=>
-        s+'<option value="'+d+'"'+(fDif===d?' selected':'')+'>'+d+'</option>','<option value=""'+(fDif?'':' selected')+'>Todas las dificultades</option>')
-    + '</select>'
+    + '<select id="banco-f-dif" onchange="_bancoFiltros.dif=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+difOpts+'</select>'
     + '<select id="banco-f-ano" onchange="_bancoFiltros.ano=this.value;renderPage()" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'+anoOpts+'</select>'
+    + (hayFiltros ? '<button class="btn btn-secondary btn-sm" onclick="_bancoLimpiarFiltros()" title="Volver a vista resumen">✕ Limpiar</button>' : '')
     + '<button class="btn btn-primary btn-sm" onclick="bancoCrearExamen()">📄 Crear examen</button>'
     + '</div>';
 
-  // Apply filters
+  // ── VISTA RESUMEN (sin filtros): árbol nivel → bloque ─────────────────
+  if (!hayFiltros) {
+    const DIF_COLOR = { 'Fácil':'#22c55e','Media':'#f59e0b','Difícil':'#ef4444' };
+    const cursoActual = (() => {
+      const ahora = new Date(); const mes = ahora.getMonth()+1; const anyo = ahora.getFullYear();
+      return mes>=9 ? anyo+'-'+String(anyo+1).slice(2) : (anyo-1)+'-'+String(anyo).slice(2);
+    })();
+
+    const tree = b.niveles.filter(n => b.preguntas.some(p=>p.nivel===n)).map(niv => {
+      const pregsNiv = b.preguntas.filter(p=>p.nivel===niv);
+      const nivelKey = 'banco-niv-'+niv.replace(/[^a-z0-9]/gi,'_');
+      const nivelOpen = _bancoOpen[nivelKey] !== false;
+      const bloques = [...new Set(pregsNiv.map(p=>p.bloque))].sort();
+
+      const bloquesHtml = !nivelOpen ? '' : bloques.map(bl => {
+        const pregsBloque = pregsNiv.filter(p=>p.bloque===bl);
+        const sinUsar = pregsBloque.filter(p=>!p.historial?.length).length;
+        const usadosAnyo = pregsBloque.filter(p=>
+          (p.historial||[]).some(h=>(typeof h==='object'?h.curso:h)===cursoActual)
+        ).length;
+        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px 8px 32px;border-bottom:1px solid var(--border);cursor:pointer" '
+          + 'onclick="_bancoFiltros.nivel=\''+niv+'\';_bancoFiltros.bloque=\''+bl+'\';renderPage()" '
+          + 'onmouseenter="this.style.background=\'var(--bg)\'" onmouseleave="this.style.background=\'\'">'
+          + '<span style="flex:1;font-size:13px;color:var(--text)">'+bl+'</span>'
+          + '<span style="font-size:11px;color:var(--text3)">'+pregsBloque.length+' preg.</span>'
+          + (sinUsar ? '<span style="font-size:10px;color:var(--green);font-weight:600">'+sinUsar+' sin usar</span>' : '')
+          + (usadosAnyo ? '<span style="font-size:10px;color:var(--amber);font-weight:600">'+usadosAnyo+' este año</span>' : '')
+          + '<button class="btn btn-primary btn-sm" style="font-size:10px;padding:2px 8px" '
+          + 'onclick="event.stopPropagation();bancoNuevaPregunta(undefined,\''+niv+'\',\''+bl+'\')" title="Añadir pregunta a este bloque">+</button>'
+          + '</div>';
+      }).join('');
+
+      return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">'
+        + '<div onclick="_bancoToggle(\''+nivelKey+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;background:var(--accent-bg)">'
+        + '<span style="font-size:13px;color:var(--accent);width:16px">'+(nivelOpen?'▾':'▸')+'</span>'
+        + '<span style="font-size:14px;font-weight:700;color:var(--accent);flex:1">'+niv+'</span>'
+        + '<span style="font-size:12px;color:var(--accent);opacity:0.8">'+pregsNiv.length+' preguntas · '+bloques.length+' bloques</span>'
+        + '</div>'
+        + (nivelOpen ? bloquesHtml : '')
+        + '</div>';
+    }).join('');
+
+    return topbar + '<div class="page">' + stickyBar + tree + '</div>';
+  }
+
+  // ── VISTA FILTRADA: lista de tarjetas ────────────────────────────────
+  const DIF_COLOR = { 'Fácil':'#22c55e','Media':'#f59e0b','Difícil':'#ef4444' };
   const buscarLower = fBuscar.toLowerCase();
-  let pregs = b.preguntas.filter(p => {
+  const pregs = b.preguntas.filter(p => {
     if (fNivel  && p.nivel      !== fNivel)  return false;
     if (fBloque && p.bloque     !== fBloque) return false;
     if (fTipo   && p.tipo       !== fTipo)   return false;
     if (fDif    && p.dificultad !== fDif)    return false;
     if (fBuscar && !p.enunciado.toLowerCase().includes(buscarLower)
-                && !p.bloque.toLowerCase().includes(buscarLower)
-                && !p.tipo.toLowerCase().includes(buscarLower)) return false;
+               && !p.bloque.toLowerCase().includes(buscarLower)
+               && !p.nivel.toLowerCase().includes(buscarLower)) return false;
     if (fAno) {
-      const cursos = (p.historial||[]).map(h => typeof h === 'object' ? h.curso : h);
-      if (fAno === '__sin__') { if (cursos.length > 0) return false; }
+      const cursos = (p.historial||[]).map(h=>typeof h==='object'?h.curso:h);
+      if (fAno==='__sin__') { if (cursos.length>0) return false; }
       else { if (!cursos.includes(fAno)) return false; }
     }
     return true;
   });
 
-  const DIF_COLOR = { 'Fácil': '#22c55e', 'Media': '#f59e0b', 'Difícil': '#ef4444' };
+  const stats = '<div style="font-size:12px;color:var(--text3);margin-bottom:12px">'
+    + b.preguntas.length+' preguntas en total · Mostrando '+pregs.length+'</div>';
 
   const cards = pregs.map(p => {
     const realIdx = b.preguntas.indexOf(p);
-    // Build usage display — group by year with counts
     const usoCounts = {};
-    (p.historial||[]).forEach(h => {
-      const curso = typeof h === 'object' ? h.curso : h;
-      usoCounts[curso] = (usoCounts[curso]||0) + 1;
-    });
+    (p.historial||[]).forEach(h=>{const c=typeof h==='object'?h.curso:h;usoCounts[c]=(usoCounts[c]||0)+1;});
     const usoStr = Object.entries(usoCounts).sort((a,b)=>b[0].localeCompare(a[0]))
-      .map(([curso, n]) => curso + (n>1?' ×'+n:'')).join(', ');
+      .map(([c,n])=>c+(n>1?' ×'+n:'')).join(', ');
     const usoTag = usoStr
       ? '<span style="font-size:10px;color:var(--text3);padding:2px 4px">Usado: '+usoStr+'</span>'
       : '<span style="font-size:10px;color:var(--green)">✓ Sin usar</span>';
-
     return '<div class="card" style="padding:14px 16px;margin-bottom:10px">'
       + '<div style="display:flex;align-items:flex-start;gap:10px">'
       + '<div style="flex:1;min-width:0">'
@@ -36683,32 +36723,44 @@ function renderBanco() {
       + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+p.bloque+'</span>'
       + '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:10px">'+p.tipo+'</span>'
       + '<span style="font-size:10px;font-weight:600;color:#fff;background:'+(DIF_COLOR[p.dificultad]||'#888')+';padding:2px 8px;border-radius:10px">'+p.dificultad+'</span>'
-      + usoTag
-      + '</div>'
+      + usoTag + '</div>'
       + '<div style="font-size:13px;color:var(--text);line-height:1.5">'+p.enunciado.slice(0,200)+(p.enunciado.length>200?'...':'')+'</div>'
-      + (p.imagen ? '<img src="'+p.imagen+'" style="max-height:80px;max-width:140px;border-radius:6px;border:1px solid var(--border2);object-fit:contain;margin-top:6px">' : '')
+      + (p.imagen?'<img src="'+p.imagen+'" style="max-height:80px;max-width:140px;border-radius:6px;border:1px solid var(--border2);object-fit:contain;margin-top:6px">':'')
       + '</div>'
       + '<div style="display:flex;gap:4px;flex-shrink:0">'
-      + '<button class="btn btn-secondary btn-sm" onclick="bancoVerHistorial('+realIdx+')" title="Historial de uso">📋</button>'
+      + '<button class="btn btn-secondary btn-sm" onclick="bancoVerHistorial('+realIdx+')" title="Historial">📋</button>'
       + '<button class="btn btn-secondary btn-sm" onclick="bancoEditarPregunta('+realIdx+')">✏</button>'
       + '<button class="btn btn-delete" onclick="bancoBorrarPregunta('+realIdx+')">✕</button>'
       + '</div></div></div>';
   }).join('');
 
-  const stats = '<div style="font-size:12px;color:var(--text3);margin-bottom:12px">'
-    + b.preguntas.length + ' preguntas en total · Mostrando ' + pregs.length + '</div>';
-
-  return topbar + '<div class="page">' + filtros + stats + cards + '</div>';
+  return topbar + '<div class="page">' + stickyBar + stats + cards + '</div>';
 }
 
 
-function bancoNuevaPregunta(idx) {
+function _bancoToggle(key) {
+  // undefined = open by default for niveles; explicitly track open/closed
+  const currentlyOpen = _bancoOpen[key] !== false; // undefined or true = open
+  _bancoOpen[key] = !currentlyOpen;
+  renderPage();
+}
+
+function _bancoLimpiarFiltros() {
+  _bancoFiltros = { nivel: '', bloque: '', tipo: '', dif: '', ano: '', buscar: '' };
+  renderPage();
+}
+
+
+function bancoNuevaPregunta(idx, defaultNivel, defaultBloque) {
   const b = getBanco();
   const p = idx !== undefined ? b.preguntas[idx] : null;
+  if (!p && defaultNivel && !_bancoFiltros.nivel) defaultNivel = defaultNivel; // use passed defaults
   const editing = idx !== undefined;
 
+  const _defNivel = p?.nivel || defaultNivel || '';
+  const _defBloque = p?.bloque || defaultBloque || '';
   const nivelOpts = b.niveles.map(n =>
-    '<option value="'+n+'"'+(p?.nivel===n?' selected':'')+'>'+n+'</option>'
+    '<option value="'+n+'"'+(_defNivel===n?' selected':'')+'>'+n+'</option>'
   ).join('');
   const tipoOpts = b.tipos.map(t =>
     '<option value="'+t+'"'+(p?.tipo===t?' selected':'')+'>'+t+'</option>'
@@ -36744,7 +36796,7 @@ function bancoNuevaPregunta(idx) {
 
     + '<div style="display:flex;gap:8px">'
     + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Bloque / Tema</label>'
-    + '<input list="bp-bloques-list" id="bp-bloque" value="'+(p?.bloque||'')+'" placeholder="Ej: Equilibrio químico" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface)">'
+    + '<input list="bp-bloques-list" id="bp-bloque" value="'+(_defBloque||'')+'" placeholder="Ej: Equilibrio químico" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface)">'
     + '<datalist id="bp-bloques-list">'+bloqueList+'</datalist>'
     + '<div style="font-size:11px;color:var(--text3);margin-top:3px">Escribe o elige un bloque existente para ese nivel</div></div>'
     + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Tipo</label>'
