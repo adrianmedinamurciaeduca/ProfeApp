@@ -28400,15 +28400,7 @@ function renderCriterios() {
         <div style="color:var(--text3);font-size:13px">Módulo desactivado. Actívalo para usar la evaluación por criterios de la LOMLOE.</div>
       `}
     </div>
-    <div class="card" style="padding:20px">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Peso global de los trimestres</h3>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Este peso se aplica al calcular la nota final de la asignatura para todos los alumnos.</p>
-      ${[['T1','1ª Evaluación'],['T2','2ª Evaluación'],['T3','3ª Evaluación']].map(([t,lbl])=>`
-      <div class="peso-trim-row">
-        <div class="pt-label">${lbl}</div>
-        <input type="number" min="0" max="100" step="5" value="${APP.config.pesos_trimestres[t]||33}" onchange="APP.config.pesos_trimestres['${t}']=parseFloat(this.value);guardarDatos()">
-        <span style="font-size:12px;color:var(--text2)">%</span>
-      </div>`).join('')}
+    
     </div>
   </div>`;
 }
@@ -28618,14 +28610,7 @@ function renderAjustes() {
       <p style="font-size:12px;color:var(--text2);margin-top:12px">Los datos se guardan automáticamente en este navegador. Exporta un backup JSON regularmente.</p>
       ${estadoBloque}
     </div>
-    <div class="card" style="padding:20px">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:10px">Acerca de ProfeApp</h3>
-      <p style="font-size:13px;color:var(--text2);line-height:1.8">
-        ProfeApp es una aplicación para docentes, sencilla y gratuita para gestionar y evaluar tus alumnos sincronizando tus dispositivos en la nube en tiempo real.
-      </p>
-      <p style="font-size:12px;color:var(--text3);margin-top:10px;font-style:italic">Hecho por Adrián Medina.</p>
-    </div>
-  </div>`;
+    `;
 }
 function renderBottomNavSettings() {
   const opciones = [
@@ -36610,8 +36595,11 @@ function renderBanco() {
   }
 
   // ── Filter options ────────────────────────────────────────────────────
+  const nivelesSetF = new Set(b.niveles);
+  const hayHuerfanas = b.preguntas.some(p => !nivelesSetF.has(p.nivel));
   const nivelOpts = '<option value=""'+(fNivel?'':' selected')+'>Todos los niveles</option>'
-    + b.niveles.map(n => '<option value="'+n+'"'+(fNivel===n?' selected':'')+'>'+n+'</option>').join('');
+    + b.niveles.map(n => '<option value="'+n+'"'+(fNivel===n?' selected':'')+'>'+n+'</option>').join('')
+    + (hayHuerfanas ? '<option value="__huerfanas__"'+(fNivel==='__huerfanas__'?' selected':'')+'>⚠ Sin nivel asignado</option>' : '');
   const bloqueSet = [...new Set(b.preguntas.filter(p => !fNivel||p.nivel===fNivel).map(p => p.bloque))].sort();
   const bloqueOpts = '<option value=""'+(fBloque?'':' selected')+'>Todos los bloques</option>'
     + bloqueSet.map(bl => '<option value="'+bl+'"'+(fBloque===bl?' selected':'')+'>'+bl+'</option>').join('');
@@ -36681,14 +36669,55 @@ function renderBanco() {
         + '</div>';
     }).join('');
 
-    return topbar + '<div class="page">' + stickyBar + tree + '</div>';
+    // ── Preguntas huérfanas (nivel no existe en b.niveles) ──────────────
+    const nivelesSet = new Set(b.niveles);
+    const huerfanas = b.preguntas.filter(p => !nivelesSet.has(p.nivel));
+    let huerfanasHtml = '';
+    if (huerfanas.length) {
+      // Group by their nivel string
+      const porNivel = {};
+      huerfanas.forEach(p => {
+        if (!porNivel[p.nivel]) porNivel[p.nivel] = [];
+        porNivel[p.nivel].push(p);
+      });
+      const huerfanasItems = Object.entries(porNivel).map(([niv, pregs]) => {
+        const key = 'huerfanas_'+niv.replace(/[^a-z0-9]/gi,'_');
+        const bloques = [...new Set(pregs.map(p=>p.bloque))].sort();
+        const open = _bancoOpen[key] !== false;
+        const bloquesHtml = !open ? '' : bloques.map(bl => {
+          const pregsBloque = pregs.filter(p=>p.bloque===bl);
+          return '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px 8px 32px;border-bottom:1px solid var(--border);cursor:pointer" '
+            + 'onclick="_bancoFiltros.nivel=\''+niv+'\';_bancoFiltros.bloque=\''+bl+'\';renderPage()" '
+            + 'onmouseenter="this.style.background=\'var(--bg)\'" onmouseleave="this.style.background=\'\'">'
+            + '<span style="flex:1;font-size:13px;color:var(--text)">'+bl+'</span>'
+            + '<span style="font-size:11px;color:var(--text3)">'+pregsBloque.length+' preg.</span>'
+            + '</div>';
+        }).join('');
+        return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:8px;border-color:var(--amber)">'
+          + '<div onclick="_bancoToggle(\''+key+'\')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:var(--amber-bg)">'
+          + '<span style="font-size:13px;color:var(--amber);width:16px">'+(open?'▾':'▸')+'</span>'
+          + '<span style="font-size:14px;font-weight:700;color:var(--amber);flex:1">'+niv+' <span style="font-size:11px;font-weight:400">(nivel eliminado)</span></span>'
+          + '<span style="font-size:12px;color:var(--amber)">'+pregs.length+' preguntas sin asignar</span>'
+          + '</div>'
+          + (open ? bloquesHtml : '')
+          + '</div>';
+      }).join('');
+      huerfanasHtml = '<div style="margin-top:8px">'
+        + '<div style="font-size:12px;font-weight:600;color:var(--amber);margin-bottom:6px;display:flex;align-items:center;gap:6px">'
+        + '⚠ Preguntas con nivel eliminado — reasígnalas o elimínalas</div>'
+        + huerfanasItems + '</div>';
+    }
+
+    return topbar + '<div class="page">' + stickyBar + tree + huerfanasHtml + '</div>';
   }
 
   // ── VISTA FILTRADA: lista de tarjetas ────────────────────────────────
   const DIF_COLOR = { 'Fácil':'#22c55e','Media':'#f59e0b','Difícil':'#ef4444' };
   const buscarLower = fBuscar.toLowerCase();
+  const nivelesSetF2 = new Set(b.niveles);
   const pregs = b.preguntas.filter(p => {
-    if (fNivel  && p.nivel      !== fNivel)  return false;
+    if (fNivel === '__huerfanas__') { if (nivelesSetF2.has(p.nivel)) return false; }
+    else if (fNivel && p.nivel !== fNivel) return false;
     if (fBloque && p.bloque     !== fBloque) return false;
     if (fTipo   && p.tipo       !== fTipo)   return false;
     if (fDif    && p.dificultad !== fDif)    return false;
