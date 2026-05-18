@@ -865,7 +865,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente</span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v1.0</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -11991,70 +11991,99 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
   const inst = insts[instIdx]; if (!inst) { alert('Instrumento no encontrado.'); return; }
 
   const tareasSelec = selIdx.map(i => tareas[i]);
-  let duplicadas = 0, añadidas = 0;
+  let nuevas = 0, yaExistian = 0;
 
-  // Check for duplicates
+  // Add new items or detect existing
   tareasSelec.forEach(t => {
-    if (inst.items.some(it => it.nombre === t.title)) {
-      duplicadas++;
+    const existe = inst.items.some(it => it.nombre === t.title || it._classroomId === t.id);
+    if (existe) {
+      yaExistian++;
+      return;
     }
-  });
-
-  if (duplicadas > 0) {
-    if (!confirm(duplicadas + ' tarea' + (duplicadas!==1?'s':'') + ' ya existe' + (duplicadas!==1?'n':'') + ' como apartado. ¿Importar solo las nuevas?')) return;
-  }
-
-  // Add new items
-  tareasSelec.forEach(t => {
-    if (inst.items.some(it => it.nombre === t.title)) return; // skip duplicate
     const fecha = t.dueDate
       ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0')
       : '';
     inst.items.push({ nombre: t.title, peso: 0, fecha, _classroomId: t.id });
-    añadidas++;
+    nuevas++;
   });
 
-  // Recalculate weights
-  if (inst.mediaAritmetica !== false) {
+  // Recalculate weights if new items added
+  if (nuevas > 0 && inst.mediaAritmetica !== false) {
     const n = inst.items.length;
     inst.items.forEach((it, j) => {
       it.peso = Math.round(100 * (j+1) / n) - Math.round(100 * j / n);
     });
-  } else {
+  } else if (nuevas > 0) {
     mostrarToast('⚠ Instrumento en modo ponderado — revisa los % en Notas de clase.');
   }
 
-  // Import grades if requested
-  if (conNotas && añadidas > 0) {
-    mostrarToast('Importando calificaciones...');
+  // Import/update grades if requested
+  if (conNotas) {
+    mostrarToast('Importando calificaciones desde Classroom...');
+    const als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
+    let notasActualizadas = 0, notasSinCalificar = 0;
+
     for (const t of tareasSelec) {
-      if (inst.items.findIndex(it => it._classroomId === t.id) < 0) continue; // was duplicate
-      const jIdx = inst.items.findIndex(it => it._classroomId === t.id);
+      // Find the item index (works for both new and existing items)
+      const jIdx = inst.items.findIndex(it => it._classroomId === t.id || it.nombre === t.title);
       if (jIdx < 0) continue;
+      // Ensure _classroomId is set on existing items
+      if (!inst.items[jIdx]._classroomId) inst.items[jIdx]._classroomId = t.id;
+
       try {
         const entregas = await classroomGetEntregas(cursoId, t.id);
-        const als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
         entregas.forEach(sub => {
-          if (sub.assignedGrade == null) return;
-          // Match by email
-          const email = sub.userId; // in Classroom API, userId is the Google ID
-          // Try to find alumno — we stored email during import
-          const alumno = als.find(a => a._classroomUserId === sub.userId || a.email === sub.userProfile?.emailAddress);
+          // Only process if grade exists
+          if (sub.assignedGrade == null) {
+            notasSinCalificar++;
+            return;
+          }
+          // Convert from /100 to /10
+          const nota = Math.round((sub.assignedGrade / 10) * 100) / 100;
+
+          // Match alumno by classroomUserId or email
+          const alumno = als.find(a =>
+            a._classroomUserId === sub.userId ||
+            (sub.userProfile?.emailAddress && a.email === sub.userProfile.emailAddress)
+          );
           if (!alumno) return;
+
           if (!alumno.notas) alumno.notas = {};
           if (!alumno.notas[trim]) alumno.notas[trim] = {};
           if (!alumno.notas[trim][instIdx]) alumno.notas[trim][instIdx] = {};
-          alumno.notas[trim][instIdx][jIdx] = sub.assignedGrade;
+
+          const notaAnterior = alumno.notas[trim][instIdx][jIdx];
+          // Update if: no previous grade, or previous was null/undefined
+          if (notaAnterior == null || notaAnterior === '') {
+            alumno.notas[trim][instIdx][jIdx] = nota;
+            notasActualizadas++;
+          }
+          // Also update if grade changed (re-import after correction)
+          else if (notaAnterior !== nota) {
+            alumno.notas[trim][instIdx][jIdx] = nota;
+            notasActualizadas++;
+          }
         });
       } catch(e) {
         console.warn('Error importando notas de', t.title, e);
       }
     }
+
+    const msgNotas = notasActualizadas > 0
+      ? ' · ' + notasActualizadas + ' nota' + (notasActualizadas!==1?'s':'') + ' importada' + (notasActualizadas!==1?'s':'')
+      : ' · Sin notas nuevas';
+    const msgSin = notasSinCalificar > 0
+      ? ' · ' + notasSinCalificar + ' entrega' + (notasSinCalificar!==1?'s':'') + ' sin calificar aún'
+      : '';
+    mostrarToast('✓ Classroom importado' + msgNotas + msgSin);
+  } else {
+    mostrarToast(
+      '✓ ' + nuevas + ' tarea' + (nuevas!==1?'s':'') + ' importada' + (nuevas!==1?'s':'')
+      + (yaExistian ? ' · ' + yaExistian + ' ya existía' + (yaExistian!==1?'n':'') : '')
+    );
   }
 
   guardarDatos();
-  mostrarToast('✓ ' + añadidas + ' tarea' + (añadidas!==1?'s':'') + ' importada' + (añadidas!==1?'s':'')
-    + (duplicadas ? ' · ' + duplicadas + ' omitida' + (duplicadas!==1?'s':'') + ' (ya existía' + (duplicadas!==1?'n':'') + ')' : ''));
   renderPage();
 }
 
