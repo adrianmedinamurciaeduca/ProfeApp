@@ -865,7 +865,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v1.2</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v1.3</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -11704,13 +11704,14 @@ async function classroomGetCursos() {
 
 // Obtener alumnos de un curso
 async function classroomGetAlumnos(courseId) {
-  const data = await classroomApiGet('courses/' + courseId + '/students?pageSize=200&fields=students(userId,profile(name,emailAddress))');
+  const data = await classroomApiGet('courses/' + courseId + '/students?pageSize=200');
   return data?.students || [];
 }
 
-// Obtener tareas de un curso
-async function classroomGetTareas(courseId) {
-  const data = await classroomApiGet('courses/' + courseId + '/courseWork?pageSize=100&orderBy=dueDate');
+// Obtener tareas de un curso (solo ASSIGNMENT por defecto)
+async function classroomGetTareas(courseId, soloTareas) {
+  const filtro = soloTareas ? '&courseWorkType=ASSIGNMENT' : '';
+  const data = await classroomApiGet('courses/' + courseId + '/courseWork?pageSize=200&orderBy=dueDate' + filtro);
   return data?.courseWork || [];
 }
 
@@ -11722,189 +11723,85 @@ async function classroomGetEntregas(courseId, courseWorkId) {
   return data?.studentSubmissions || [];
 }
 
-// ── Vincular clase con Classroom ──────────────────────────────────────────
-async function abrirVincularClassroom(gid) {
-  const g = APP.grupos.find(x => x.id === gid); if (!g) return;
-  mostrarToast('Cargando cursos de Classroom...');
-  let cursos;
-  try { cursos = await classroomGetCursos(); }
-  catch(e) { alert('Error conectando con Classroom: ' + e.message + '\n\nAsegúrate de haber reconectado Google con los nuevos permisos.'); return; }
-  if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
-
-  const cursoActual = g.classroomCursoId;
-  const opts = [
-    '<option value="">— Sin vincular —</option>',
-    ...cursos.map(cur =>
-      '<option value="' + cur.id + '"' + (cursoActual === cur.id ? ' selected' : '') + '>'
-      + cur.name + (cur.section ? ' · ' + cur.section : '') + '</option>'
-    )
-  ].join('');
-
-  const div = document.createElement('div');
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
-  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
-    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">🎓 Vincular con Classroom</h3>'
-    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Asocia <strong>' + g.nombre + '</strong> con un curso de Classroom. Así al publicar tareas desde la app no tendrás que elegir el curso cada vez.</p>'
-    + '<select id="vc-curso" style="width:100%;padding:10px 14px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface);margin-bottom:16px">' + opts + '</select>'
-    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
-    + '<button id="vc-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
-    + '<button id="vc-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Guardar</button>'
-    + '</div></div>';
-  document.body.appendChild(div);
-  document.getElementById('vc-cancel').onclick = () => div.remove();
-  document.getElementById('vc-ok').onclick = () => {
-    const cursoId = document.getElementById('vc-curso').value;
-    g.classroomCursoId = cursoId || null;
-    guardarDatos();
-    div.remove();
-    mostrarToast(cursoId ? '✓ Clase vinculada con Classroom' : 'Vinculación eliminada');
-  };
-}
-
-// ── Publicar apartado existente en Classroom ──────────────────────────────
-async function abrirPublicarApartadoClassroom(gid, trim, iIdx, jIdx) {
-  const g = APP.grupos.find(x => x.id === gid); if (!g) return;
-  const inst = g.estructura?.[trim]?.[iIdx]; if (!inst) return;
-  const item = inst.items?.[jIdx]; if (!item) return;
-
-  mostrarToast('Cargando cursos de Classroom...');
-  let cursos;
-  try { cursos = await classroomGetCursos(); }
-  catch(e) { alert('Error conectando con Classroom: ' + e.message); return; }
-
-  const cursoPrevinculado = g.classroomCursoId ? cursos.find(c => c.id === g.classroomCursoId) : null;
-
-  _mostrarModalPublicarClassroom({
-    titulo: item.nombre,
-    tarea: '',
-    enlaceUrl: '',
-    enlaceTitulo: '',
-    fechaSes: item.fecha || '',
-    cursos,
-    cursoPrevinculado,
-    grupoIds: [gid],
-    defaultType: 'ASSIGNMENT'
-  });
-}
-
-
-// ── Modal: Importar alumnos desde Classroom ───────────────────────────────
-async function abrirImportarAlumnosClassroom(gid) {
-  mostrarToast('Cargando cursos de Classroom...');
-  let cursos;
+// Construir mapa userId→alumno usando la lista de alumnos del curso
+// Matching: primero por userId ya guardado, luego por nombre como fallback
+async function _buildUserIdMap(cursoId, als) {
+  const userIdMap = {};
+  // Paso 1: usar _classroomUserId ya guardados
+  als.forEach(a => { if (a._classroomUserId) userIdMap[a._classroomUserId] = a; });
   try {
-    cursos = await classroomGetCursos();
+    const courseStudents = await classroomGetAlumnos(cursoId);
+    courseStudents.forEach(est => {
+      const userId = est.userId || '';
+      if (!userId) return;
+      // Si ya está mapeado, saltar
+      if (userIdMap[userId]) return;
+      // Intentar match por email si está disponible
+      const email = (est.profile?.emailAddress || '').toLowerCase().trim();
+      let alumno = email ? als.find(a => (a.email||'').toLowerCase().trim() === email) : null;
+      // Intentar match por nombre completo
+      if (!alumno) {
+        const nombre = (est.profile?.name?.givenName || '').toLowerCase().trim();
+        const apellidos = (est.profile?.name?.familyName || '').toLowerCase().trim();
+        if (nombre && apellidos) {
+          alumno = als.find(a =>
+            (a.nombre||'').toLowerCase().trim() === nombre &&
+            (a.apellidos||'').toLowerCase().trim() === apellidos
+          );
+        }
+      }
+      if (alumno) {
+        userIdMap[userId] = alumno;
+        if (!alumno._classroomUserId) alumno._classroomUserId = userId;
+      }
+    });
+    console.log('Classroom map:', Object.keys(userIdMap).length + '/' + als.length + ' alumnos mapeados');
   } catch(e) {
-    alert('Error al conectar con Classroom: ' + e.message + '\n\nAsegúrate de haber conectado Google Drive con los permisos de Classroom.');
-    return;
+    console.warn('Error building userId map:', e);
   }
-  if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
-
-  const opcs = cursos.map((cur, i) =>
-    '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">'
-    + '<input type="radio" name="cl-curso" value="' + cur.id + '"' + (i===0?' checked':'') + '>'
-    + '<span style="font-size:13px"><strong>' + cur.name + '</strong>'
-    + (cur.section ? ' · ' + cur.section : '') + '</span></label>'
-  ).join('');
-
-  const div = document.createElement('div');
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
-  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:440px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
-    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">🎓 Importar desde Classroom</h3>'
-    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Selecciona el curso de Classroom que corresponde a este grupo:</p>'
-    + '<div style="margin-bottom:16px">' + opcs + '</div>'
-    + '<p style="font-size:11px;color:var(--text3);margin-bottom:16px">ℹ️ Se importarán nombre, apellidos y email. Si después importas el Excel de Plumier, los alumnos se actualizarán por email sin duplicar.</p>'
-    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
-    + '<button id="cl-imp-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
-    + '<button id="cl-imp-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Importar alumnos</button>'
-    + '</div></div>';
-  document.body.appendChild(div);
-  document.getElementById('cl-imp-cancel').onclick = () => div.remove();
-  document.getElementById('cl-imp-ok').onclick = async () => {
-    const cursoId = div.querySelector('input[name=cl-curso]:checked')?.value;
-    if (!cursoId) return;
-    div.remove();
-    await _ejecutarImportarAlumnosClassroom(gid, cursoId);
-  };
+  return userIdMap;
 }
 
-async function _ejecutarImportarAlumnosClassroom(gid, cursoId) {
-  mostrarToast('Cargando alumnos del curso...');
-  let estudiantes;
-  try {
-    estudiantes = await classroomGetAlumnos(cursoId);
-  } catch(e) {
-    alert('Error al obtener alumnos: ' + e.message);
-    return;
-  }
-  if (!estudiantes.length) { alert('No se encontraron alumnos en ese curso.'); return; }
-
-  const g = APP.grupos.find(x => x.id === gid);
-  if (!g) return;
-  if (!APP.alumnos) APP.alumnos = [];
-
-  let nuevos = 0, actualizados = 0;
-  estudiantes.forEach((est, idx) => {
-    const prof = est.profile;
-    const email = prof?.emailAddress || '';
-    const nombre = prof?.name?.givenName || '';
-    const apellidos = prof?.name?.familyName || '';
-
-    // Check if already exists by email
-    const existing = email ? APP.alumnos.find(a => a.email === email && a.grupoId === gid) : null;
-    if (existing) {
-      // Update missing fields
-      if (!existing.nombre && nombre) existing.nombre = nombre;
-      if (!existing.apellidos && apellidos) existing.apellidos = apellidos;
-      if (!existing._classroomUserId && est.userId) existing._classroomUserId = est.userId;
-      actualizados++;
-    } else {
-      APP.alumnos.push({
-        id: uid(), grupoId: gid,
-        nombre, apellidos, email,
-        _classroomUserId: est.userId || '',
-        nLista: (APP.alumnos.filter(a => a.grupoId === gid).length + 1),
-        camposExtra: [], observaciones: [], reuniones: []
-      });
-      nuevos++;
+// Buscar si una tarea ya existe en cualquier evaluación/instrumento del grupo
+function _buscarTareaEnGrupo(g, instIdx, titulo, classroomId) {
+  const trims = ['T1','T2','T3'];
+  for (const trim of trims) {
+    const insts = g.estructura?.[trim] || [];
+    for (let i = 0; i < insts.length; i++) {
+      if (i !== instIdx && trim !== 'current') {
+        // Only check same instrument index across all trims
+      }
+      const inst = insts[instIdx];
+      if (!inst) continue;
+      const jIdx = inst.items?.findIndex(it =>
+        (classroomId && it._classroomId === classroomId) || it.nombre === titulo
+      );
+      if (jIdx >= 0) return { trim, instIdx, jIdx };
     }
-  });
-
-  reordenarGrupo(gid);
-  guardarDatos();
-  mostrarToast('✓ ' + nuevos + ' alumno' + (nuevos!==1?'s':'') + ' importado' + (nuevos!==1?'s':'')
-    + (actualizados ? ' · ' + actualizados + ' actualizado' + (actualizados!==1?'s':'') : ''));
-  renderPage();
+  }
+  return null;
 }
 
 // ── Modal: Importar tareas desde Classroom ────────────────────────────────
 async function abrirImportarTareasClassroom(gid) {
   mostrarToast('Cargando cursos de Classroom...');
   let cursos;
-  try {
-    cursos = await classroomGetCursos();
-  } catch(e) {
-    alert('Error al conectar con Classroom: ' + e.message);
-    return;
-  }
+  try { cursos = await classroomGetCursos(); }
+  catch(e) { alert('Error al conectar con Classroom: ' + e.message); return; }
   if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
 
   const g = APP.grupos.find(x => x.id === gid);
-  const trim = 'T1'; // default, user will pick
-  const insts = g?.estructura?.[trim] || [];
-
-  const cursoOpts = cursos.map((cur, i) =>
-    '<option value="' + cur.id + '">' + cur.name + (cur.section ? ' · ' + cur.section : '') + '</option>'
-  ).join('');
-
-  const instOpts = insts.map((inst, i) =>
-    '<option value="' + i + '">' + inst.nombre + '</option>'
-  ).join('');
+  const insts0 = g?.estructura?.T1 || [];
 
   const div = document.createElement('div');
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
-  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
-    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:14px">📚 Importar tareas desde Classroom</h3>'
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+
+  const cursoOpts = cursos.map(cur => '<option value="' + cur.id + '">' + cur.name + (cur.section ? ' · ' + cur.section : '') + '</option>').join('');
+  const instOpts = insts0.map((inst, i) => '<option value="' + i + '">' + inst.nombre + '</option>').join('');
+
+  box.innerHTML = '<h3 style="font-size:16px;font-weight:700;margin-bottom:14px">📚 Importar tareas desde Classroom</h3>'
     + '<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">'
     + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Curso de Classroom</label>'
     + '<select id="cl-t-curso" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">' + cursoOpts + '</select></div>'
@@ -11916,32 +11813,51 @@ async function abrirImportarTareasClassroom(gid) {
     + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Instrumento</label>'
     + '<select id="cl-t-inst" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">' + instOpts + '</select></div>'
     + '</div>'
-    + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">'
-    + '<input type="checkbox" id="cl-t-notas"> Importar también las calificaciones</label>'
+    + '<div style="display:flex;flex-direction:column;gap:6px">'
+    + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" id="cl-t-notas"> Importar también las calificaciones (÷10)</label>'
+    + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" id="cl-t-soloTareas" checked> Solo tareas con entrega (no cuestionarios)</label>'
+    + '</div>'
     + '</div>'
     + '<button id="cl-t-cargar" style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-size:13px;margin-bottom:14px">🔄 Cargar tareas del curso</button>'
     + '<div id="cl-t-lista" style="display:none">'
     + '<div style="display:flex;gap:8px;margin-bottom:8px">'
-    + '<button onclick="document.querySelectorAll(\'#cl-t-lista input[type=checkbox]\').forEach(cb=>cb.checked=true)" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);cursor:pointer">☑ Todos</button>'
-    + '<button onclick="document.querySelectorAll(\'#cl-t-lista input[type=checkbox]\').forEach(cb=>cb.checked=false)" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);cursor:pointer">☐ Ninguno</button>'
+    + '<button id="cl-sel-all" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);cursor:pointer">☑ Todos</button>'
+    + '<button id="cl-sel-none" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);cursor:pointer">☐ Ninguno</button>'
     + '</div>'
-    + '<div id="cl-t-items" style="max-height:200px;overflow-y:auto;border:1px solid var(--border2);border-radius:8px;padding:8px"></div>'
+    + '<div id="cl-t-items" style="max-height:220px;overflow-y:auto;border:1px solid var(--border2);border-radius:8px;padding:8px"></div>'
     + '</div>'
     + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
     + '<button id="cl-t-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
     + '<button id="cl-t-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600" disabled>Importar seleccionadas</button>'
-    + '</div></div>';
+    + '</div>';
+
+  div.appendChild(box);
   document.body.appendChild(div);
 
   let tareasCache = [];
 
-  document.getElementById('cl-t-cancel').onclick = () => div.remove();
-  document.getElementById('cl-t-cargar').onclick = async () => {
+  document.getElementById('cl-t-cancel').addEventListener('click', () => div.remove());
+
+  document.getElementById('cl-sel-all')?.addEventListener('click', () => {
+    div.querySelectorAll('#cl-t-items input[type=checkbox]').forEach(cb => cb.checked = true);
+  });
+  document.getElementById('cl-sel-none')?.addEventListener('click', () => {
+    div.querySelectorAll('#cl-t-items input[type=checkbox]').forEach(cb => cb.checked = false);
+  });
+
+  document.getElementById('cl-t-trim').addEventListener('change', function() {
+    const insts2 = g?.estructura?.[this.value] || [];
+    document.getElementById('cl-t-inst').innerHTML = insts2.map((inst,i) =>
+      '<option value="' + i + '">' + inst.nombre + '</option>'
+    ).join('');
+  });
+
+  document.getElementById('cl-t-cargar').addEventListener('click', async () => {
     const cursoId = document.getElementById('cl-t-curso').value;
+    const soloTareas = document.getElementById('cl-t-soloTareas').checked;
     document.getElementById('cl-t-cargar').textContent = '⏳ Cargando...';
-    try {
-      tareasCache = await classroomGetTareas(cursoId);
-    } catch(e) {
+    try { tareasCache = await classroomGetTareas(cursoId, soloTareas); }
+    catch(e) {
       alert('Error: ' + e.message);
       document.getElementById('cl-t-cargar').textContent = '🔄 Cargar tareas del curso';
       return;
@@ -11949,40 +11865,42 @@ async function abrirImportarTareasClassroom(gid) {
     document.getElementById('cl-t-cargar').textContent = '🔄 Cargar tareas del curso';
     if (!tareasCache.length) { alert('No se encontraron tareas en ese curso.'); return; }
 
-    const items = tareasCache.map((t, i) => {
+    const instIdx2 = parseInt(document.getElementById('cl-t-inst').value);
+    const itemsContainer = document.getElementById('cl-t-items');
+    itemsContainer.innerHTML = '';
+    tareasCache.forEach((t, i) => {
       const fecha = t.dueDate ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0') : '';
-      return '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer">'
-        + '<input type="checkbox" data-idx="' + i + '" checked>'
-        + '<span><strong>' + t.title + '</strong>' + (fecha ? ' <span style="color:var(--text3)">· ' + fecha + '</span>' : '') + '</span></label>';
-    }).join('');
-
-    document.getElementById('cl-t-items').innerHTML = items;
+      const yaEnTarget = ['T1','T2','T3'].some(tr => {
+        const inst2 = g?.estructura?.[tr]?.[instIdx2];
+        return inst2?.items?.some(it => it._classroomId === t.id || it.nombre === t.title);
+      });
+      const lbl = document.createElement('label');
+      lbl.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.dataset.idx = i; cb.checked = !yaEnTarget;
+      const txt = document.createElement('span');
+      txt.innerHTML = '<strong>' + t.title + '</strong>'
+        + (t.courseWorkType !== 'ASSIGNMENT' ? ' <span style="color:var(--text3);font-size:10px">(' + t.courseWorkType + ')</span>' : '')
+        + (yaEnTarget ? ' <span style="font-size:10px;color:var(--accent)">✓ ya importada</span>' : '')
+        + (fecha ? ' <span style="color:var(--text3)">· ' + fecha + '</span>' : '');
+      lbl.appendChild(cb); lbl.appendChild(txt);
+      itemsContainer.appendChild(lbl);
+    });
     document.getElementById('cl-t-lista').style.display = '';
     document.getElementById('cl-t-ok').disabled = false;
-  };
+  });
 
-  // Update inst options when trim changes
-  document.getElementById('cl-t-trim').onchange = function() {
-    const t = this.value;
-    const insts2 = g?.estructura?.[t] || [];
-    document.getElementById('cl-t-inst').innerHTML = insts2.map((inst,i) =>
-      '<option value="' + i + '">' + inst.nombre + '</option>'
-    ).join('');
-  };
-
-  document.getElementById('cl-t-ok').onclick = async () => {
-    const selIdx = Array.from(div.querySelectorAll('#cl-t-lista input[type=checkbox]:checked'))
+  document.getElementById('cl-t-ok').addEventListener('click', async () => {
+    const selIdx = Array.from(div.querySelectorAll('#cl-t-items input[type=checkbox]:checked'))
       .map(cb => parseInt(cb.dataset.idx));
     if (!selIdx.length) { alert('Selecciona al menos una tarea.'); return; }
-
     const trimSel = document.getElementById('cl-t-trim').value;
     const instIdx = parseInt(document.getElementById('cl-t-inst').value);
     const conNotas = document.getElementById('cl-t-notas').checked;
     const cursoId = document.getElementById('cl-t-curso').value;
-
     div.remove();
     await _ejecutarImportarTareasClassroom(gid, cursoId, tareasCache, selIdx, trimSel, instIdx, conNotas);
-  };
+  });
 }
 
 async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, trim, instIdx, conNotas) {
@@ -11995,13 +11913,12 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
   const tareasSelec = selIdx.map(i => tareas[i]);
   let nuevas = 0, yaExistian = 0;
 
-  // Add new items or detect existing
   tareasSelec.forEach(t => {
-    const existe = inst.items.some(it => it.nombre === t.title || it._classroomId === t.id);
-    if (existe) {
-      yaExistian++;
-      return;
-    }
+    const yaExiste = ['T1','T2','T3'].some(tr => {
+      const inst2 = g.estructura?.[tr]?.[instIdx];
+      return inst2?.items?.some(it => it._classroomId === t.id || it.nombre === t.title);
+    });
+    if (yaExiste) { yaExistian++; return; }
     const fecha = t.dueDate
       ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0')
       : '';
@@ -12009,107 +11926,68 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
     nuevas++;
   });
 
-  // Recalculate weights if new items added
   if (nuevas > 0 && inst.mediaAritmetica !== false) {
     const n = inst.items.length;
     inst.items.forEach((it, j) => {
-      it.peso = Math.round(100 * (j+1) / n) - Math.round(100 * j / n);
+      it.peso = Math.round(100*(j+1)/n) - Math.round(100*j/n);
     });
-  } else if (nuevas > 0) {
-    mostrarToast('⚠ Instrumento en modo ponderado — revisa los % en Notas de clase.');
   }
 
-  // Import/update grades if requested
   if (conNotas) {
-    mostrarToast('Importando calificaciones desde Classroom...');
+    mostrarToast('Importando calificaciones...');
     const als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
-    let notasActualizadas = 0, notasSinCalificar = 0;
-
-    // Build userId→alumno map
-    let userIdMap = {};
-    // First: map from already-stored _classroomUserId
-    als.forEach(a => { if (a._classroomUserId) userIdMap[a._classroomUserId] = a; });
-    try {
-      // Fetch course students to get userId↔email mapping
-      const courseStudents = await classroomGetAlumnos(cursoId);
-      courseStudents.forEach(est => {
-        const email = (est.profile?.emailAddress || '').toLowerCase().trim();
-        const userId = est.userId || '';
-        if (!userId) return;
-        // Try match by email
-        let alumno = email ? als.find(a => (a.email||'').toLowerCase().trim() === email) : null;
-        // Try match by existing _classroomUserId
-        if (!alumno) alumno = als.find(a => a._classroomUserId === userId);
-        if (alumno) {
-          userIdMap[userId] = alumno;
-          if (!alumno._classroomUserId) alumno._classroomUserId = userId;
-        }
-      });
-      console.log('Classroom userId map built:', Object.keys(userIdMap).length, 'alumnos mapeados de', als.length);
-    } catch(e) {
-      console.warn('No se pudo cargar lista de alumnos del curso:', e);
-    }
+    const userIdMap = await _buildUserIdMap(cursoId, als);
+    let notasActualizadas = 0, notasSinCalificar = 0, noMatch = 0;
 
     for (const t of tareasSelec) {
-      // Find the item index (works for both new and existing items)
-      const jIdx = inst.items.findIndex(it => it._classroomId === t.id || it.nombre === t.title);
-      if (jIdx < 0) continue;
-      // Ensure _classroomId is set on existing items
-      if (!inst.items[jIdx]._classroomId) inst.items[jIdx]._classroomId = t.id;
+      let targetTrim = null, targetJIdx = -1;
+      for (const tr of ['T1','T2','T3']) {
+        const inst2 = g.estructura?.[tr]?.[instIdx];
+        if (!inst2) continue;
+        const jIdx = inst2.items?.findIndex(it => it._classroomId === t.id || it.nombre === t.title);
+        if (jIdx >= 0) { targetTrim = tr; targetJIdx = jIdx; break; }
+      }
+      if (!targetTrim) continue;
+
+      const instTarget = g.estructura[targetTrim][instIdx];
+      if (!instTarget.items[targetJIdx]._classroomId) instTarget.items[targetJIdx]._classroomId = t.id;
 
       try {
         const entregas = await classroomGetEntregas(cursoId, t.id);
         entregas.forEach(sub => {
-          // Only process if grade exists
-          if (sub.assignedGrade == null) {
-            notasSinCalificar++;
-            return;
-          }
-          // Convert from /100 to /10
+          if (sub.assignedGrade == null) { notasSinCalificar++; return; }
           const nota = Math.round((sub.assignedGrade / 10) * 100) / 100;
-
-          // Match alumno using pre-built userId map
           const alumno = userIdMap[sub.userId];
-          if (!alumno) return;
-
+          if (!alumno) { noMatch++; return; }
           if (!alumno.notas) alumno.notas = {};
-          if (!alumno.notas[trim]) alumno.notas[trim] = {};
-          if (!alumno.notas[trim][instIdx]) alumno.notas[trim][instIdx] = {};
-
-          const notaAnterior = alumno.notas[trim][instIdx][jIdx];
-          // Update if: no previous grade, or previous was null/undefined
-          if (notaAnterior == null || notaAnterior === '') {
-            alumno.notas[trim][instIdx][jIdx] = nota;
-            notasActualizadas++;
-          }
-          // Also update if grade changed (re-import after correction)
-          else if (notaAnterior !== nota) {
-            alumno.notas[trim][instIdx][jIdx] = nota;
+          if (!alumno.notas[targetTrim]) alumno.notas[targetTrim] = {};
+          if (!alumno.notas[targetTrim][instIdx]) alumno.notas[targetTrim][instIdx] = {};
+          const notaAnterior = alumno.notas[targetTrim][instIdx][targetJIdx];
+          if (notaAnterior == null || notaAnterior === '' || notaAnterior !== nota) {
+            alumno.notas[targetTrim][instIdx][targetJIdx] = nota;
             notasActualizadas++;
           }
         });
-      } catch(e) {
-        console.warn('Error importando notas de', t.title, e);
-      }
+      } catch(e) { console.warn('Error notas', t.title, e); }
     }
 
-    const msgNotas = notasActualizadas > 0
-      ? ' · ' + notasActualizadas + ' nota' + (notasActualizadas!==1?'s':'') + ' importada' + (notasActualizadas!==1?'s':'')
-      : ' · Sin notas nuevas';
-    const msgSin = notasSinCalificar > 0
-      ? ' · ' + notasSinCalificar + ' entrega' + (notasSinCalificar!==1?'s':'') + ' sin calificar aún'
-      : '';
-    mostrarToast('✓ Classroom importado' + msgNotas + msgSin);
+    const msgs = [
+      nuevas > 0 ? nuevas + ' tarea' + (nuevas!==1?'s':'') + ' nueva' + (nuevas!==1?'s':'') : '',
+      notasActualizadas > 0 ? notasActualizadas + ' nota' + (notasActualizadas!==1?'s':'') + ' importada' + (notasActualizadas!==1?'s':'') : '',
+      notasSinCalificar > 0 ? notasSinCalificar + ' sin calificar' : '',
+      noMatch > 0 ? noMatch + ' sin match (ver consola)' : '',
+    ].filter(Boolean).join(' · ');
+    mostrarToast('✓ ' + (msgs || 'Sin cambios'));
   } else {
-    mostrarToast(
-      '✓ ' + nuevas + ' tarea' + (nuevas!==1?'s':'') + ' importada' + (nuevas!==1?'s':'')
-      + (yaExistian ? ' · ' + yaExistian + ' ya existía' + (yaExistian!==1?'n':'') : '')
-    );
+    mostrarToast('✓ ' + nuevas + ' tarea' + (nuevas!==1?'s':'') + ' importada' + (nuevas!==1?'s':'')
+      + (yaExistian ? ' · ' + yaExistian + ' ya existían' : ''));
   }
 
   guardarDatos();
   renderPage();
 }
+
+
 
 
 // ── Google Drive Browser ───────────────────────────────────────────────────
