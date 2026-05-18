@@ -865,7 +865,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v1.0</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v1.2</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -11704,7 +11704,7 @@ async function classroomGetCursos() {
 
 // Obtener alumnos de un curso
 async function classroomGetAlumnos(courseId) {
-  const data = await classroomApiGet('courses/' + courseId + '/students?pageSize=200');
+  const data = await classroomApiGet('courses/' + courseId + '/students?pageSize=200&fields=students(userId,profile(name,emailAddress))');
   return data?.students || [];
 }
 
@@ -12025,27 +12025,29 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
     const als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
     let notasActualizadas = 0, notasSinCalificar = 0;
 
-    // Build userId→alumno map using course students list (most reliable method)
+    // Build userId→alumno map
     let userIdMap = {};
+    // First: map from already-stored _classroomUserId
+    als.forEach(a => { if (a._classroomUserId) userIdMap[a._classroomUserId] = a; });
     try {
+      // Fetch course students to get userId↔email mapping
       const courseStudents = await classroomGetAlumnos(cursoId);
       courseStudents.forEach(est => {
-        const email = est.profile?.emailAddress || '';
+        const email = (est.profile?.emailAddress || '').toLowerCase().trim();
         const userId = est.userId || '';
-        // Try to match by email first (most reliable)
-        let alumno = email ? als.find(a => a.email === email) : null;
-        // Fallback to _classroomUserId
-        if (!alumno && userId) alumno = als.find(a => a._classroomUserId === userId);
-        if (alumno && userId) {
+        if (!userId) return;
+        // Try match by email
+        let alumno = email ? als.find(a => (a.email||'').toLowerCase().trim() === email) : null;
+        // Try match by existing _classroomUserId
+        if (!alumno) alumno = als.find(a => a._classroomUserId === userId);
+        if (alumno) {
           userIdMap[userId] = alumno;
-          // Store userId for future use
           if (!alumno._classroomUserId) alumno._classroomUserId = userId;
         }
       });
+      console.log('Classroom userId map built:', Object.keys(userIdMap).length, 'alumnos mapeados de', als.length);
     } catch(e) {
-      console.warn('No se pudo cargar lista de alumnos del curso para mapear IDs:', e);
-      // Fallback: use existing _classroomUserId map
-      als.forEach(a => { if (a._classroomUserId) userIdMap[a._classroomUserId] = a; });
+      console.warn('No se pudo cargar lista de alumnos del curso:', e);
     }
 
     for (const t of tareasSelec) {
