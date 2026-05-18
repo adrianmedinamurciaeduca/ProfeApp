@@ -865,7 +865,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v1.5</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v1.6</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -7498,7 +7498,7 @@ function calRenderMes() {
       ${colorDia ? `<div style="font-size:9px;font-weight:700;color:${colorDia.text};margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${calEvsDia(fecha).find(e=>e.tipo===Object.keys(CAL_TIPOS).find(k=>CAL_TIPOS[k]===colorDia))?.titulo||''}</div>` : ''}
       ${evsDia.slice(0, 1).map(e => {
         const c = CAL_TIPOS[e.tipo] || CAL_TIPOS.evento;
-        return `<div style="font-size:9px;background:${c.bg};color:${c.text};border-left:2px solid ${c.border};padding:1px 4px;border-radius:0 3px 3px 0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px">${e.horaInicio&&!e.diaEntero?e.horaInicio+' ':''}${e.titulo}</div>`;
+        return `<div style="font-size:9px;background:${c.bg};color:${c.text};border-left:2px solid ${c.border};padding:1px 4px;border-radius:0 3px 3px 0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px">${e.horaInicio&&!e.diaEntero?e.horaInicio+' ':''}${e._origen==='google'?'🗓 ':''}${e.titulo}</div>`;
       }).join('')}
       ${clasesDelDia.slice(0, 3).map(cl => {
         if (cl.guardia) return `<div style="font-size:9px;background:#fef9c3;color:#854d0e;border-left:2px solid #fde047;padding:1px 4px;border-radius:0 3px 3px 0;margin-top:1px;white-space:nowrap;overflow:hidden">👁 Guardia</div>`;
@@ -7944,6 +7944,8 @@ function calAbrirModalEventoHora(fechaStr, hIni, hFin) {
 }
 
 function calEditarEvento(id) {
+  const _evCheck = APP.calendario?.eventos?.find(e => e.id === id);
+  if (_evCheck?._origen === 'google') { mostrarToast('Este evento es de Google Calendar — edítalo allí.'); return; }
   const ev = APP.calendario.eventos.find(e => e.id === id);
   if (!ev) return;
   _calEditandoId = id;
@@ -8183,16 +8185,23 @@ function calGuardarEvento() {
   };
   if (_calEditandoId) {
     const idx = APP.calendario.eventos.findIndex(e => e.id === _calEditandoId);
-    if (idx !== -1) APP.calendario.eventos[idx] = { ...APP.calendario.eventos[idx], ...datos };
+    if (idx !== -1) {
+      APP.calendario.eventos[idx] = { ...APP.calendario.eventos[idx], ...datos };
+      gcalActualizar(APP.calendario.eventos[idx]);
+    }
     _calEditandoId = null;
   } else {
-    APP.calendario.eventos.push({ id: uid(), ...datos });
+    const newEv = { id: uid(), _origen: 'app', ...datos };
+    APP.calendario.eventos.push(newEv);
+    gcalCrear(newEv);
   }
   guardarDatos(); calCerrarEvento(); renderPage();
 }
 
 function calEliminarEventoConfirm(id) {
   confirmar('Eliminar evento', '¿Eliminar este evento del calendario?', () => {
+    const _evDel = APP.calendario.eventos.find(e => e.id === id);
+    if (_evDel?._gcalId) gcalBorrar(_evDel._gcalId);
     APP.calendario.eventos = APP.calendario.eventos.filter(e => e.id !== id);
     guardarDatos(); calCerrarEvento(); renderPage();
   });
@@ -8200,6 +8209,8 @@ function calEliminarEventoConfirm(id) {
 
 function calEliminarEvento(id) {
   confirmar('Eliminar evento', '¿Eliminar este evento del calendario?', () => {
+    const _evDel = APP.calendario.eventos.find(e => e.id === id);
+    if (_evDel?._gcalId) gcalBorrar(_evDel._gcalId);
     APP.calendario.eventos = APP.calendario.eventos.filter(e => e.id !== id);
     guardarDatos(); calCerrarEvento(); renderPage();
   });
@@ -11664,7 +11675,8 @@ const CLASSROOM_SCOPES = [
   'https://www.googleapis.com/auth/classroom.topics'
 ].join(' ');
 const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
-const ALL_SCOPES = DRIVE_SCOPE + ' ' + DRIVE_READONLY_SCOPE + ' ' + CLASSROOM_SCOPES;
+const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar';
+const ALL_SCOPES = DRIVE_SCOPE + ' ' + DRIVE_READONLY_SCOPE + ' ' + CLASSROOM_SCOPES + ' ' + CALENDAR_SCOPE;
 const DRIVE_FILE_NAME = 'profeapp_datos.json';
 
 let _driveToken      = null;   // access token actual
@@ -12500,6 +12512,7 @@ function driveIniciarAuth() {
     callback: async (resp) => {
       if (resp.error) { driveSetStatus('error'); return; }
       _driveToken = resp.access_token;
+      gcalCargar().then(() => renderPage());
       // Guardar token y expiración
       localStorage.setItem('profeapp_drive_token', _driveToken);
       localStorage.setItem('profeapp_drive_exp', Date.now() + (resp.expires_in - 60) * 1000);
