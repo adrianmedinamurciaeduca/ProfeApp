@@ -865,7 +865,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v1.3</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v1.4</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -11708,10 +11708,9 @@ async function classroomGetAlumnos(courseId) {
   return data?.students || [];
 }
 
-// Obtener tareas de un curso (solo ASSIGNMENT por defecto)
-async function classroomGetTareas(courseId, soloTareas) {
-  const filtro = soloTareas ? '&courseWorkType=ASSIGNMENT' : '';
-  const data = await classroomApiGet('courses/' + courseId + '/courseWork?pageSize=200&orderBy=dueDate' + filtro);
+// Obtener tareas de un curso
+async function classroomGetTareas(courseId) {
+  const data = await classroomApiGet('courses/' + courseId + '/courseWork?pageSize=200&orderBy=dueDate');
   return data?.courseWork || [];
 }
 
@@ -11739,15 +11738,18 @@ async function _buildUserIdMap(cursoId, als) {
       // Intentar match por email si está disponible
       const email = (est.profile?.emailAddress || '').toLowerCase().trim();
       let alumno = email ? als.find(a => (a.email||'').toLowerCase().trim() === email) : null;
-      // Intentar match por nombre completo
+      // Intentar match por nombre completo (normalizado sin tildes)
       if (!alumno) {
-        const nombre = (est.profile?.name?.givenName || '').toLowerCase().trim();
-        const apellidos = (est.profile?.name?.familyName || '').toLowerCase().trim();
+        const norm = s => (s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        const nombre = norm(est.profile?.name?.givenName);
+        const apellidos = norm(est.profile?.name?.familyName);
         if (nombre && apellidos) {
-          alumno = als.find(a =>
-            (a.nombre||'').toLowerCase().trim() === nombre &&
-            (a.apellidos||'').toLowerCase().trim() === apellidos
-          );
+          alumno = als.find(a => norm(a.nombre) === nombre && norm(a.apellidos) === apellidos);
+        }
+        // También intentar nombre completo en un solo campo
+        if (!alumno && nombre && apellidos) {
+          alumno = als.find(a => norm(a.apellidos + ' ' + a.nombre) === apellidos + ' ' + nombre
+            || norm(a.nombre + ' ' + a.apellidos) === nombre + ' ' + apellidos);
         }
       }
       if (alumno) {
@@ -11815,7 +11817,6 @@ async function abrirImportarTareasClassroom(gid) {
     + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:6px">'
     + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" id="cl-t-notas"> Importar también las calificaciones (÷10)</label>'
-    + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" id="cl-t-soloTareas" checked> Solo tareas con entrega (no cuestionarios)</label>'
     + '</div>'
     + '</div>'
     + '<button id="cl-t-cargar" style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-size:13px;margin-bottom:14px">🔄 Cargar tareas del curso</button>'
@@ -11854,9 +11855,8 @@ async function abrirImportarTareasClassroom(gid) {
 
   document.getElementById('cl-t-cargar').addEventListener('click', async () => {
     const cursoId = document.getElementById('cl-t-curso').value;
-    const soloTareas = document.getElementById('cl-t-soloTareas').checked;
     document.getElementById('cl-t-cargar').textContent = '⏳ Cargando...';
-    try { tareasCache = await classroomGetTareas(cursoId, soloTareas); }
+    try { tareasCache = await classroomGetTareas(cursoId); }
     catch(e) {
       alert('Error: ' + e.message);
       document.getElementById('cl-t-cargar').textContent = '🔄 Cargar tareas del curso';
@@ -11870,17 +11870,19 @@ async function abrirImportarTareasClassroom(gid) {
     itemsContainer.innerHTML = '';
     tareasCache.forEach((t, i) => {
       const fecha = t.dueDate ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0') : '';
+      const instIdx2cur = parseInt(document.getElementById('cl-t-inst').value)||0;
       const yaEnTarget = ['T1','T2','T3'].some(tr => {
-        const inst2 = g?.estructura?.[tr]?.[instIdx2];
-        return inst2?.items?.some(it => it._classroomId === t.id || it.nombre === t.title);
+        const inst2 = g?.estructura?.[tr]?.[instIdx2cur];
+        if (!inst2?.items) return false;
+        return inst2.items.some(it => (it._classroomId && it._classroomId === t.id) || it.nombre === t.title);
       });
       const lbl = document.createElement('label');
       lbl.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer';
       const cb = document.createElement('input');
       cb.type = 'checkbox'; cb.dataset.idx = i; cb.checked = !yaEnTarget;
       const txt = document.createElement('span');
-      txt.innerHTML = '<strong>' + t.title + '</strong>'
-        + (t.courseWorkType !== 'ASSIGNMENT' ? ' <span style="color:var(--text3);font-size:10px">(' + t.courseWorkType + ')</span>' : '')
+      const titulo = t.title || t.id || '(sin título)';
+      txt.innerHTML = '<strong>' + titulo + '</strong>'
         + (yaEnTarget ? ' <span style="font-size:10px;color:var(--accent)">✓ ya importada</span>' : '')
         + (fecha ? ' <span style="color:var(--text3)">· ' + fecha + '</span>' : '');
       lbl.appendChild(cb); lbl.appendChild(txt);
@@ -11916,7 +11918,8 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
   tareasSelec.forEach(t => {
     const yaExiste = ['T1','T2','T3'].some(tr => {
       const inst2 = g.estructura?.[tr]?.[instIdx];
-      return inst2?.items?.some(it => it._classroomId === t.id || it.nombre === t.title);
+      if (!inst2?.items) return false;
+      return inst2.items.some(it => (it._classroomId && it._classroomId === t.id) || it.nombre === t.title);
     });
     if (yaExiste) { yaExistian++; return; }
     const fecha = t.dueDate
