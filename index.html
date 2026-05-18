@@ -11856,11 +11856,13 @@ async function _ejecutarImportarAlumnosClassroom(gid, cursoId) {
       // Update missing fields
       if (!existing.nombre && nombre) existing.nombre = nombre;
       if (!existing.apellidos && apellidos) existing.apellidos = apellidos;
+      if (!existing._classroomUserId && est.userId) existing._classroomUserId = est.userId;
       actualizados++;
     } else {
       APP.alumnos.push({
         id: uid(), grupoId: gid,
         nombre, apellidos, email,
+        _classroomUserId: est.userId || '',
         nLista: (APP.alumnos.filter(a => a.grupoId === gid).length + 1),
         camposExtra: [], observaciones: [], reuniones: []
       });
@@ -12023,6 +12025,29 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
     const als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
     let notasActualizadas = 0, notasSinCalificar = 0;
 
+    // Build userId→alumno map using course students list (most reliable method)
+    let userIdMap = {};
+    try {
+      const courseStudents = await classroomGetAlumnos(cursoId);
+      courseStudents.forEach(est => {
+        const email = est.profile?.emailAddress || '';
+        const userId = est.userId || '';
+        // Try to match by email first (most reliable)
+        let alumno = email ? als.find(a => a.email === email) : null;
+        // Fallback to _classroomUserId
+        if (!alumno && userId) alumno = als.find(a => a._classroomUserId === userId);
+        if (alumno && userId) {
+          userIdMap[userId] = alumno;
+          // Store userId for future use
+          if (!alumno._classroomUserId) alumno._classroomUserId = userId;
+        }
+      });
+    } catch(e) {
+      console.warn('No se pudo cargar lista de alumnos del curso para mapear IDs:', e);
+      // Fallback: use existing _classroomUserId map
+      als.forEach(a => { if (a._classroomUserId) userIdMap[a._classroomUserId] = a; });
+    }
+
     for (const t of tareasSelec) {
       // Find the item index (works for both new and existing items)
       const jIdx = inst.items.findIndex(it => it._classroomId === t.id || it.nombre === t.title);
@@ -12041,11 +12066,8 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
           // Convert from /100 to /10
           const nota = Math.round((sub.assignedGrade / 10) * 100) / 100;
 
-          // Match alumno by classroomUserId or email
-          const alumno = als.find(a =>
-            a._classroomUserId === sub.userId ||
-            (sub.userProfile?.emailAddress && a.email === sub.userProfile.emailAddress)
-          );
+          // Match alumno using pre-built userId map
+          const alumno = userIdMap[sub.userId];
           if (!alumno) return;
 
           if (!alumno.notas) alumno.notas = {};
