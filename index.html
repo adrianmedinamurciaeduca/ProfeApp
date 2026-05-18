@@ -865,7 +865,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v1.4</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v1.5</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -11782,6 +11782,103 @@ function _buscarTareaEnGrupo(g, instIdx, titulo, classroomId) {
     }
   }
   return null;
+}
+
+// ── Modal: Importar alumnos desde Classroom ─────────────────────────────
+async function abrirImportarAlumnosClassroom(gid) {
+  mostrarToast('Cargando cursos de Classroom...');
+  let cursos;
+  try { cursos = await classroomGetCursos(); }
+  catch(e) { alert('Error al conectar con Classroom: ' + e.message + '\n\nAsegúrate de haber conectado Google con los permisos de Classroom.'); return; }
+  if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
+
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:12px;padding:24px;max-width:440px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+
+  const opcs = cursos.map((cur, i) =>
+    '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">'
+    + '<input type="radio" name="cl-curso" value="' + cur.id + '"' + (i===0?' checked':'') + '>'
+    + '<span style="font-size:13px"><strong>' + cur.name + '</strong>'
+    + (cur.section ? ' · ' + cur.section : '') + '</span></label>'
+  ).join('');
+
+  box.innerHTML = '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">🎓 Importar desde Classroom</h3>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Selecciona el curso de Classroom que corresponde a este grupo:</p>'
+    + '<div style="margin-bottom:16px">' + opcs + '</div>'
+    + '<p style="font-size:11px;color:var(--text3);margin-bottom:16px">ℹ️ Se importarán nombre, apellidos y email. Si ya existen por email se actualizarán sin duplicar.</p>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button id="cl-imp-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
+    + '<button id="cl-imp-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Importar alumnos</button>'
+    + '</div>';
+
+  div.appendChild(box);
+  document.body.appendChild(div);
+
+  document.getElementById('cl-imp-cancel').addEventListener('click', () => div.remove());
+  document.getElementById('cl-imp-ok').addEventListener('click', async () => {
+    const cursoId = div.querySelector('input[name=cl-curso]:checked')?.value;
+    if (!cursoId) return;
+    div.remove();
+    await _ejecutarImportarAlumnosClassroom(gid, cursoId);
+  });
+}
+
+async function _ejecutarImportarAlumnosClassroom(gid, cursoId) {
+  mostrarToast('Cargando alumnos del curso...');
+  let estudiantes;
+  try { estudiantes = await classroomGetAlumnos(cursoId); }
+  catch(e) { alert('Error al obtener alumnos: ' + e.message); return; }
+  if (!estudiantes.length) { alert('No se encontraron alumnos en ese curso.'); return; }
+
+  const g = APP.grupos.find(x => x.id === gid);
+  if (!g) return;
+  if (!APP.alumnos) APP.alumnos = [];
+
+  const norm = s => (s||'').toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  let nuevos = 0, actualizados = 0;
+
+  estudiantes.forEach(est => {
+    const prof = est.profile;
+    const email = (prof?.emailAddress || '').toLowerCase().trim();
+    const nombre = prof?.name?.givenName || '';
+    const apellidos = prof?.name?.familyName || '';
+    const userId = est.userId || '';
+
+    // Match by email first, then by name
+    let existing = email
+      ? APP.alumnos.find(a => a.grupoId === gid && (a.email||'').toLowerCase().trim() === email)
+      : null;
+    if (!existing && nombre && apellidos) {
+      existing = APP.alumnos.find(a => a.grupoId === gid
+        && norm(a.nombre) === norm(nombre)
+        && norm(a.apellidos) === norm(apellidos));
+    }
+
+    if (existing) {
+      if (!existing.nombre && nombre) existing.nombre = nombre;
+      if (!existing.apellidos && apellidos) existing.apellidos = apellidos;
+      if (!existing.email && email) existing.email = email;
+      if (!existing._classroomUserId && userId) existing._classroomUserId = userId;
+      actualizados++;
+    } else {
+      APP.alumnos.push({
+        id: uid(), grupoId: gid,
+        nombre, apellidos, email,
+        _classroomUserId: userId,
+        nLista: (APP.alumnos.filter(a => a.grupoId === gid).length + 1),
+        camposExtra: [], observaciones: [], reuniones: []
+      });
+      nuevos++;
+    }
+  });
+
+  reordenarGrupo(gid);
+  guardarDatos();
+  mostrarToast('✓ ' + nuevos + ' alumno' + (nuevos!==1?'s':'') + ' importado' + (nuevos!==1?'s':'')
+    + (actualizados ? ' · ' + actualizados + ' actualizado' + (actualizados!==1?'s':'') : ''));
+  renderPage();
 }
 
 // ── Modal: Importar tareas desde Classroom ────────────────────────────────
