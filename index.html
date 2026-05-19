@@ -11685,7 +11685,100 @@ let _driveSyncTimer  = null;   // timer de debounce
 let _driveInited     = false;
 
 
-// ── Google Classroom Integration ──────────────────────────────────────────
+// ── Google Calendar Integration ────────────────────────────────────────────
+const GCAL_BASE = 'https://www.googleapis.com/calendar/v3';
+const GCAL_CAL  = 'primary';
+
+async function gcalRequest(method, path, body) {
+  if (!_driveToken) return null;
+  const opts = { method, headers: { Authorization: 'Bearer ' + _driveToken, 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(GCAL_BASE + path, opts);
+  if (resp.status === 204) return null;
+  const json = await resp.json();
+  if (!resp.ok) throw new Error(json.error?.message || 'GCal error ' + resp.status);
+  return json;
+}
+
+function _evToGcal(ev) {
+  const g = {
+    summary: ev.titulo,
+    description: ev.descripcion || '',
+    extendedProperties: { private: { profeAppId: ev.id, profeAppTipo: ev.tipo || '' } }
+  };
+  if (ev.diaEntero !== false) {
+    g.start = { date: ev.fecha };
+    g.end   = { date: ev.fechaFin || ev.fecha };
+  } else {
+    g.start = { dateTime: ev.fecha + 'T' + (ev.horaInicio || '00:00') + ':00', timeZone: 'Europe/Madrid' };
+    g.end   = { dateTime: (ev.fechaFin||ev.fecha) + 'T' + (ev.horaFin||ev.horaInicio||'00:00') + ':00', timeZone: 'Europe/Madrid' };
+  }
+  return g;
+}
+
+function _gcalToEv(g) {
+  const allDay = !!g.start?.date;
+  const fecha  = allDay ? g.start.date : (g.start?.dateTime||'').slice(0,10);
+  const fechaFin = allDay ? (g.end?.date||fecha) : ((g.end?.dateTime||'').slice(0,10)||fecha);
+  const p = g.extendedProperties?.private || {};
+  return {
+    id: p.profeAppId || ('gcal_' + g.id), _gcalId: g.id,
+    _origen: p.profeAppId ? 'app' : 'google',
+    titulo: g.summary || '(sin título)', tipo: p.profeAppTipo || 'evento',
+    descripcion: g.description || '', fecha, fechaFin, diaEntero: allDay,
+    horaInicio: allDay ? '' : (g.start?.dateTime||'').slice(11,16),
+    horaFin:    allDay ? '' : (g.end?.dateTime||'').slice(11,16),
+  };
+}
+
+async function gcalCrear(ev) {
+  try {
+    const r = await gcalRequest('POST', '/calendars/' + GCAL_CAL + '/events', _evToGcal(ev));
+    if (r?.id) {
+      const a = APP.calendario?.eventos?.find(e => e.id === ev.id);
+      if (a) a._gcalId = r.id;
+      guardarDatos();
+    }
+  } catch(e) { console.warn('gcalCrear:', e.message); }
+}
+
+async function gcalActualizar(ev) {
+  if (!ev._gcalId) { await gcalCrear(ev); return; }
+  try { await gcalRequest('PUT', '/calendars/' + GCAL_CAL + '/events/' + ev._gcalId, _evToGcal(ev)); }
+  catch(e) { console.warn('gcalActualizar:', e.message); }
+}
+
+async function gcalBorrar(gcalId) {
+  if (!gcalId) return;
+  try { await gcalRequest('DELETE', '/calendars/' + GCAL_CAL + '/events/' + gcalId); }
+  catch(e) { console.warn('gcalBorrar:', e.message); }
+}
+
+async function gcalCargar() {
+  if (!_driveToken) return;
+  try {
+    const from = new Date(); from.setMonth(from.getMonth() - 3);
+    const to   = new Date(); to.setMonth(to.getMonth() + 6);
+    const qs = 'timeMin=' + encodeURIComponent(from.toISOString())
+             + '&timeMax=' + encodeURIComponent(to.toISOString())
+             + '&maxResults=500&singleEvents=true&orderBy=startTime';
+    const data = await gcalRequest('GET', '/calendars/' + encodeURIComponent(GCAL_CAL) + '/events?' + qs);
+    if (!APP.calendario) APP.calendario = { eventos: [] };
+    APP.calendario.eventos = APP.calendario.eventos.filter(e => e._origen !== 'google');
+    (data?.items || []).forEach(g => {
+      const profeId = g.extendedProperties?.private?.profeAppId;
+      if (profeId) {
+        const a = APP.calendario.eventos.find(e => e.id === profeId);
+        if (a) a._gcalId = g.id;
+      } else {
+        APP.calendario.eventos.push(_gcalToEv(g));
+      }
+    });
+    console.log('GCal:', (data?.items||[]).length, 'eventos cargados');
+  } catch(e) { console.warn('gcalCargar:', e.message); }
+}
+
+// ── Google Classroom Integration ────────────────────────────────────────────
 
 async function classroomGetToken() {
   if (!_driveToken) {
