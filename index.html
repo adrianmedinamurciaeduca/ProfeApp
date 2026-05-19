@@ -865,7 +865,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v1.7</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v1.8</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -6014,13 +6014,7 @@ function renderAjustes() {
       <p style="font-size:12px;color:var(--text2);margin-top:12px">Los datos se guardan automáticamente en este navegador. Exporta un backup JSON regularmente.</p>
       ${estadoBloque}
     </div>
-    <div class="card" style="padding:20px">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:10px">Acerca de ProfeApp</h3>
-      <p style="font-size:13px;color:var(--text2);line-height:1.8">
-        ProfeApp es una aplicación para docentes, sencilla y gratuita para gestionar y evaluar tus alumnos sincronizando tus dispositivos en la nube en tiempo real.
-      </p>
-      <p style="font-size:12px;color:var(--text3);margin-top:10px;font-style:italic">Hecho por Adrián Medina.</p>
-    </div>
+    
   </div>`;
 }
 function renderBottomNavSettings() {
@@ -7344,6 +7338,7 @@ const CAL_TIPOS = {
   evaluacion: { bg:'#dc2626', border:'#991b1b', text:'#ffffff', nombre:'Evaluación',       diaCompleto: false },
   tarea:      { bg:'#7c3aed', border:'#4c1d95', text:'#ffffff', nombre:'Tarea/Examen',     diaCompleto: false },
   evento:     { bg:'#db2777', border:'#9d174d', text:'#ffffff', nombre:'Evento propio',    diaCompleto: false },
+  classroom:  { bg:'#0f9d58', border:'#0a6e3e', text:'#ffffff', nombre:'Classroom',        diaCompleto: false },
 };
 
 function renderCalendario() {
@@ -7629,7 +7624,7 @@ function calRenderSemana() {
     }
 
     // Eventos con hora — calcular columnas paralelas
-    const evsH=calEvsDia(d).filter(e=>!CAL_TIPOS[e.tipo]?.diaCompleto&&e.diaEntero===false&&e.horaInicio)
+    const evsH=calEvsDia(d).filter(e=>!CAL_TIPOS[e.tipo]?.diaCompleto&&e.horaInicio&&(e.diaEntero===false||e._origen==='google'))
       .map(e=>({...e,ini:toMinCal(e.horaInicio),fin:toMinCal(e.horaFin||e.horaInicio)+30,col:0,totalCols:1}));
     // Asignar columnas con algoritmo de clúster
     if (evsH.length > 1) {
