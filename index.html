@@ -865,7 +865,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v1.8</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v1.9</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -7615,7 +7615,10 @@ function calRenderSemana() {
         let _spInfo=null; try{_spInfo=obtenerInfoSesion(cel.grupoId,dKey(d));}catch(e){}
         const sp = _spInfo ? { titulo: _spInfo.bloque?.titulo||'Sesión', num: _spInfo.sesNum, total: _spInfo.bloque?.sesiones?.length||0 } : null;
         const spAttrs = _spInfo ? `data-sp-grupo="${cel.grupoId}" data-sp-fecha="${dKey(d)}"` : '';
-        bloqHtml+=`<div ${spAttrs} style="position:absolute;top:${top}px;left:1px;right:1px;height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box;cursor:${_spInfo?'pointer':'default'}">
+        const _bEvs=calEvsDia(d).filter(e=>!CAL_TIPOS[e.tipo]?.diaCompleto&&e.horaInicio&&(e.diaEntero===false||e._origen==='google'));
+        const _bSolapa=_bEvs.some(ev=>{const ei=toMinCal(ev.horaInicio),ef=toMinCal(ev.horaFin||ev.horaInicio)+30;return ei<fin&&ini<ef;});
+        const _bRight=_bSolapa?'71%':'1px';
+        bloqHtml+=`<div ${spAttrs} style="position:absolute;top:${top}px;left:1px;right:${_bRight};height:${h}px;background:${col.bg};border-left:3px solid ${col.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:1;box-sizing:border-box;cursor:${_spInfo?'pointer':'default'}">
           <div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icon}${colorDia?'No lectivo':tipo==='clase'?(cel.materia||'Clase'):tipo==='guardia'?'Guardia':tipo==='recreo'?'Recreo':tipo==='reunion'?(cel.descripcion||'Reunión'):(cel.descripcion||'Personalizado')}</div>
           ${h>22&&g?`<div style="font-size:10px;font-weight:700;color:${col.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nombre}</div>`:''}
           ${h>36&&sp?`<div style="font-size:9px;color:#fff;font-weight:600;overflow:hidden;line-height:1.3">📖 ${sp.titulo}<br>S${sp.num}/${sp.total}</div>`:''}
@@ -7653,8 +7656,14 @@ function calRenderSemana() {
     evsH.forEach(e=>{
       const c=CAL_TIPOS[e.tipo]||CAL_TIPOS.evento;
       const top=(e.ini-minH)*PX, h=Math.max((e.fin-e.ini)*PX,20);
-      const wPct = e.totalCols === 1 ? 70 : 100/e.totalCols;
-      const lPct = e.col * (100/e.totalCols);
+      const _eHor=!isWknd&&(APP.horario?.franjas||[]).some(f=>{
+        const fI=toMinCal(f.inicio),fF=toMinCal(f.fin),cel2=(f.celdas||[])[diIdx]||{};
+        return cel2.tipo&&cel2.tipo!=='libre'&&fI<e.fin&&e.ini<fF;
+      });
+      const _off=_eHor?30:0;
+      const _avail=_eHor?70:100;
+      const wPct=e.totalCols===1?_avail:_avail/e.totalCols;
+      const lPct=_off+e.col*(_avail/e.totalCols);
       const gap=2;
       bloqHtml+=`<div onclick="calEditarEvento('${e.id}')" style="position:absolute;top:${top}px;left:${lPct.toFixed(2)}%;width:calc(${wPct.toFixed(2)}% - ${gap}px);height:${h}px;background:${c.bg};border-left:3px solid ${c.border};border-radius:0 4px 4px 0;padding:2px 4px;overflow:hidden;z-index:3;cursor:pointer;box-sizing:border-box">
         <div style="font-size:10px;font-weight:700;color:${c.text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.titulo}</div>
