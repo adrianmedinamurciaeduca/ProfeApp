@@ -185,8 +185,8 @@
     .page { padding: 12px; }
 
     /* Tablas horizontalmente scrollables */
-    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .alumnos-table { min-width: 600px; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; display: block; }
+    .alumnos-table { min-width: 750px; }
 
     /* Ficha: columna única */
     .ficha-grid { grid-template-columns: 1fr; }
@@ -205,7 +205,7 @@
 
     /* Grids a columna única */
     .grid-2, .grid-3 { grid-template-columns: 1fr; }
-    .resumen-notas { grid-template-columns: 1fr 1fr; }
+    .resumen-notas { grid-template-columns: 1fr 1fr; min-width: 300px; }
     .nota-final-box { grid-template-columns: 1fr; gap: 10px; }
 
     /* Trimestre tabs scrollables */
@@ -538,6 +538,7 @@
     gap: 10px;
     padding: 7px 0;
     border-bottom: 1px solid var(--border);
+    min-width: max-content;
   }
   .nota-item:last-child { border-bottom: none; }
   .nota-item-nombre { flex: 1; font-size: 13px; }
@@ -866,7 +867,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v2.2</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v2.6</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2331,7 +2332,7 @@ function renderAlumnos() {
             </div>
           </div>
         </div>
-        <div id="grupo-body-${g.id}" ${exp?'':'class="hidden"'}>
+        <div id="grupo-body-${g.id}" style="overflow-x:auto" ${exp?'':'class="hidden"'}>
           ${als.length === 0
             ? `<div class="empty-state" style="padding:28px"><div class="es-icon">👤</div><h4>Sin alumnos en este grupo</h4><button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="abrirImportarAlumnosGrupo('${g.id}')">📥 Importar alumnos</button></div>`
             : vistaAlumnos === 'miniaturas' ? renderVistaMiniaturas(g, als)
@@ -3774,7 +3775,7 @@ function renderTabNotas(a) {
       const mostrarRecuperacion = tieneRec || (notaOrigNum !== null && notaOrigNum < 5);
 
       // Fila principal
-      itemsHtml += `<div class="nota-item" style="flex-wrap:wrap;gap:6px">
+      itemsHtml += `<div class="nota-item" style="gap:6px">
           <div class="nota-item-nombre" style="min-width:120px;flex:2">
             <input type="text" value="${(item.nombre||'').replace(/"/g,'&quot;')}" style="border:none;background:transparent;font-family:inherit;font-size:13px;width:100%;outline:none;color:var(--text);${(tieneEstrPersonal&&!evalBloq)?'':'pointer-events:none;opacity:0.7'}" placeholder="Nombre..." ${(tieneEstrPersonal&&!evalBloq)?`onchange="cambiarNombreItemPersonal('${a.id}',${iIdx},${jIdx},this.value)"`:''}>
           </div>
@@ -3856,7 +3857,7 @@ function renderTabNotas(a) {
   }
 
   // ── Resumen ───────────────────────────────────────────────────
-  let resumenHtml = '<div class="resumen-notas">';
+  let resumenHtml = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><div class="resumen-notas">';
   instrumentos.forEach(inst => {
     const n = calcNota(inst.items);
     const nr2 = (redOn && umbral !== null) ? redondear(n, umbral) : null;
@@ -3865,8 +3866,7 @@ function renderTabNotas(a) {
       <div class="r-valor ${notaColor(nr2)}">${fmtNota(n)}</div>
     </div>`;
   });
-  resumenHtml += '</div>';
-
+  resumenHtml += '</div></div>';
   const redondBloque = redOn ? `
     <div style="text-align:center">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">${{T1:'1ª Eval.',T2:'2ª Eval.',T3:'3ª Eval.'}[trimestreActual]||trimestreActual} redondeada</div>
