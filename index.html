@@ -200,6 +200,7 @@
       border-radius: var(--radius-lg) var(--radius-lg) 0 0;
       max-height: 95dvh;
       max-width: 100% !important;
+      overflow: hidden;
     }
 
     /* Grids a columna única */
@@ -412,7 +413,7 @@
     flex-shrink: 0;
   }
   .modal-header h3 { font-size: 16px; font-weight: 600; }
-  .modal-body { padding: 22px; overflow-y: auto; flex: 1; min-height: 0; }
+  .modal-body { padding: 22px; overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; }
   .modal-footer {
     padding: 14px 22px;
     border-top: 1px solid var(--border);
@@ -865,7 +866,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v1.9</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v2.2</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2866,6 +2867,7 @@ function renderVistaCuaderno(g, als) {
       ${notaRed !== null && notaRed !== notaTrim ? `<div style="font-size:10px;color:var(--accent);font-weight:600">${notaRed}</div>` : ''}
     </td>`;
 
+    if (window._modoPrivadoAlumno && window._modoPrivadoAlumno !== a.id) return '';
     return `<tr>${tdAlumno}${tdsNotas}${tdFinal}</tr>`;
   }).join('');
 
@@ -2908,12 +2910,16 @@ function renderVistaCuaderno(g, als) {
       ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo salvo alumnos con % propios — actívalo en su ficha → Notas</span>` : ''}
       <span style="font-size:11px;color:var(--text3)">ℹ Los % de instrumentos son aritméticos por defecto — pondera en las notas de clase (para hacerlo por grupo) o en la ficha del alumno para hacerlo de manera individual</span>
       <div style="margin-left:auto;display:flex;gap:6px">
+        ${window._modoPrivadoAlumno
+          ? `<button onclick="cuadernoSalirPrivado()" class="btn btn-secondary btn-sm" style="background:var(--accent-bg);color:var(--accent)">🔓 Salir</button>`
+          : `<button onclick="cuadernoModoPrivado('${gid}','${trim}')" class="btn btn-secondary btn-sm">🔒 Privado</button>`
+        }
         <button onclick="exportarCuadernoPDF('${gid}','${trim}')" class="btn btn-secondary btn-sm">📄 PDF</button>
         <button onclick="exportarCuadernoExcel('${gid}','${trim}')" class="btn btn-secondary btn-sm">📊 Excel</button>
       </div>
     </div>
     <!-- Tabla -->
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;width:100%">
       <table style="border-collapse:collapse;font-family:'Calibri',sans-serif">
         <thead>
           <tr>
@@ -3054,6 +3060,57 @@ function cuadernoDeshacerNota(aid, iIdx, jIdx) {
   if (!hist?.length) return;
   a.notas[trim][iIdx][jIdx] = hist.shift();
   guardarDatos(); renderCuaderno(gid);
+}
+
+let _modoPrivadoAlumno = null;
+
+function cuadernoModoPrivado(gid, trim) {
+  const als = APP.alumnos
+    .filter(a => a.grupoId === gid && !a.archivado)
+    .sort((a,b) => (a.nLista||99)-(b.nLista||99));
+
+  const ov = document.createElement('div');
+  ov.id = 'priv-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:12px;padding:20px;max-width:340px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+
+  const title = document.createElement('h3');
+  title.style.cssText = 'font-size:15px;font-weight:700;margin-bottom:8px';
+  title.textContent = '🔒 Modo privado';
+  const desc = document.createElement('p');
+  desc.style.cssText = 'font-size:12px;color:var(--text3);margin-bottom:12px';
+  desc.textContent = 'Selecciona el alumno. Solo se verá su fila.';
+
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-bottom:12px';
+  als.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary';
+    btn.style.cssText = 'text-align:left;padding:8px 12px;font-size:13px';
+    btn.textContent = (a.nLista ? a.nLista + '. ' : '') + a.apellidos + ', ' + a.nombre;
+    btn.addEventListener('click', () => {
+      window._modoPrivadoAlumno = a.id;
+      document.getElementById('priv-overlay')?.remove();
+      renderCuaderno(gid);
+    });
+    list.appendChild(btn);
+  });
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.style.cssText = 'width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px';
+  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.addEventListener('click', () => ov.remove());
+
+  box.appendChild(title); box.appendChild(desc);
+  box.appendChild(list); box.appendChild(cancelBtn);
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+}
+
+function cuadernoSalirPrivado() {
+  window._modoPrivadoAlumno = null;
+  renderPage();
 }
 
 function exportarCuadernoPDF(gid, trim) {
