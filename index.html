@@ -3172,8 +3172,6 @@ function exportarCuadernoPDF(gid, trim) {
       <thead><tr>${cabTh}</tr><tr>${subTh}</tr></thead>
       <tbody>${filas}</tbody>
     </table>
-
-<div id="gemini-fab" onclick="abrirGemini()" style="position:fixed;bottom:70px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4285f4,#0f9d58);box-shadow:0 4px 16px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:8000;font-size:22px" title="Asistente Gemini">✨</div>
 </body></html>`;
 
   const leyendaIndiv = hayEvalIndivPDF ? '<p style="font-size:10px;color:#7c3aed;margin-top:8px">\u2605 Alumno con evaluaci\u00f3n individual \u2014 su nota final se calcula con sus propios % de ponderaci\u00f3n.</p>' : '';
@@ -14200,6 +14198,16 @@ cargarDatos();
 inicializarTema();
 renderPage('inicio');
 applyBottomNav();
+// Create Gemini FAB
+(function(){
+  const fab=document.createElement('div');
+  fab.id='gemini-fab';
+  fab.title='Asistente Gemini';
+  fab.textContent='✨';
+  fab.style.cssText='position:fixed;bottom:70px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4285f4,#0f9d58);box-shadow:0 4px 16px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9000;font-size:22px';
+  fab.onclick=abrirGemini;
+  document.body.appendChild(fab);
+})();
 driveSetStatus('off');
 registrarServiceWorker();
 // Set initial active nav item
