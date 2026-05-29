@@ -867,7 +867,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v2.6</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v2.7G</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -3172,7 +3172,8 @@ function exportarCuadernoPDF(gid, trim) {
       <thead><tr>${cabTh}</tr><tr>${subTh}</tr></thead>
       <tbody>${filas}</tbody>
     </table>
-  </body></html>`;
+  <div id="gemini-fab" onclick="abrirGemini()" style="position:fixed;bottom:70px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4285f4,#0f9d58);box-shadow:0 4px 16px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:8000;font-size:22px" title="Asistente Gemini">✨</div>
+</body></html>`;
 
   const leyendaIndiv = hayEvalIndivPDF ? '<p style="font-size:10px;color:#7c3aed;margin-top:8px">\u2605 Alumno con evaluaci\u00f3n individual \u2014 su nota final se calcula con sus propios % de ponderaci\u00f3n.</p>' : '';
   const html_final = html.replace('</body>', leyendaIndiv + '</body>');
@@ -11324,8 +11325,17 @@ function renderCuadernoConfig() {
       <div id="cuaderno-miniprev" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;transform-origin:top left">
         ${cuadernoMiniPrev()}
       </div>
+      <div class="card" style="padding:20px;margin-bottom:16px">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:6px">🤖 Asistente Gemini</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px">Clave de API gratuita en <a href="https://aistudio.google.com" target="_blank" style="color:var(--accent)">aistudio.google.com</a> → Get API key</p>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="password" id="aj-gemini-key" placeholder="AIza..." value="${APP.config.geminiKey||''}" style="flex:1;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" oninput="APP.config.geminiKey=this.value;guardarDatos()">
+      <button onclick="probarGemini()" class="btn btn-secondary btn-sm">Probar</button>
     </div>
-  </div>`;
+    <div style="font-size:11px;margin-top:6px;color:var(--text3)">${APP.config.geminiKey ? "✓ Clave guardada" : "Sin clave — el asistente no estará disponible"}</div>
+  </div>
+</div>
+</div>`;
 }
 
 function cuadernoSetPlantilla(p) {
@@ -14243,6 +14253,230 @@ if ('serviceWorker' in navigator) {
   const swUrl = URL.createObjectURL(blob);
   navigator.serviceWorker.register(swUrl).catch(() => {});
 }
+
+
+// ── Gemini Assistant ────────────────────────────────────────────────────────
+const GEMINI_MODEL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+let _geminiHistory = [];
+let _geminiPendingAction = null;
+
+function _geminiContexto() {
+  const grupos = APP.grupos.map(g => ({
+    id: g.id,
+    nombre: g.nombre,
+    nAlumnos: APP.alumnos.filter(a => a.grupoId === g.id && !a.archivado).length
+  }));
+  const eventos = (APP.calendario?.eventos || [])
+    .filter(e => e.fecha >= new Date().toISOString().slice(0,10))
+    .slice(0, 5)
+    .map(e => ({ titulo: e.titulo, fecha: e.fecha, tipo: e.tipo }));
+  return { grupos, eventos, totalAlumnos: APP.alumnos.filter(a => !a.archivado).length };
+}
+
+async function geminiChat(userMsg) {
+  const key = APP.config.geminiKey;
+  if (!key) return '⚠ Configura tu clave de API de Gemini en Ajustes primero.';
+
+  const ctx = _geminiContexto();
+  const systemText = 'Eres un asistente para ProfeApp, aplicacion de gestion docente. '
+    + 'Contexto: ' + JSON.stringify(ctx) + '. '
+    + 'Ayuda con consultas, generacion de texto (observaciones, programaciones, rubricas) y acciones. '
+    + 'Cuando propongas una accion que modifique datos incluye al final: '
+    + '<ACTION>{"tipo":"crear_evento","datos":{"titulo":"...","fecha":"YYYY-MM-DD","tipo":"evento"}}</ACTION> '
+    + 'o <ACTION>{"tipo":"observacion","alumnoNombre":"...","texto":"..."}</ACTION> '
+    + 'o <ACTION>{"tipo":"ninguna"}</ACTION>. '
+    + 'Responde siempre en espanol. Se conciso y practico.';
+
+  _geminiHistory.push({ role: 'user', parts: [{ text: userMsg }] });
+
+  try {
+    const resp = await fetch(GEMINI_MODEL + '?key=' + key, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemText }] },
+        contents: _geminiHistory,
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error?.message || 'Error API Gemini');
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '(sin respuesta)';
+    _geminiHistory.push({ role: 'model', parts: [{ text }] });
+
+    const m = text.match(/<ACTION>(.*?)<\/ACTION>/s);
+    if (m) {
+      try {
+        const act = JSON.parse(m[1]);
+        if (act.tipo !== 'ninguna') _geminiPendingAction = act;
+      } catch(e) {}
+    }
+    return text.replace(/<ACTION>.*?<\/ACTION>/s, '').trim();
+  } catch(e) {
+    return '❌ Error: ' + e.message;
+  }
+}
+
+async function probarGemini() {
+  const btn = document.querySelector('#aj-gemini-key + button') || document.querySelector('[onclick="probarGemini()"]');
+  if (btn) btn.textContent = '...';
+  const resp = await geminiChat('Responde solo: Conexion OK');
+  _geminiHistory = [];
+  mostrarToast(resp.length < 80 ? resp : '✓ Gemini conectado');
+  if (btn) btn.textContent = 'Probar';
+  renderPage();
+}
+
+function abrirGemini() {
+  if (!APP.config.geminiKey) {
+    mostrarToast('⚠ Configura la clave en Ajustes');
+    navTo('ajustes');
+    return;
+  }
+  if (document.getElementById('gemini-chat')) {
+    document.getElementById('gemini-chat').remove();
+    return;
+  }
+
+  const panel = document.createElement('div');
+  panel.id = 'gemini-chat';
+  panel.style.cssText = 'position:fixed;bottom:130px;right:16px;width:320px;max-width:calc(100vw - 32px);height:460px;max-height:calc(100dvh - 160px);background:var(--surface);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.3);display:flex;flex-direction:column;z-index:8001;border:1px solid var(--border2)';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:12px 14px;background:linear-gradient(135deg,#4285f4,#0f9d58);border-radius:16px 16px 0 0';
+  header.innerHTML = '<span style="font-size:16px">✨</span><span style="font-size:13px;font-weight:700;color:#fff;flex:1">Asistente Gemini</span>';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center';
+  closeBtn.addEventListener('click', () => panel.remove());
+  header.appendChild(closeBtn);
+
+  const msgs = document.createElement('div');
+  msgs.id = 'gemini-msgs';
+  msgs.style.cssText = 'flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px';
+
+  const actionBar = document.createElement('div');
+  actionBar.id = 'gemini-action-bar';
+  actionBar.style.cssText = 'display:none;padding:8px 12px;background:var(--accent-bg);border-top:1px solid var(--border2)';
+  const actionDesc = document.createElement('div');
+  actionDesc.id = 'gemini-action-desc';
+  actionDesc.style.cssText = 'font-size:12px;color:var(--text);margin-bottom:6px';
+  const actionBtns = document.createElement('div');
+  actionBtns.style.cssText = 'display:flex;gap:6px';
+  const applyBtn = document.createElement('button');
+  applyBtn.textContent = '✓ Aplicar';
+  applyBtn.style.cssText = 'flex:1;padding:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600';
+  applyBtn.addEventListener('click', aplicarAccionGemini);
+  const cancelActBtn = document.createElement('button');
+  cancelActBtn.textContent = '✕';
+  cancelActBtn.style.cssText = 'padding:6px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12px';
+  cancelActBtn.addEventListener('click', () => { _geminiPendingAction = null; actionBar.style.display = 'none'; });
+  actionBtns.appendChild(applyBtn);
+  actionBtns.appendChild(cancelActBtn);
+  actionBar.appendChild(actionDesc);
+  actionBar.appendChild(actionBtns);
+
+  const inputRow = document.createElement('div');
+  inputRow.style.cssText = 'padding:8px 10px;border-top:1px solid var(--border2);display:flex;gap:6px';
+  const input = document.createElement('input');
+  input.id = 'gemini-input';
+  input.type = 'text';
+  input.placeholder = 'Pregunta algo...';
+  input.style.cssText = 'flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)';
+  const sendBtn = document.createElement('button');
+  sendBtn.textContent = '➤';
+  sendBtn.style.cssText = 'padding:7px 12px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:15px';
+  sendBtn.addEventListener('click', _geminiEnviar);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') _geminiEnviar(); });
+  inputRow.appendChild(input);
+  inputRow.appendChild(sendBtn);
+
+  panel.appendChild(header);
+  panel.appendChild(msgs);
+  panel.appendChild(actionBar);
+  panel.appendChild(inputRow);
+  document.body.appendChild(panel);
+
+  _geminiAddMsg('model', '¡Hola! Soy tu asistente Gemini. Puedo consultar datos, generar texto o realizar acciones en la app. ¿En qué te ayudo?');
+  input.focus();
+}
+
+function _geminiAddMsg(role, text) {
+  const msgs = document.getElementById('gemini-msgs');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.style.cssText = role === 'user'
+    ? 'align-self:flex-end;background:var(--accent);color:#fff;padding:7px 11px;border-radius:12px 12px 2px 12px;font-size:12px;max-width:85%'
+    : 'align-self:flex-start;background:var(--surface2);color:var(--text);padding:7px 11px;border-radius:12px 12px 12px 2px;font-size:12px;max-width:85%;white-space:pre-wrap';
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function _geminiEnviar() {
+  const input = document.getElementById('gemini-input');
+  if (!input) return;
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  _geminiAddMsg('user', msg);
+
+  const load = document.createElement('div');
+  load.style.cssText = 'align-self:flex-start;color:var(--text3);font-size:11px;padding:4px 8px';
+  load.textContent = '✨ Pensando...';
+  document.getElementById('gemini-msgs')?.appendChild(load);
+  document.getElementById('gemini-msgs').scrollTop = 99999;
+
+  const resp = await geminiChat(msg);
+  load.remove();
+  _geminiAddMsg('model', resp);
+
+  if (_geminiPendingAction) {
+    const bar = document.getElementById('gemini-action-bar');
+    const desc = document.getElementById('gemini-action-desc');
+    if (bar && desc) {
+      const t = _geminiPendingAction.tipo;
+      desc.textContent = t === 'crear_evento'
+        ? '📅 Crear evento: ' + (_geminiPendingAction.datos?.titulo || '')
+        : t === 'observacion'
+        ? '📝 Observacion a: ' + (_geminiPendingAction.alumnoNombre || '')
+        : '⚡ Accion: ' + t;
+      bar.style.display = 'block';
+    }
+  }
+}
+
+function aplicarAccionGemini() {
+  const action = _geminiPendingAction;
+  if (!action) return;
+  _geminiPendingAction = null;
+  const bar = document.getElementById('gemini-action-bar');
+  if (bar) bar.style.display = 'none';
+
+  if (action.tipo === 'crear_evento') {
+    const d = action.datos || {};
+    if (!APP.calendario) APP.calendario = { eventos: [] };
+    const ev = { id: uid(), _origen: 'app', titulo: d.titulo || 'Evento', fecha: d.fecha || new Date().toISOString().slice(0,10), fechaFin: d.fecha || new Date().toISOString().slice(0,10), tipo: d.tipo || 'evento', diaEntero: true };
+    APP.calendario.eventos.push(ev);
+    if (typeof gcalCrear === 'function') gcalCrear(ev);
+    guardarDatos();
+    mostrarToast('✓ Evento creado: ' + ev.titulo);
+    _geminiAddMsg('model', '✓ Evento "' + ev.titulo + '" creado para el ' + ev.fecha);
+    renderPage();
+  } else if (action.tipo === 'observacion') {
+    const al = APP.alumnos.find(a => (a.nombre + ' ' + a.apellidos).toLowerCase().includes((action.alumnoNombre || '').toLowerCase()));
+    if (al) {
+      if (!al.observaciones) al.observaciones = [];
+      al.observaciones.push({ id: uid(), fecha: new Date().toISOString().slice(0,10), texto: action.texto || '', tipo: 'general' });
+      guardarDatos();
+      mostrarToast('✓ Observacion añadida a ' + al.nombre);
+      _geminiAddMsg('model', '✓ Observacion añadida a ' + al.nombre + ' ' + al.apellidos);
+    } else {
+      _geminiAddMsg('model', '⚠ No encontre al alumno "' + (action.alumnoNombre || '') + '"');
+    }
+  }
+}
+
 </script>
 </body>
 </html>
