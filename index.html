@@ -413,7 +413,7 @@
     flex-shrink: 0;
   }
   .modal-header h3 { font-size: 16px; font-weight: 600; }
-  .modal-body { padding: 22px; overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; }
+  .modal-body { padding: 22px; overflow-y: auto; overflow-x: auto; flex: 1; min-height: 0; }
   .modal-footer {
     padding: 14px 22px;
     border-top: 1px solid var(--border);
@@ -867,7 +867,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v2.7</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v2.8</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2820,8 +2820,8 @@ function renderVistaCuaderno(g, als) {
         const inputNota = edicion
           ? `<input type="number" min="0" max="10" step="0.01" value="${val!==undefined&&val!==''?val:''}" placeholder="—"
               style="width:46px;text-align:center;border:1px solid var(--border2);border-radius:4px;padding:2px 3px;font-size:12px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--text);${tieneRec?'text-decoration:line-through;opacity:0.5':''}"
-              onchange="cuadernoGuardarNota('${a.id}',${iIdx},${jIdx},this.value,this)">`
-          : `<span style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m===null?'var(--text3)':m<5?'var(--red)':'var(--text)'})()}">${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m!==null?m.toFixed(2):'—'})()}</span>`;
+              onblur="cuadernoGuardarNota('${a.id}',${iIdx},${jIdx},this.value,this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">`
+          : `<span data-nota="1" style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m===null?'var(--text3)':m<5?'#991b1b':'#166534'})()}">${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m!==null?m.toFixed(2):'—'})()}</span>`;
 
         const undoBtn = edicion && hist?.length
           ? `<button onclick="cuadernoDeshacerNota('${a.id}',${iIdx},${jIdx})" title="↩ ${hist[0]}" style="padding:1px 3px;border-radius:3px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:9px;cursor:pointer">↩</button>`
@@ -2838,13 +2838,16 @@ function renderVistaCuaderno(g, als) {
                 <span style="font-size:9px;color:var(--amber);font-weight:600">Rec:</span>
                 <input type="number" min="0" max="10" step="0.01" value="${valRec!==undefined&&valRec!==''?valRec:''}" placeholder="—"
                   style="width:40px;text-align:center;border:1px solid var(--amber);border-radius:3px;padding:1px 2px;font-size:10px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--amber)"
-                  onchange="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this)">
+                  onblur="cambiarNotaRecuperacion('${a.id}',${iIdx},${jIdx},this.value,this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">
                 ${histRec?.length?`<button onclick="deshacerRecuperacion('${a.id}',${iIdx},${jIdx})" title="↩ ${histRec[0]}" style="padding:1px 3px;border-radius:3px;border:1px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:9px;cursor:pointer">↩</button>`:''}
               </div>`
             : `<div style="font-size:10px;color:var(--amber);font-family:'DM Mono',monospace;margin-top:2px">Rec: ${parseFloat(valRec).toFixed(2)}</div>`)
           : '';
 
-        return `<td style="background:${bg};border:1px solid var(--border2);padding:3px 4px;text-align:center;min-width:${edicion?'95px':'65px'}">
+        const _nEfec = (()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;return n!==null&&r!==null?Math.max(n,r):n;})();
+        const tdBg = (!edicion && _nEfec!==null) ? (_nEfec<5?'#fee2e2':'#dcfce7') : bg;
+        const tdId = `td-nota-${a.id}-${iIdx}-${jIdx}`;
+        return `<td id="${tdId}" data-aid="${a.id}" data-iidx="${iIdx}" data-jidx="${jIdx}" style="background:${tdBg};border:1px solid var(--border2);padding:3px 4px;text-align:center;min-width:${edicion?'95px':'65px'}">
           <div style="display:flex;align-items:center;justify-content:center;gap:2px;flex-wrap:wrap">
             ${inputNota}${undoBtn}${rubricaBtn}
           </div>
@@ -3026,6 +3029,27 @@ function cuadernoEditarNombreItem(gid, trim, iIdx, jIdx, val) {
   renderCuaderno(gid);
 }
 
+// Actualiza visualmente una celda del cuaderno sin re-renderizar todo el DOM
+function _actualizarCeldaCuadernoDom(aid, iIdx, jIdx, val, valRec) {
+  const td = document.getElementById(`td-nota-${aid}-${iIdx}-${jIdx}`);
+  if (!td) return;
+  const n = val !== undefined && val !== '' ? parseFloat(val) : null;
+  const r = valRec !== undefined && valRec !== '' ? parseFloat(valRec) : null;
+  const m = n !== null && r !== null ? Math.max(n, r) : n;
+  // Fondo de la celda
+  if (m !== null) {
+    td.style.background = m < 5 ? '#fee2e2' : '#dcfce7';
+  } else {
+    td.style.background = '';
+  }
+  // Texto del span
+  const span = td.querySelector('span[data-nota]');
+  if (span) {
+    span.textContent = m !== null ? m.toFixed(2) : '—';
+    span.style.color = m === null ? 'var(--text3)' : m < 5 ? '#991b1b' : '#166534';
+  }
+}
+
 function cuadernoGuardarNota(aid, iIdx, jIdx, val, inputEl) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
   const gid = a.grupoId;
@@ -3050,6 +3074,9 @@ function cuadernoGuardarNota(aid, iIdx, jIdx, val, inputEl) {
       () => { if (inputEl) { inputEl.value = anterior; inputEl.blur(); } }
     );
   } else {
+    // Actualización visual inmediata de la celda
+    const valRec = a.notas?.[trim]?.[iIdx]?.rec?.[jIdx];
+    _actualizarCeldaCuadernoDom(aid, iIdx, jIdx, val === '' ? null : val, valRec);
     _guardar();
   }
 }
@@ -4144,6 +4171,9 @@ function cambiarNotaRecuperacion(aid, iIdx, jIdx, val, inputEl) {
     }
     a.notas[trim][iIdx].rec[jIdx] = val === '' ? '' : parseFloat(val);
     guardarDatos();
+    // Actualización visual inmediata de la celda
+    const valBase = a.notas?.[trim]?.[iIdx]?.[jIdx];
+    _actualizarCeldaCuadernoDom(aid, iIdx, jIdx, valBase, val === '' ? null : val);
     if (inputEl) inputEl.blur();
     cambiarTabFicha('notas');
     renderCuaderno(trim ? a.grupoId : undefined);
