@@ -612,8 +612,8 @@
   }
   .nota-final-box .nf-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 6px; }
   .nota-final-box .nf-valor { font-size: 32px; font-weight: 600; font-family: 'DM Mono', monospace; letter-spacing: -1px; color: var(--text); }
-  .nota-final-box .nf-valor.ap { color: var(--green); }
-  .nota-final-box .nf-valor.sus { color: var(--red); }
+  .nota-final-box .nf-valor.ap { color: #166534; background: #dcfce7; border-radius: 20px; }
+  .nota-final-box .nf-valor.sus { color: #991b1b; background: #fee2e2; border-radius: 20px; }
 
   .peso-trim-row {
     display: flex;
@@ -867,7 +867,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v2.6</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v2.7</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -3343,7 +3343,10 @@ function renderVistaPlano(g, als) {
       if (a) {
         const nf = calcNotaFinal(a);
         const nr = redondear(nf, umbral);
-        gridHTML += `<div onclick="abrirFicha('${a.id}')" style="width:80px;min-height:88px;border:2px solid ${brd};border-radius:8px;background:${bgCard};cursor:pointer;text-align:center;padding:6px 4px;transition:transform 0.1s;flex-shrink:0;position:relative"
+        // Card background based on nota
+        const notaBg = nr !== null ? (nr >= 5 ? '#f0fdf4' : '#fef2f2') : null;
+        const notaBrd = nr !== null ? (nr >= 5 ? '#86efac' : '#fca5a5') : null;
+        gridHTML += `<div onclick="abrirFicha('${a.id}')" style="width:80px;min-height:88px;border:2px solid ${notaBrd||brd};border-radius:8px;background:${notaBg||bgCard};cursor:pointer;text-align:center;padding:6px 4px;transition:transform 0.1s;flex-shrink:0;position:relative"
           onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform=''">
           ${a.nLista?`<div style="position:absolute;top:3px;left:4px;font-size:8px;font-weight:700;color:${numColor};font-family:'DM Mono',monospace">${a.nLista}</div>`:''}
           <div style="width:40px;height:40px;border-radius:5px;margin:0 auto 4px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${brd}">
@@ -3469,7 +3472,7 @@ function renderFicha(a) {
         </div>
         ${(()=>{const g=APP.grupos.find(x=>x.id===a.grupoId);return '';})()}
       </div>
-      <div id="ficha-tab-content">
+      <div id="ficha-tab-content" style="overflow-x:auto;-webkit-overflow-scrolling:touch">
         ${renderTabFicha(a)}
       </div>
     </div>
