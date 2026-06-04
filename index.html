@@ -101,6 +101,11 @@
     position: sticky; top: 0; z-index: 10;
   }
   .topbar h2 { font-size: 16px; font-weight: 600; flex: 1; min-width: 0; }
+  .cuaderno-controls-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 9;
+  }
   .search-box {
     display: flex; align-items: center; gap: 8px;
     background: var(--bg); border: 1px solid var(--border);
@@ -867,7 +872,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v2.9</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.0</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1945,7 +1950,7 @@ function renderPage(page) {
   const main = document.getElementById('main-area');
   switch(paginaActual) {
     case 'inicio': main.innerHTML = renderInicio(); break;
-    case 'alumnos': main.innerHTML = renderAlumnos(); break;
+    case 'alumnos': main.innerHTML = renderAlumnos(); requestAnimationFrame(_ajustarBarraCuadernoSticky); break;
     case 'importar': main.innerHTML = renderImportar(); break;
     case 'importar-alumnos': main.innerHTML = renderImportarAlumnos(); break;
     case 'ayuda': main.innerHTML = renderAyuda(); break;
@@ -2240,6 +2245,14 @@ let filtroGrupo = 'todos';
 let incluirArchivados = false;
 let vistaAlumnos = 'cuaderno'; // 'lista' | 'miniaturas' | 'plano'
 
+// Devuelve el trimestre activo por defecto según la fecha actual del curso escolar
+function evalTrimPorDefecto() {
+  const m = new Date().getMonth() + 1; // 1-12
+  if (m >= 9 || m === 1 && new Date().getDate() < 8) return 'T1'; // sep-dic
+  if (m <= 3) return 'T2'; // ene-mar
+  return 'T3'; // abr-jun
+}
+
 function renderAlumnos() {
   const alFiltrados = APP.alumnos.filter(a => {
     const texto = filtroTexto.toLowerCase();
@@ -2295,6 +2308,24 @@ function renderAlumnos() {
     <button class="btn btn-primary btn-sm" onclick="abrirModalNuevo()">+ Alumno</button>
     <button class="btn btn-secondary btn-sm" onclick="abrirModalNuevoGrupo()">+ Nueva clase</button>
   </div>
+  ${vistaAlumnos === 'cuaderno' ? `
+  <div id="cuaderno-controls-global" class="cuaderno-controls-sticky" style="padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:2px solid var(--border);background:var(--surface2)">
+    <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-right:4px">Evaluación:</span>
+    <div style="display:flex;gap:4px">
+      ${['T1','T2','T3'].map((t,i)=>`<button onclick="setCuadernoTrimGlobal('${t}')"
+        style="padding:4px 11px;border-radius:6px;border:1.5px solid ${(_cuadernoTrimGlobal||evalTrimPorDefecto())===t?'var(--accent)':'var(--border2)'};background:${(_cuadernoTrimGlobal||evalTrimPorDefecto())===t?'var(--accent)':'var(--surface)'};color:${(_cuadernoTrimGlobal||evalTrimPorDefecto())===t?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer">${i+1}ª Eval.</button>`).join('')}
+    </div>
+    <div style="width:1px;height:20px;background:var(--border2);margin:0 4px"></div>
+    <label onclick="setCuadernoFotosGlobal()" style="cursor:pointer">
+      <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoFotosGlobal?'var(--accent)':'var(--border2)'};background:${_cuadernoFotosGlobal?'var(--accent-bg)':'transparent'};color:${_cuadernoFotosGlobal?'var(--accent)':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoFotosGlobal?'● Fotos':'○ Fotos'}</span>
+    </label>
+    <label onclick="setCuadernoEdicionGlobal()" style="cursor:pointer">
+      <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoEdicionGlobal?'#d97706':'var(--border2)'};background:${_cuadernoEdicionGlobal?'#fef9c3':'transparent'};color:${_cuadernoEdicionGlobal?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoEdicionGlobal?'✏ Editando':'○ Editar'}</span>
+    </label>
+    <label onclick="setCuadernoRecGlobal()" style="cursor:pointer">
+      <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoRecGlobal?'var(--amber)':'var(--border2)'};background:${_cuadernoRecGlobal?'#fef9c3':'transparent'};color:${_cuadernoRecGlobal?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoRecGlobal?'● Rec':'○ Rec'}</span>
+    </label>
+  </div>` : ''}
   <div class="page" id="alumnos-lista-contenedor">
     ${APP.grupos.length === 0 ? `
       <div class="card"><div class="empty-state">
@@ -2378,6 +2409,14 @@ function renderAlumnos() {
   </div>`;
 }
 
+function _ajustarBarraCuadernoSticky() {
+  const topbar = document.querySelector('.topbar');
+  const barra  = document.getElementById('cuaderno-controls-global');
+  if (topbar && barra) {
+    barra.style.top = topbar.offsetHeight + 'px';
+  }
+}
+
 function cambiarVistaAlumnos(v) {
   if (v === 'plano') {
     const sinPlano = APP.grupos.filter(g => !g.plano || !g.plano.celdas?.flat().some(Boolean));
@@ -2399,12 +2438,54 @@ function cambiarVistaAlumnos(v) {
   }
   vistaAlumnos = v;
   APP.config.vistaAlumnos = v;
+  if (v === 'cuaderno') {
+    // Inicializar trim global al por defecto si no está fijado
+    if (!_cuadernoTrimGlobal) _cuadernoTrimGlobal = evalTrimPorDefecto();
+    // Sincronizar todos los grupos con el trim global
+    APP.grupos.forEach(g => {
+      if (!_cuadernoTrim[g.id]) _cuadernoTrim[g.id] = _cuadernoTrimGlobal;
+    });
+    // Sincronizar fotos/edicion/rec globales
+    APP.grupos.forEach(g => {
+      _cuadernoFotos[g.id]   = _cuadernoFotosGlobal;
+      _cuadernoEdicion[g.id] = _cuadernoEdicionGlobal;
+      _cuadernoRec[g.id]     = _cuadernoRecGlobal;
+    });
+  }
   guardarPreferencias();
   renderPage();
 }
 
 // Columna extra por grupo: { gid: { trim, iIdx, jIdx } }
 let _columnasExtra = {};
+
+// ── Controles globales del cuaderno (afectan a todas las clases) ──
+let _cuadernoTrimGlobal   = null; // null = usar evalTrimPorDefecto()
+let _cuadernoFotosGlobal  = true;
+let _cuadernoEdicionGlobal = false;
+let _cuadernoRecGlobal    = false;
+
+function setCuadernoTrimGlobal(t) {
+  _cuadernoTrimGlobal = t;
+  // Aplicar a todos los grupos
+  APP.grupos.forEach(g => { _cuadernoTrim[g.id] = t; });
+  renderPage();
+}
+function setCuadernoFotosGlobal() {
+  _cuadernoFotosGlobal = !_cuadernoFotosGlobal;
+  APP.grupos.forEach(g => { _cuadernoFotos[g.id] = _cuadernoFotosGlobal; });
+  renderPage();
+}
+function setCuadernoEdicionGlobal() {
+  _cuadernoEdicionGlobal = !_cuadernoEdicionGlobal;
+  APP.grupos.forEach(g => { _cuadernoEdicion[g.id] = _cuadernoEdicionGlobal; });
+  renderPage();
+}
+function setCuadernoRecGlobal() {
+  _cuadernoRecGlobal = !_cuadernoRecGlobal;
+  APP.grupos.forEach(g => { _cuadernoRec[g.id] = _cuadernoRecGlobal; });
+  renderPage();
+}
 
 function getColumnaExtra(gid) {
   return _columnasExtra[gid] || null;
@@ -2745,12 +2826,8 @@ function renderVistaCuaderno(g, als) {
 
   if (!insts.length) {
     return `<div id="cuaderno-wrap-${gid}">
-      <div style="padding:8px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface)">
-        ${['T1','T2','T3'].map((t,i)=>`<button onclick="_cuadernoTrim['${gid}']='${t}';renderPage()"
-          style="padding:3px 10px;border-radius:12px;border:1.5px solid ${trim===t?'var(--accent)':'var(--border2)'};background:${trim===t?'var(--accent)':'transparent'};color:${trim===t?'#fff':'var(--text3)'};font-size:11px;font-weight:600">${['1ª','2ª','3ª'][i]} Eval.</button>`).join('')}
-        <label onclick="_cuadernoEdicion['${gid}']=!_cuadernoEdicion['${gid}'];renderPage()" style="cursor:pointer">
-          <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${edicion?'#d97706':'var(--border2)'};background:${edicion?'#fef9c3':'transparent'};color:${edicion?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${edicion?'✏ Editando':'○ Editar'}</span>
-        </label>
+      <div style="padding:6px 14px;border-bottom:1px solid var(--border);background:var(--surface)">
+        <span style="font-size:12px;font-weight:700;color:var(--text2)">${g.nombre}</span>
       </div>
       <div style="padding:32px 20px;text-align:center;color:var(--text3);font-size:13px">
         <div style="font-size:32px;margin-bottom:12px">📋</div>
@@ -2928,23 +3005,10 @@ function renderVistaCuaderno(g, als) {
   })();
 
   return `<div id="cuaderno-wrap-${gid}">
-    <!-- Barra de controles -->
-    <div style="padding:8px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface)">
-      <div style="display:flex;gap:4px">
-        ${['T1','T2','T3'].map((t,i)=>`<button onclick="_cuadernoTrim['${gid}']='${t}';renderPage()"
-          style="padding:4px 11px;border-radius:6px;border:1.5px solid ${trim===t?'var(--accent)':'var(--border2)'};background:${trim===t?'var(--accent)':'var(--surface2)'};color:${trim===t?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer">${i+1}ª Eval.</button>`).join('')}
-      </div>
-      <label onclick="_cuadernoFotos['${gid}']=!(_cuadernoFotos['${gid}']!==false);renderPage()" style="cursor:pointer">
-        <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${mostrarFotos?'var(--accent)':'var(--border2)'};background:${mostrarFotos?'var(--accent-bg)':'transparent'};color:${mostrarFotos?'var(--accent)':'var(--text3)'};font-size:11px;font-weight:600">${mostrarFotos?'● Fotos':'○ Fotos'}</span>
-      </label>
-      <label onclick="_cuadernoEdicion['${gid}']=!_cuadernoEdicion['${gid}'];renderPage()" style="cursor:pointer">
-        <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${edicion?'#d97706':'var(--border2)'};background:${edicion?'#fef9c3':'transparent'};color:${edicion?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${edicion?'✏ Editando':'○ Editar'}</span>
-      </label>
-      <label onclick="_cuadernoRec['${gid}']=!_cuadernoRec['${gid}'];renderPage()" style="cursor:pointer">
-        <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${mostrarRec?'var(--amber)':'var(--border2)'};background:${mostrarRec?'#fef9c3':'transparent'};color:${mostrarRec?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${mostrarRec?'● Rec':'○ Rec'}</span>
-      </label>
-      ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo salvo alumnos con % propios — actívalo en su ficha → Notas</span>` : ''}
-      <span style="font-size:11px;color:var(--text3)">ℹ Los % de instrumentos son aritméticos por defecto — pondera en las notas de clase (para hacerlo por grupo) o en la ficha del alumno para hacerlo de manera individual</span>
+    <!-- Cabecera ligera: nombre grupo + exportar (controles globales ya están arriba) -->
+    <div style="padding:6px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface)">
+      <span style="font-size:12px;font-weight:700;color:var(--text2)">${g.nombre}</span>
+      ${edicion ? `<span style="font-size:11px;color:var(--amber)">⚠ Los cambios de % afectan a todo el grupo salvo alumnos con % propios</span>` : ''}
       <div style="margin-left:auto;display:flex;gap:6px">
         ${window._modoPrivadoAlumno
           ? `<button onclick="cuadernoSalirPrivado()" class="btn btn-secondary btn-sm" style="background:var(--accent-bg);color:var(--accent)">🔓 Salir</button>`
@@ -14234,7 +14298,11 @@ self.addEventListener('fetch', e => {
 // =====================
 cargarDatos();
 inicializarTema();
+// Inicializar trim global del cuaderno con la evaluación activa por fecha
+_cuadernoTrimGlobal = evalTrimPorDefecto();
+APP.grupos.forEach(g => { if (!_cuadernoTrim[g.id]) _cuadernoTrim[g.id] = _cuadernoTrimGlobal; });
 renderPage('inicio');
+window.addEventListener('resize', _ajustarBarraCuadernoSticky);
 applyBottomNav();
 driveSetStatus('off');
 registrarServiceWorker();
