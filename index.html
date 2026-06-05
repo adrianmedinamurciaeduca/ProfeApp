@@ -375,6 +375,15 @@
   .nota-ap { background: var(--green-bg); color: var(--green); }
   .nota-sus { background: var(--red-bg); color: var(--red); }
   .nota-na { background: var(--bg); color: var(--text3); }
+  .abs-tag {
+    background: #fff7ed;
+    color: #c2410c;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1px solid #fed7aa;
+  }
   .acnee-tag {
     background: var(--purple-bg);
     color: var(--purple);
@@ -872,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.0</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.1</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2307,6 +2316,11 @@ function renderAlumnos() {
     </div>
     <button class="btn btn-primary btn-sm" onclick="abrirModalNuevo()">+ Alumno</button>
     <button class="btn btn-secondary btn-sm" onclick="abrirModalNuevoGrupo()">+ Nueva clase</button>
+    <button onclick="toggleAtencion()"
+      style="padding:5px 11px;border-radius:8px;border:1.5px solid ${_mostrarAtencion?'#fb923c':'var(--border2)'};background:${_mostrarAtencion?'#fff7ed':'var(--surface)'};color:${_mostrarAtencion?'#c2410c':'var(--text3)'};font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0"
+      title="Mostrar/ocultar etiquetas de atención (ACNEE, PAP, PEP, Abs)">
+      ${_mostrarAtencion?'● Atención':'○ Atención'}
+    </button>
   </div>
   ${vistaAlumnos === 'cuaderno' ? `
   <div id="cuaderno-controls-global" class="cuaderno-controls-sticky" style="padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:2px solid var(--border);background:var(--surface2)">
@@ -2458,6 +2472,13 @@ function cambiarVistaAlumnos(v) {
 
 // Columna extra por grupo: { gid: { trim, iIdx, jIdx } }
 let _columnasExtra = {};
+
+// Mostrar/ocultar etiquetas de atención (ACNEE, PAP, PEP, Abs)
+let _mostrarAtencion = false;
+function toggleAtencion() {
+  _mostrarAtencion = !_mostrarAtencion;
+  renderPage();
+}
 
 // ── Controles globales del cuaderno (afectan a todas las clases) ──
 let _cuadernoTrimGlobal   = null; // null = usar evalTrimPorDefecto()
@@ -2746,9 +2767,10 @@ function renderVistaLista(g, als) {
           <div>
             <div style="font-weight:500">${a.apellidos||''}, ${a.nombre||''}</div>
             <div style="display:flex;gap:4px;margin-top:2px">
-            ${a.acnee?'<span class="acnee-tag">ACNEE</span>':''}
-            ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span>':''}
-            ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
+            ${_mostrarAtencion&&a.acnee?'<span class="acnee-tag">ACNEE</span>':''}
+            ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span>':''}
+            ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
+            ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
             </div>
           </div>
         </div></td>
@@ -2906,9 +2928,10 @@ function renderVistaCuaderno(g, als) {
         <div>
           <div style="font-size:12px;font-weight:600;line-height:1.2">${a.apellidos||''}, ${a.nombre||''}</div>
           <div style="display:flex;gap:3px;margin-top:1px">
-            ${a.acnee?'<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">ACNEE</span>':''}
-            ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PAP</span>':''}
-            ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PEP</span>':''}
+            ${_mostrarAtencion&&a.acnee?'<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">ACNEE</span>':''}
+            ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PAP</span>':''}
+            ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PEP</span>':''}
+            ${_mostrarAtencion&&a.abs?'<span style="background:#fff7ed;color:#c2410c;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Abs</span>':''}
           </div>
         </div>
         </div>
@@ -2988,7 +3011,7 @@ function renderVistaCuaderno(g, als) {
   let tdsMedias = '';
   insts.forEach((inst, iIdx) => {
     const calcMedia = (jIdx) => {
-      const vals = als.map(a=>a.notas?.[trim]?.[iIdx]?.[jIdx]).filter(v=>v!==undefined&&v!=='');
+      const vals = als.filter(a=>!a.abs).map(a=>a.notas?.[trim]?.[iIdx]?.[jIdx]).filter(v=>v!==undefined&&v!=='');
       return vals.length ? (vals.reduce((s,v)=>s+parseFloat(v),0)/vals.length).toFixed(2) : '—';
     };
     if (inst.items.length === 0) {
@@ -3000,7 +3023,7 @@ function renderVistaCuaderno(g, als) {
     }
   });
   const mediaFinal = (() => {
-    const ms = als.map(a=>calcNotaTrimestre(a,trim)).filter(n=>n!==null);
+    const ms = als.filter(a=>!a.abs).map(a=>calcNotaTrimestre(a,trim)).filter(n=>n!==null);
     return ms.length ? (ms.reduce((s,n)=>s+n,0)/ms.length).toFixed(2) : '—';
   })();
 
@@ -3433,7 +3456,7 @@ function renderVistaMiniaturas(g, als) {
         <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
         <div style="font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
         ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
-        ${a.acnee||a.pap||a.pep?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP'].filter(Boolean).join(' ')}</div>`:''}
+        ${_mostrarAtencion&&(a.acnee||a.pap||a.pep||a.abs)?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP',a.abs&&'Abs'].filter(Boolean).join(' ')}</div>`:''}
       </div>`;
     }).join('')}
   </div>`;
@@ -3553,6 +3576,11 @@ function renderFicha(a) {
             <span>${a.pep?'●':'○'}</span> PEP
           </span>
         </label>
+        <label onclick="toggleEtiqueta('abs')" style="cursor:pointer">
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.3px;background:${a.abs?'#fff7ed':'var(--bg)'};color:${a.abs?'#c2410c':'var(--text3)'};border:1.5px solid ${a.abs?'#fb923c':'var(--border2)'}">
+            <span>${a.abs?'●':'○'}</span> Absentista
+          </span>
+        </label>
       </div>
 
       <!-- Retrasos -->
@@ -3588,8 +3616,12 @@ function renderFicha(a) {
       <div class="ficha-tabs">
         <div class="ficha-tab ${fichaTabActual==='datos'?'active':''}" onclick="cambiarTabFicha('datos')">👤 Datos</div>
         <div class="ficha-tab ${fichaTabActual==='notas'?'active':''}" onclick="cambiarTabFicha('notas')">📊 Notas</div>
-        <div class="ficha-tab ${fichaTabActual==='observaciones'?'active':''}" onclick="cambiarTabFicha('observaciones')">📝 Observaciones</div>
-        <div class="ficha-tab ${fichaTabActual==='reuniones'?'active':''}" onclick="cambiarTabFicha('reuniones')">🤝 Reuniones</div>
+        <div class="ficha-tab ${fichaTabActual==='observaciones'?'active':''}" onclick="cambiarTabFicha('observaciones')" style="position:relative">
+          📝 Observaciones${(a.observaciones||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--accent);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.observaciones||[]).length}</span>`:''}
+        </div>
+        <div class="ficha-tab ${fichaTabActual==='reuniones'?'active':''}" onclick="cambiarTabFicha('reuniones')" style="position:relative">
+          🤝 Reuniones${(a.reuniones||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--green);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.reuniones||[]).length}</span>`:''}
+        </div>
         <div class="ficha-tab ${fichaTabActual==='pendientes'?'active':''}" onclick="cambiarTabFicha('pendientes')" style="position:relative">
           📚 Pendientes${(a.asigPendientes||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--amber);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.asigPendientes||[]).length}</span>`:''}
         </div>
@@ -4522,9 +4554,11 @@ function guardarReunion() {
 
 function eliminarReunion(idx) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
-  a.reuniones.splice(idx,1);
-  guardarDatos();
-  cambiarTabFicha('reuniones');
+  confirmar('Eliminar reunión', '¿Eliminar esta reunión? Esta acción no se puede deshacer.', () => {
+    a.reuniones.splice(idx,1);
+    guardarDatos();
+    cambiarTabFicha('reuniones');
+  });
 }
 
 function mostrarToast(msg, duracion) {
@@ -4582,9 +4616,11 @@ function añadirPendiente() {
 
 function eliminarPendiente(idx) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
-  a.asigPendientes.splice(idx, 1);
-  guardarDatos();
-  cambiarTabFicha('pendientes');
+  confirmar('Eliminar materia pendiente', '¿Eliminar esta materia pendiente? Esta acción no se puede deshacer.', () => {
+    a.asigPendientes.splice(idx, 1);
+    guardarDatos();
+    cambiarTabFicha('pendientes');
+  });
 }
 
 function cambiarRetrasos(delta) { cambiarIncidencia('retrasos', delta); }
@@ -5265,13 +5301,15 @@ function renderEstadisticas() {
 
   const calcStats = (alumnos) => {
     const total = alumnos.length;
+    const absentistas = alumnos.filter(a => a.abs).length;
+    const activos = alumnos.filter(a => !a.abs); // excluir Abs de todo cálculo
     const getNota = a => fTrim==='final' ? calcNotaFinal(a) : calcNotaTrimestre(a, fTrim);
-    const conNota = alumnos.filter(a => getNota(a) !== null);
+    const conNota = activos.filter(a => getNota(a) !== null);
     const aprobados = conNota.filter(a => { const n=getNota(a); return redOn?redondear(n,getUmbral(a))>=5:n>=5; }).length;
     const suspensos = conNota.length - aprobados;
     const notas = conNota.map(a=>getNota(a)).filter(n=>n!==null);
     const media = notas.length ? notas.reduce((s,n)=>s+n,0)/notas.length : null;
-    return { total, conNota:conNota.length, aprobados, suspensos, media };
+    return { total, absentistas, conNota:conNota.length, aprobados, suspensos, media };
   };
 
   const sg = calcStats(alFiltrados);
@@ -5328,6 +5366,11 @@ function renderEstadisticas() {
       <div class="stat-card">
         <div class="stat-label">Suspensos</div>
         <div class="stat-value" style="color:var(--red)">${sg.suspensos} <span style="font-size:16px">(${pctSus}%)</span></div>
+        ${sg.absentistas>0?`
+        <div style="margin-top:8px;padding:8px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:22px;font-weight:800;color:#c2410c">${sg.absentistas}</span>
+          <span style="font-size:13px;color:#c2410c;font-weight:600">Absentistas<br><span style="font-size:11px;font-weight:400;color:#9a3412">Excluidos de las estadísticas</span></span>
+        </div>`:''}
       </div>
     </div>
 
@@ -5345,8 +5388,9 @@ function renderEstadisticas() {
         ${(() => {
           const grupos = APP.grupos.map(g => {
             const als = APP.alumnos.filter(a => a.grupoId === g.id);
+            const activos = als.filter(a => !a.abs); // excluir absentistas
             const getNota = a => fTrim==='final' ? calcNotaFinal(a) : calcNotaTrimestre(a, fTrim);
-            const conNota = als.filter(a => getNota(a) !== null);
+            const conNota = activos.filter(a => getNota(a) !== null);
             const notas = conNota.map(a => getNota(a));
             const media = notas.length ? notas.reduce((s,n)=>s+n,0)/notas.length : null;
             const aprobados = conNota.filter(a => { const n=getNota(a); return redOn?redondear(n,getUmbral(a))>=5:n>=5; }).length;
@@ -5411,7 +5455,7 @@ function renderEstadisticas() {
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
             <div style="flex:1;font-weight:500">${g.nombre} <span style="color:var(--text3);font-size:12px;font-weight:400">${g.asignatura||''}</span></div>
             <span class="badge-num">${s.total} al.</span>
-            ${pct!==null?`<span class="nota-pill nota-ap">${s.aprobados} ap.</span><span class="nota-pill nota-sus">${s.suspensos} sus.</span>`:'<span style="color:var(--text3);font-size:12px">Sin notas</span>'}
+            ${pct!==null?`<span class="nota-pill nota-ap">${s.aprobados} ap.</span><span class="nota-pill nota-sus">${s.suspensos} sus.</span>${s.absentistas>0?`<span style="background:#fff7ed;color:#c2410c;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;border:1px solid #fed7aa">${s.absentistas} abs.</span>`:''}`:'<span style="color:var(--text3);font-size:12px">Sin notas</span>'}
           </div>
           ${pct!==null?`<div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden"><div style="height:100%;width:${barW}%;background:var(--green);border-radius:3px;transition:width 0.3s"></div></div>`:''}
         </div>`;
@@ -5715,7 +5759,8 @@ function exportarInformeExcel() {
   APP.grupos.forEach(g => {
     const als = APP.alumnos.filter(a=>a.grupoId===g.id);
     const getNota = a => fTrim==='final'?calcNotaFinal(a):calcNotaTrimestre(a,fTrim);
-    const conNota = als.filter(a=>getNota(a)!==null);
+    const activos = als.filter(a=>!a.abs);
+    const conNota = activos.filter(a=>getNota(a)!==null);
     const aprobados = conNota.filter(a=>{ const n=getNota(a); return redOn?redondear(n,getUmbral(a))>=5:n>=5; }).length;
     const notas = conNota.map(a=>getNota(a));
     const media = notas.length?notas.reduce((s,n)=>s+n,0)/notas.length:null;
@@ -10278,9 +10323,10 @@ function renderArchivo() {
                         ${nf!==null?`<div style="font-size:10px;color:var(--text3)">(${fmtNota(nf)})</div>`:''}
                       </td>
                       <td style="padding:8px 14px">
-                        ${a.acnee?'<span class="acnee-tag">ACNEE</span> ':''}
-                        ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span> ':''}
-                        ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
+                        ${_mostrarAtencion&&a.acnee?'<span class="acnee-tag">ACNEE</span> ':''}
+                        ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span> ':''}
+                        ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
+                        ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
                       </td>
                     </tr>`;
                   }).join('')}
