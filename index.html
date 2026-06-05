@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.1</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.2</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -3684,6 +3684,32 @@ function cambiarTabFicha(tab) {
   document.querySelectorAll('.ficha-tab').forEach((el,i) => {
     const tabs = ['datos','notas','observaciones','reuniones'];
     el.classList.toggle('active', tabs[i]===tab);
+  });
+  _actualizarBadgesTabs(a);
+}
+
+function _actualizarBadgesTabs(a) {
+  if (!a) { a = APP.alumnos.find(x=>x.id===alumnoActualId); }
+  if (!a) return;
+  const defs = [
+    { tab:'observaciones', count:(a.observaciones||[]).length, color:'var(--accent)' },
+    { tab:'reuniones',     count:(a.reuniones||[]).length,     color:'var(--green)'  },
+    { tab:'pendientes',    count:(a.asigPendientes||[]).length, color:'var(--amber)'  },
+  ];
+  document.querySelectorAll('.ficha-tab').forEach(el => {
+    const onclick = el.getAttribute('onclick') || '';
+    const match = defs.find(d => onclick.includes("'"+d.tab+"'"));
+    if (!match) return;
+    // Quitar badge existente si lo hay
+    el.querySelectorAll('.tab-badge').forEach(b => b.remove());
+    if (match.count > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'tab-badge';
+      badge.style.cssText = `position:absolute;top:-4px;right:-4px;background:${match.color};color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700`;
+      badge.textContent = match.count;
+      el.style.position = 'relative';
+      el.appendChild(badge);
+    }
   });
 }
 
