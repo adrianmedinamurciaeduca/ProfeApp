@@ -10826,7 +10826,8 @@ function calcNotaRubrica(rubrica) {
 }
 
 function abrirRubrica(aid, iIdx, jIdx) {
-  _rubricaCtx = { aid, iIdx, jIdx };
+  const _desdeModal = !!document.getElementById('modal-ficha') && !document.getElementById('modal-ficha').classList.contains('hidden');
+  _rubricaCtx = { aid, iIdx, jIdx, origen: _desdeModal ? 'ficha' : 'cuaderno' };
   const a = APP.alumnos.find(x => x.id === aid); if (!a) return;
   if (trimestreActual !== 'final' && isEvalBloqueada(a.grupoId, trimestreActual)) return;
 
@@ -11167,8 +11168,14 @@ function guardarRubrica() {
   }
 
   guardarDatos();
+  const _origen = _rubricaCtx.origen;
+  const _gid = APP.alumnos.find(x => x.id === _rubricaCtx.aid)?.grupoId;
   cerrarRubrica();
-  cambiarTabFicha('notas');
+  if (_origen === 'cuaderno' && paginaActual === 'alumnos' && vistaAlumnos === 'cuaderno') {
+    renderCuaderno(_gid);
+  } else {
+    cambiarTabFicha('notas');
+  }
 }
 
 function cerrarRubrica() {
