@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.3</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.4</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2954,7 +2954,7 @@ function renderVistaCuaderno(g, als) {
           : '';
 
         const rubricaBtn = edicion && !esDirecta
-          ? `<button onclick="abrirRubrica('${a.id}',${iIdx},${jIdx},false)" style="padding:1px 4px;border-radius:3px;border:1px solid var(--purple-bg,#e9d5ff);background:var(--purple-bg,#f3e8ff);color:var(--purple,#7c3aed);font-size:9px;cursor:pointer" title="Rúbrica">📋</button>`
+          ? `<button onclick="abrirRubrica('${a.id}',${iIdx},${jIdx},'${trim}')" style="padding:1px 4px;border-radius:3px;border:1px solid var(--purple-bg,#e9d5ff);background:var(--purple-bg,#f3e8ff);color:var(--purple,#7c3aed);font-size:9px;cursor:pointer" title="Rúbrica">📋</button>`
           : '';
 
         const notaBaja = val !== undefined && val !== '' && parseFloat(val) < 5;
@@ -10825,39 +10825,40 @@ function calcNotaRubrica(rubrica) {
   return parseFloat((suma / totalPeso).toFixed(2));
 }
 
-function abrirRubrica(aid, iIdx, jIdx) {
+function abrirRubrica(aid, iIdx, jIdx, trimOverride) {
   const _desdeModal = !!document.getElementById('modal-ficha') && !document.getElementById('modal-ficha').classList.contains('hidden');
-  _rubricaCtx = { aid, iIdx, jIdx, origen: _desdeModal ? 'ficha' : 'cuaderno' };
+  // Si viene del cuaderno, usar el trim del cuaderno; si viene de la ficha, usar trimestreActual
+  const trim = trimOverride || trimestreActual;
+  _rubricaCtx = { aid, iIdx, jIdx, origen: _desdeModal ? 'ficha' : 'cuaderno', trim };
   const a = APP.alumnos.find(x => x.id === aid); if (!a) return;
-  if (trimestreActual !== 'final' && isEvalBloqueada(a.grupoId, trimestreActual)) return;
+  if (trim !== 'final' && isEvalBloqueada(a.grupoId, trim)) return;
 
   // Mostrar/ocultar botón "Quitar rúbrica" según si ya hay una aplicada
-  const tieneRubricaActual = !!a.notas?.[trimestreActual]?.[iIdx]?.rubrica?.[jIdx];
+  const tieneRubricaActual = !!a.notas?.[trim]?.[iIdx]?.rubrica?.[jIdx];
   const btnQuitar = document.getElementById('btn-quitar-rubrica');
   if (btnQuitar) btnQuitar.style.display = tieneRubricaActual ? 'inline-flex' : 'none';
 
   // Obtener estructura del item
   let itemNombre = '';
   let rubricaExistente = null;
-  if (a.estructuraPersonal?.[trimestreActual]) {
-    const inst = a.estructuraPersonal[trimestreActual][iIdx];
+  if (a.estructuraPersonal?.[trim]) {
+    const inst = a.estructuraPersonal[trim][iIdx];
     itemNombre = inst?.items[jIdx]?.nombre || '';
     rubricaExistente = inst?.items[jIdx]?.rubrica || null;
   } else {
-    const estr = getEstructuraGrupo(a.grupoId, trimestreActual);
+    const estr = getEstructuraGrupo(a.grupoId, trim);
     itemNombre = estr[iIdx]?.items[jIdx]?.nombre || '';
-    // Rúbrica guardada en datos del alumno
-    rubricaExistente = a.notas?.[trimestreActual]?.[iIdx]?.rubrica?.[jIdx] || null;
+    rubricaExistente = a.notas?.[trim]?.[iIdx]?.rubrica?.[jIdx] || null;
   }
 
   document.getElementById('rubrica-titulo').textContent = `Rúbrica — ${itemNombre || 'Actividad'}`;
 
   if (rubricaExistente) {
     _rubricaData = JSON.parse(JSON.stringify(rubricaExistente));
+    if (!_rubricaData.modoDistribucion) _rubricaData.modoDistribucion = 'aritmetico';
     renderRubricaBody();
     document.getElementById('modal-rubrica').classList.remove('hidden');
   } else {
-    // Mostrar selector de plantilla
     renderRubricaSelector(itemNombre);
     document.getElementById('modal-rubrica').classList.remove('hidden');
   }
@@ -10927,6 +10928,7 @@ function usarPlantillaRubrica(id) {
   if (!plantilla) return;
   _rubricaData = {
     plantilla: id,
+    modoDistribucion: 'aritmetico',
     criterios: plantilla.criterios.map(c => ({ ...c, nivel: null, niveles: [...c.niveles] }))
   };
   renderRubricaBody();
@@ -10938,6 +10940,7 @@ function usarPlantillaGuardada(idx) {
   if (!p) return;
   _rubricaData = {
     plantilla: 'guardada',
+    modoDistribucion: p.modoDistribucion || 'aritmetico',
     criterios: p.criterios.map(c => ({ ...c, nivel: null, niveles: [...c.niveles] }))
   };
   renderRubricaBody();
@@ -10983,6 +10986,7 @@ function guardarComoPlantilla() {
 function crearRubricaCustom() {
   _rubricaData = {
     plantilla: 'custom',
+    modoDistribucion: 'aritmetico',
     criterios: [
       { nombre: 'Criterio 1', peso: 100, nivel: null, niveles: ['Excelente', 'Adecuado', 'Básico', 'Insuficiente'] }
     ]
@@ -11011,7 +11015,23 @@ function renderRubricaBody() {
     <div style="overflow-x:auto">
     <table class="rubrica-table">
       <thead><tr>
-        <th style="min-width:160px">Criterio <span style="font-weight:400;color:var(--text3)">(peso %)</span></th>
+        <th style="min-width:160px">
+          <div>Criterio <span style="font-weight:400;color:var(--text3)">(peso %)</span></div>
+          <div style="margin-top:6px;display:flex;gap:0;border:1.5px solid var(--border2);border-radius:7px;overflow:hidden;width:fit-content">
+            <button onclick="if(_rubricaData.modoDistribucion!=='aritmetico'){toggleModoDistribucion()}"
+              style="padding:3px 9px;font-size:10px;font-weight:700;border:none;cursor:pointer;font-family:inherit;
+              background:${!_rubricaData.modoDistribucion||_rubricaData.modoDistribucion==='aritmetico'?'var(--accent)':'var(--surface)'};
+              color:${!_rubricaData.modoDistribucion||_rubricaData.modoDistribucion==='aritmetico'?'#fff':'var(--text3)'}">
+              Aritmético
+            </button>
+            <button onclick="if(!_rubricaData.modoDistribucion||_rubricaData.modoDistribucion!=='ponderado'){toggleModoDistribucion()}"
+              style="padding:3px 9px;font-size:10px;font-weight:700;border:none;cursor:pointer;font-family:inherit;
+              background:${_rubricaData.modoDistribucion==='ponderado'?'var(--accent)':'var(--surface)'};
+              color:${_rubricaData.modoDistribucion==='ponderado'?'#fff':'var(--text3)'}">
+              Ponderado
+            </button>
+          </div>
+        </th>
         ${nivLabels.map((l,i) => `<th style="color:${nivColors[i]}">${l}</th>`).join('')}
       </tr></thead>
       <tbody>`;
@@ -11088,18 +11108,40 @@ function rubricaCambiarDescripcion(ci, niv, val) {
   _rubricaData.criterios[ci].niveles[4 - niv] = val;
 }
 
+function _redistribuirPesosAritmeticos() {
+  if (!_rubricaData?.criterios?.length) return;
+  const n = _rubricaData.criterios.length;
+  const base = Math.floor(100 / n);
+  const resto = 100 - base * n;
+  _rubricaData.criterios.forEach((c, i) => { c.peso = base + (i < resto ? 1 : 0); });
+}
+
+function toggleModoDistribucion() {
+  _rubricaData.modoDistribucion = _rubricaData.modoDistribucion === 'ponderado' ? 'aritmetico' : 'ponderado';
+  if (_rubricaData.modoDistribucion === 'aritmetico') _redistribuirPesosAritmeticos();
+  renderRubricaBody();
+}
+
 function añadirCriterioRubrica() {
   _rubricaData.criterios.push({
     nombre: 'Criterio ' + (_rubricaData.criterios.length + 1),
     peso: 0, nivel: null,
     niveles: ['Excelente', 'Adecuado', 'Básico', 'Insuficiente']
   });
+  if (!_rubricaData.modoDistribucion || _rubricaData.modoDistribucion === 'aritmetico') {
+    _rubricaData.modoDistribucion = 'aritmetico';
+    _redistribuirPesosAritmeticos();
+  }
   renderRubricaBody();
 }
 
 function eliminarCriterioRubrica(ci) {
   if (_rubricaData.criterios.length <= 1) { alert('La rúbrica debe tener al menos un criterio.'); return; }
   _rubricaData.criterios.splice(ci, 1);
+  if (!_rubricaData.modoDistribucion || _rubricaData.modoDistribucion === 'aritmetico') {
+    _rubricaData.modoDistribucion = 'aritmetico';
+    _redistribuirPesosAritmeticos();
+  }
   renderRubricaBody();
 }
 
@@ -11139,32 +11181,29 @@ function guardarRubrica() {
   }
   const nota = calcNotaRubrica(_rubricaData);
   const esRec = _rubricaCtx.esRecuperacion;
+  const trim = _rubricaCtx.trim || trimestreActual;
 
   if (esRec) {
-    // Guardar rúbrica de recuperación
     if (!a.notas) a.notas = {};
-    if (!a.notas[trimestreActual]) a.notas[trimestreActual] = {};
-    if (!a.notas[trimestreActual][iIdx]) a.notas[trimestreActual][iIdx] = {};
-    if (!a.notas[trimestreActual][iIdx].rec) a.notas[trimestreActual][iIdx].rec = {};
-    if (!a.notas[trimestreActual][iIdx].recRubrica) a.notas[trimestreActual][iIdx].recRubrica = {};
-    a.notas[trimestreActual][iIdx].rec[jIdx] = nota;
-    a.notas[trimestreActual][iIdx].recRubrica[jIdx] = JSON.parse(JSON.stringify(_rubricaData));
-  } else if (a.estructuraPersonal?.[trimestreActual]) {
-    // Guardar rúbrica en estructura personal del alumno
-    a.estructuraPersonal[trimestreActual][iIdx].items[jIdx].rubrica = JSON.parse(JSON.stringify(_rubricaData));
-    // También guardar la nota calculada como valor del item
+    if (!a.notas[trim]) a.notas[trim] = {};
+    if (!a.notas[trim][iIdx]) a.notas[trim][iIdx] = {};
+    if (!a.notas[trim][iIdx].rec) a.notas[trim][iIdx].rec = {};
+    if (!a.notas[trim][iIdx].recRubrica) a.notas[trim][iIdx].recRubrica = {};
+    a.notas[trim][iIdx].rec[jIdx] = nota;
+    a.notas[trim][iIdx].recRubrica[jIdx] = JSON.parse(JSON.stringify(_rubricaData));
+  } else if (a.estructuraPersonal?.[trim]) {
+    a.estructuraPersonal[trim][iIdx].items[jIdx].rubrica = JSON.parse(JSON.stringify(_rubricaData));
     if (!a.notas) a.notas = {};
-    if (!a.notas[trimestreActual]) a.notas[trimestreActual] = {};
-    if (!a.notas[trimestreActual][iIdx]) a.notas[trimestreActual][iIdx] = {};
-    a.notas[trimestreActual][iIdx][jIdx] = nota;
+    if (!a.notas[trim]) a.notas[trim] = {};
+    if (!a.notas[trim][iIdx]) a.notas[trim][iIdx] = {};
+    a.notas[trim][iIdx][jIdx] = nota;
   } else {
-    // Estructura del grupo: guardar rúbrica y valor en datos del alumno
     if (!a.notas) a.notas = {};
-    if (!a.notas[trimestreActual]) a.notas[trimestreActual] = {};
-    if (!a.notas[trimestreActual][iIdx]) a.notas[trimestreActual][iIdx] = {};
-    if (!a.notas[trimestreActual][iIdx].rubrica) a.notas[trimestreActual][iIdx].rubrica = {};
-    a.notas[trimestreActual][iIdx].rubrica[jIdx] = JSON.parse(JSON.stringify(_rubricaData));
-    a.notas[trimestreActual][iIdx][jIdx] = nota;
+    if (!a.notas[trim]) a.notas[trim] = {};
+    if (!a.notas[trim][iIdx]) a.notas[trim][iIdx] = {};
+    if (!a.notas[trim][iIdx].rubrica) a.notas[trim][iIdx].rubrica = {};
+    a.notas[trim][iIdx].rubrica[jIdx] = JSON.parse(JSON.stringify(_rubricaData));
+    a.notas[trim][iIdx][jIdx] = nota;
   }
 
   guardarDatos();
@@ -13968,6 +14007,7 @@ function renderRubricas() {
 function nuevaRubricaBiblioteca() {
   _rubricaCtx = { biblioteca: true, idx: -1 };
   _rubricaData = {
+    modoDistribucion: 'aritmetico',
     criterios: [
       { nombre: 'Criterio 1', peso: 100, nivel: null, niveles: ['Excelente', 'Bien', 'Regular', 'Insuficiente'] }
     ]
