@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.2</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.3</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2775,13 +2775,7 @@ function renderVistaLista(g, als) {
           </div>
         </div></td>
         <td style="color:var(--text2)">${a.email||'—'}</td>
-        <td><span class="nota-pill ${notaColor(redondear(nt1,umbral))}">${fmtNota(nt1)}</span></td>
-        <td><span class="nota-pill ${notaColor(redondear(nt2,umbral))}">${fmtNota(nt2)}</span></td>
-        <td><span class="nota-pill ${notaColor(redondear(nt3,umbral))}">${fmtNota(nt3)}</span></td>
-        <td><div style="display:flex;align-items:center;gap:6px">
-          <span class="nota-pill ${notaColor(nr)}">${nr!==null?nr:'—'}</span>
-          ${nf!==null?`<span style="font-size:11px;color:var(--text3)">(${fmtNota(nf)})</span>`:''}
-        </div></td>
+        ${(()=>{const _sp=(n)=>{const nr2=n!==null?redondear(n,umbral):null;const bg=nr2!==null?(nr2<5?'#fee2e2':'#dcfce7'):'var(--surface2)';const col=nr2!==null?(nr2<5?'#991b1b':'#166534'):'var(--text3)';return`<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;background:${bg};color:${col}">${n!==null?fmtNota(n):'—'}</span>`};return`<td>${_sp(nt1)}</td><td>${_sp(nt2)}</td><td>${_sp(nt3)}</td><td><div style="display:flex;align-items:center;gap:6px">${_sp(nf)}${nf!==null&&redondear(nf,umbral)!==null&&redondear(nf,umbral)!==nf?`<span style="font-size:11px;color:var(--text3)">(${redondear(nf,umbral)})</span>`:''}</div></td>`})()}
         <td onclick="event.stopPropagation()">
           ${cfg ? modoEdicion
             ? `<input type="number" min="0" max="10" step="0.01"
@@ -2977,7 +2971,7 @@ function renderVistaCuaderno(g, als) {
           : '';
 
         const _nEfec = (()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;return n!==null&&r!==null?Math.max(n,r):n;})();
-        const tdBg = (!edicion && _nEfec!==null) ? (_nEfec<5?'#fee2e2':'#dcfce7') : bg;
+        const tdBg = (_nEfec!==null) ? (_nEfec<5?'#fee2e2':'#dcfce7') : bg;
         const tdId = `td-nota-${a.id}-${iIdx}-${jIdx}`;
         return `<td id="${tdId}" data-aid="${a.id}" data-iidx="${iIdx}" data-jidx="${jIdx}" style="background:${tdBg};border:1px solid var(--border2);padding:3px 4px;text-align:center;min-width:${edicion?'95px':'65px'}">
           <div style="display:flex;align-items:center;justify-content:center;gap:2px;flex-wrap:wrap">
@@ -2997,10 +2991,12 @@ function renderVistaCuaderno(g, als) {
     // Nota final
     const notaTrim = calcNotaTrimestre(a, trim);
     const notaRed = redOn && notaTrim !== null ? redondear(notaTrim, umbral) : null;
-    const nc = notaTrim !== null ? (notaTrim < 5 ? 'var(--red)' : notaTrim >= 9 ? 'var(--green)' : 'var(--text)') : 'var(--text3)';
-    const tdFinal = `<td style="background:${bg};border:1px solid var(--border2);padding:4px 6px;text-align:center;font-weight:700;font-size:13px;color:${nc};font-family:'DM Mono',monospace;position:sticky;right:0;z-index:2;min-width:65px">
+    const _nfEfec = notaTrim !== null ? notaTrim : null;
+    const _nfBg  = _nfEfec !== null ? (_nfEfec < 5 ? '#fee2e2' : '#dcfce7') : bg;
+    const _nfCol = _nfEfec !== null ? (_nfEfec < 5 ? '#991b1b' : '#166534') : 'var(--text3)';
+    const tdFinal = `<td style="background:${_nfBg};border:1px solid var(--border2);padding:4px 6px;text-align:center;font-weight:700;font-size:13px;color:${_nfCol};font-family:'DM Mono',monospace;position:sticky;right:0;z-index:2;min-width:65px">
       ${notaTrim !== null ? notaTrim.toFixed(2) : '—'}
-      ${notaRed !== null && notaRed !== notaTrim ? `<div style="font-size:10px;color:var(--accent);font-weight:600">${notaRed}</div>` : ''}
+      ${notaRed !== null && notaRed !== notaTrim ? `<div style="font-size:10px;color:${notaRed<5?'#991b1b':'#166534'};font-weight:600">${notaRed}</div>` : ''}
     </td>`;
 
     if (window._modoPrivadoAlumno && window._modoPrivadoAlumno !== a.id) return '';
