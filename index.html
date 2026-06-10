@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.4</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.5</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2991,7 +2991,8 @@ function renderVistaCuaderno(g, als) {
     // Nota final
     const notaTrim = calcNotaTrimestre(a, trim);
     const notaRed = redOn && notaTrim !== null ? redondear(notaTrim, umbral) : null;
-    const _nfEfec = notaTrim !== null ? notaTrim : null;
+    // Usar nota redondeada para el color si el redondeo está activo
+    const _nfEfec = notaRed !== null ? notaRed : notaTrim;
     const _nfBg  = _nfEfec !== null ? (_nfEfec < 5 ? '#fee2e2' : '#dcfce7') : bg;
     const _nfCol = _nfEfec !== null ? (_nfEfec < 5 ? '#991b1b' : '#166534') : 'var(--text3)';
     const tdFinal = `<td style="background:${_nfBg};border:1px solid var(--border2);padding:4px 6px;text-align:center;font-weight:700;font-size:13px;color:${_nfCol};font-family:'DM Mono',monospace;position:sticky;right:0;z-index:2;min-width:65px">
