@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.5</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.6</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2992,7 +2992,8 @@ function renderVistaCuaderno(g, als) {
     const notaTrim = calcNotaTrimestre(a, trim);
     const notaRed = redOn && notaTrim !== null ? redondear(notaTrim, umbral) : null;
     // Usar nota redondeada para el color si el redondeo está activo
-    const _nfEfec = notaRed !== null ? notaRed : notaTrim;
+    // parseFloat+toFixed evita errores de precisión flotante (ej. 4.4999... vs 4.5)
+    const _nfEfec = notaRed !== null ? notaRed : (notaTrim !== null ? parseFloat(notaTrim.toFixed(2)) : null);
     const _nfBg  = _nfEfec !== null ? (_nfEfec < 5 ? '#fee2e2' : '#dcfce7') : bg;
     const _nfCol = _nfEfec !== null ? (_nfEfec < 5 ? '#991b1b' : '#166534') : 'var(--text3)';
     const tdFinal = `<td style="background:${_nfBg};border:1px solid var(--border2);padding:4px 6px;text-align:center;font-weight:700;font-size:13px;color:${_nfCol};font-family:'DM Mono',monospace;position:sticky;right:0;z-index:2;min-width:65px">
@@ -3688,22 +3689,25 @@ function cambiarTabFicha(tab) {
 function _actualizarBadgesTabs(a) {
   if (!a) { a = APP.alumnos.find(x=>x.id===alumnoActualId); }
   if (!a) return;
-  const defs = [
-    { tab:'observaciones', count:(a.observaciones||[]).length, color:'var(--accent)' },
-    { tab:'reuniones',     count:(a.reuniones||[]).length,     color:'var(--green)'  },
-    { tab:'pendientes',    count:(a.asigPendientes||[]).length, color:'var(--amber)'  },
-  ];
+  const defs = {
+    'observaciones': { count:(a.observaciones||[]).length,    color:'var(--accent)' },
+    'reuniones':     { count:(a.reuniones||[]).length,         color:'var(--green)'  },
+    'pendientes':    { count:(a.asigPendientes||[]).length,    color:'var(--amber)'  },
+  };
   document.querySelectorAll('.ficha-tab').forEach(el => {
     const onclick = el.getAttribute('onclick') || '';
-    const match = defs.find(d => onclick.includes("'"+d.tab+"'"));
-    if (!match) return;
-    // Quitar badge existente si lo hay
+    // Extraer el nombre de la pestaña del onclick: cambiarTabFicha('xxx')
+    const m = onclick.match(/cambiarTabFicha\('([^']+)'\)/);
+    if (!m) return;
+    const tabName = m[1];
+    const def = defs[tabName];
+    // Quitar badge existente
     el.querySelectorAll('.tab-badge').forEach(b => b.remove());
-    if (match.count > 0) {
+    if (def && def.count > 0) {
       const badge = document.createElement('span');
       badge.className = 'tab-badge';
-      badge.style.cssText = `position:absolute;top:-4px;right:-4px;background:${match.color};color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700`;
-      badge.textContent = match.count;
+      badge.style.cssText = `position:absolute;top:-4px;right:-4px;background:${def.color};color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700`;
+      badge.textContent = def.count;
       el.style.position = 'relative';
       el.appendChild(badge);
     }
