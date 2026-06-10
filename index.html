@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.6</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.8</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1905,8 +1905,10 @@ function calcNotaFinal(alumno) {
 
 function redondear(nota, umbral) {
   if (nota === null) return null;
-  const floor = Math.floor(nota);
-  return (nota - floor) >= umbral ? floor + 1 : floor;
+  // Redondear a 10 decimales elimina ruido de precisión flotante (ej. 4.4999999... → 4.5)
+  const n = parseFloat(nota.toFixed(10));
+  const floor = Math.floor(n);
+  return (n - floor) >= umbral ? floor + 1 : floor;
 }
 
 function fmtNota(n) {
@@ -2455,9 +2457,9 @@ function cambiarVistaAlumnos(v) {
   if (v === 'cuaderno') {
     // Inicializar trim global al por defecto si no está fijado
     if (!_cuadernoTrimGlobal) _cuadernoTrimGlobal = evalTrimPorDefecto();
-    // Sincronizar todos los grupos con el trim global
+    // Sincronizar todos los grupos con el trim global (siempre, no solo si no tienen)
     APP.grupos.forEach(g => {
-      if (!_cuadernoTrim[g.id]) _cuadernoTrim[g.id] = _cuadernoTrimGlobal;
+      _cuadernoTrim[g.id] = _cuadernoTrimGlobal;
     });
     // Sincronizar fotos/edicion/rec globales
     APP.grupos.forEach(g => {
@@ -2832,7 +2834,7 @@ function renderCuaderno(gid) {
 
 function renderVistaCuaderno(g, als) {
   const gid = g.id;
-  const trim = _cuadernoTrim[gid] || 'T1';
+  const trim = _cuadernoTrim[gid] || _cuadernoTrimGlobal || evalTrimPorDefecto();
   const mostrarFotos = _cuadernoFotos[gid] !== false;
   const edicion = _cuadernoEdicion[gid] === true;
   const mostrarRec = _cuadernoRec[gid] === true;
@@ -3170,7 +3172,7 @@ function _actualizarCeldaCuadernoDom(aid, iIdx, jIdx, val, valRec) {
 function cuadernoGuardarNota(aid, iIdx, jIdx, val, inputEl) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
   const gid = a.grupoId;
-  const trim = _cuadernoTrim[gid] || 'T1';
+  const trim = _cuadernoTrim[gid] || _cuadernoTrimGlobal || evalTrimPorDefecto();
   if (isEvalBloqueada(gid, trim)) return;
   if (!a.notas) a.notas = {};
   if (!a.notas[trim]) a.notas[trim] = {};
@@ -3200,7 +3202,7 @@ function cuadernoGuardarNota(aid, iIdx, jIdx, val, inputEl) {
 
 function cuadernoDeshacerNota(aid, iIdx, jIdx) {
   const a = APP.alumnos.find(x=>x.id===aid); if(!a) return;
-  const trim = _cuadernoTrim[a.grupoId] || 'T1';
+  const trim = _cuadernoTrim[a.grupoId] || _cuadernoTrimGlobal || evalTrimPorDefecto();
   const hist = a.notas?.[trim]?.[iIdx]?._historial?.[jIdx];
   if (!hist?.length) return;
   a.notas[trim][iIdx][jIdx] = hist.shift();
@@ -14420,7 +14422,7 @@ cargarDatos();
 inicializarTema();
 // Inicializar trim global del cuaderno con la evaluación activa por fecha
 _cuadernoTrimGlobal = evalTrimPorDefecto();
-APP.grupos.forEach(g => { if (!_cuadernoTrim[g.id]) _cuadernoTrim[g.id] = _cuadernoTrimGlobal; });
+APP.grupos.forEach(g => { _cuadernoTrim[g.id] = _cuadernoTrimGlobal; });
 renderPage('inicio');
 window.addEventListener('resize', _ajustarBarraCuadernoSticky);
 applyBottomNav();
