@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.8</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v3.9</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2742,7 +2742,14 @@ function renderVistaLista(g, als) {
       </div>
     </th>`;
 
-  return `<div class="table-wrap"><table class="alumnos-table">
+  return `<div style="padding:6px 14px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border);background:var(--surface)">
+    <span style="font-size:12px;font-weight:700;color:var(--text2);flex:1">${g.nombre}</span>
+    ${window._modoPrivadoAlumno
+      ? `<button onclick="cuadernoSalirPrivado()" class="btn btn-secondary btn-sm" style="background:var(--accent-bg);color:var(--accent)">🔓 Salir modo privado</button>`
+      : `<button onclick="listaModoPrivado('${g.id}')" class="btn btn-secondary btn-sm">🔒 Privado</button>`
+    }
+  </div>
+  <div class="table-wrap"><table class="alumnos-table">
     <thead><tr>
       <th>Alumno</th><th>Email</th>
       <th>${g.evalBloqueada?.T1?'🔒 ':''}1ª Eval.</th>
@@ -2753,9 +2760,9 @@ function renderVistaLista(g, als) {
       <th></th>
     </tr></thead>
     <tbody>
-    ${als.map(a => {
+    ${als.filter(a => !window._modoPrivadoAlumno || window._modoPrivadoAlumno === a.id).map(a => {
       const nt1=calcNotaTrimestre(a,'T1'),nt2=calcNotaTrimestre(a,'T2'),nt3=calcNotaTrimestre(a,'T3');
-      const nf=calcNotaFinal(a), nr=redondear(nf,umbral);
+      const nf=calcNotaFinal(a), nr=redondear(nf,getUmbral(a));
       const col=getColorGrupo(a.grupoId);
       const extraVal = cfg ? getValorColumnaExtra(a, cfg) : null;
       const extraNR  = extraVal !== null ? redondear(extraVal, umbral) : null;
@@ -2777,7 +2784,7 @@ function renderVistaLista(g, als) {
           </div>
         </div></td>
         <td style="color:var(--text2)">${a.email||'—'}</td>
-        ${(()=>{const _sp=(n)=>{const nr2=n!==null?redondear(n,umbral):null;const bg=nr2!==null?(nr2<5?'#fee2e2':'#dcfce7'):'var(--surface2)';const col=nr2!==null?(nr2<5?'#991b1b':'#166534'):'var(--text3)';return`<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;background:${bg};color:${col}">${n!==null?fmtNota(n):'—'}</span>`};return`<td>${_sp(nt1)}</td><td>${_sp(nt2)}</td><td>${_sp(nt3)}</td><td><div style="display:flex;align-items:center;gap:6px">${_sp(nf)}${nf!==null&&redondear(nf,umbral)!==null&&redondear(nf,umbral)!==nf?`<span style="font-size:11px;color:var(--text3)">(${redondear(nf,umbral)})</span>`:''}</div></td>`})()}
+        ${(()=>{const umbralA=getUmbral(a);const _sp=(n)=>{const nr2=n!==null&&umbralA!==null?redondear(n,umbralA):null;const bg=nr2!==null?(nr2<5?'#fee2e2':'#dcfce7'):'var(--surface2)';const col=nr2!==null?(nr2<5?'#991b1b':'#166534'):'var(--text3)';return`<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;background:${bg};color:${col}">${n!==null?fmtNota(n):'—'}</span>`};const nrFinal=nf!==null&&umbralA!==null?redondear(nf,umbralA):null;return`<td>${_sp(nt1)}</td><td>${_sp(nt2)}</td><td>${_sp(nt3)}</td><td><div style="display:flex;align-items:center;gap:6px">${_sp(nf)}${nf!==null&&nrFinal!==null&&nrFinal!==parseFloat(nf.toFixed(2))?`<span style="font-size:11px;color:var(--text3)">(${nrFinal})</span>`:''}</div></td>`})()}
         <td onclick="event.stopPropagation()">
           ${cfg ? modoEdicion
             ? `<input type="number" min="0" max="10" step="0.01"
@@ -2990,9 +2997,10 @@ function renderVistaCuaderno(g, als) {
       }
     });
 
-    // Nota final
+    // Nota final — usar umbral personalizado por alumno/grupo si existe
     const notaTrim = calcNotaTrimestre(a, trim);
-    const notaRed = redOn && notaTrim !== null ? redondear(notaTrim, umbral) : null;
+    const umbralA = getUmbral(a);
+    const notaRed = redOn && notaTrim !== null && umbralA !== null ? redondear(notaTrim, umbralA) : null;
     // Usar nota redondeada para el color si el redondeo está activo
     // parseFloat+toFixed evita errores de precisión flotante (ej. 4.4999... vs 4.5)
     const _nfEfec = notaRed !== null ? notaRed : (notaTrim !== null ? parseFloat(notaTrim.toFixed(2)) : null);
@@ -3258,6 +3266,50 @@ function cuadernoModoPrivado(gid, trim) {
 function cuadernoSalirPrivado() {
   window._modoPrivadoAlumno = null;
   renderPage();
+}
+
+function listaModoPrivado(gid) {
+  const als = APP.alumnos
+    .filter(a => a.grupoId === gid && !a.archivado)
+    .sort((a,b) => (a.nLista||99)-(b.nLista||99));
+
+  const ov = document.createElement('div');
+  ov.id = 'priv-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:12px;padding:20px;max-width:340px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+
+  const title = document.createElement('h3');
+  title.style.cssText = 'font-size:15px;font-weight:700;margin-bottom:8px';
+  title.textContent = '🔒 Modo privado';
+  const desc = document.createElement('p');
+  desc.style.cssText = 'font-size:12px;color:var(--text3);margin-bottom:12px';
+  desc.textContent = 'Selecciona el alumno. Solo se verá su fila.';
+
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-bottom:12px';
+  als.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary';
+    btn.style.cssText = 'text-align:left;padding:8px 12px;font-size:13px';
+    btn.textContent = (a.nLista ? a.nLista + '. ' : '') + a.apellidos + ', ' + a.nombre;
+    btn.addEventListener('click', () => {
+      window._modoPrivadoAlumno = a.id;
+      document.getElementById('priv-overlay')?.remove();
+      renderPage();
+    });
+    list.appendChild(btn);
+  });
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.style.cssText = 'width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px';
+  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.addEventListener('click', () => ov.remove());
+
+  box.appendChild(title); box.appendChild(desc);
+  box.appendChild(list); box.appendChild(cancelBtn);
+  ov.appendChild(box);
+  document.body.appendChild(ov);
 }
 
 function exportarCuadernoPDF(gid, trim) {
