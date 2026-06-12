@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v4.3</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v4.4</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -6894,7 +6894,7 @@ function renderEstructuraModal() {
         </div>
         <input type="date" value="${item.fecha||''}" title="Fecha" style="padding:3px 6px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:11px;color:var(--text2);outline:none" onchange="editarFechaItemGrupo(${iIdx},${jIdx},this.value)">
         <button class="btn btn-delete" onclick="borrarItemGrupo(${iIdx},${jIdx})">✕</button>
-        <button style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;opacity:0.6;flex-shrink:0" title="Publicar en Classroom" onclick="abrirPublicarApartadoClassroom('${grupoEstructuraId}','${trimEstructura}',${iIdx},${jIdx})">🎓</button>
+
       </div>`;
     });
 
@@ -7085,7 +7085,7 @@ function agregarItemGrupo(iIdx) {
   if (gVinculado?.classroomCursoId) {
     setTimeout(() => {
       if (confirm('¿Publicar este apartado como tarea en Classroom?')) {
-        abrirPublicarApartadoClassroom(grupoEstructuraId, trimEstructura, iIdx, jIdxNew);
+
       }
     }, 200);
   }
@@ -9379,7 +9379,6 @@ function renderModalesProg() {
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="document.getElementById('modal-sesion-prog').classList.add('hidden');window._sesDesdeCalendario=false;">Cancelar</button>
-        <button class="btn btn-secondary" onclick="abrirPublicarEnClassroom()" title="Publicar como tarea en Google Classroom" style="font-size:11px;line-height:1.3;padding:6px 10px;text-align:center">🎓 Publicar<br>en Classroom</button>
         <button class="btn btn-secondary" id="btn-impartir-sesion" onclick="impartirDesdeSesionProg()" style="display:none">▶ Impartir</button>
         <button class="btn btn-primary" onclick="guardarSesionProg()">Guardar sesión</button>
       </div>
@@ -12842,280 +12841,6 @@ function _driveBreadcrumbNav(idx) {
 
 // ── Classroom: vincular clase y publicar tarea ─────────────────────────────
 
-async function classroomApiPost(endpoint, body) {
-  const token = await classroomGetToken();
-  if (!token) return null;
-  const resp = await fetch('https://classroom.googleapis.com/v1/' + endpoint, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (!resp.ok) {
-    const e = await resp.json().catch(() => ({}));
-    const msg = e.error?.message || 'Error ' + resp.status;
-    // Si es 403 puede ser por scopes insuficientes — avisar al usuario
-    if (resp.status === 403) {
-      throw new Error(msg + '\n\nEs posible que el token no tenga permisos de escritura en Classroom. Pulsa el botón ☁️ para reconectar con Google y vuelve a intentarlo.');
-    }
-    throw new Error(msg);
-  }
-  return resp.json();
-}
-
-async function classroomGetTopics(courseId) {
-  const data = await classroomApiGet('courses/' + courseId + '/topics?pageSize=100');
-  return data?.topic || [];
-}
-
-async function abrirPublicarApartadoClassroom(gid, trim, iIdx, jIdx) {
-  if (!_driveToken) { alert('Conecta primero con Google Drive para acceder a Classroom.'); return; }
-  // Verificar que el token tiene acceso a Classroom (puede fallar si es un token antiguo sin scopes)
-  try { await classroomGetCursos(); } catch(e) {
-    if (confirm('El token actual no tiene permisos de Classroom.\n¿Reconectar con Google ahora?')) {
-      driveConectar();
-    }
-    return;
-  }
-
-  const g = APP.grupos.find(x => x.id === gid);
-  if (!g) return;
-
-  // Obtener datos del apartado
-  const estr = g.estructura?.[trim];
-  const inst = estr?.[iIdx];
-  const item = inst?.items?.[jIdx];
-  if (!item) { alert('No se encontró el apartado.'); return; }
-
-  const titulo = item.nombre || inst?.nombre || 'Tarea';
-  const fechaSes = item.fecha || '';
-
-  mostrarToast('Cargando cursos de Classroom...');
-  let cursos;
-  try { cursos = await classroomGetCursos(); }
-  catch(e) { alert('Error conectando con Classroom: ' + e.message); return; }
-
-  if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
-
-  const cursoPrevinculado = g.classroomCursoId ? cursos.find(c => c.id === g.classroomCursoId) : null;
-
-  _mostrarModalPublicarClassroom({
-    titulo,
-    tarea: '',
-    enlaceUrl: '',
-    enlaceTitulo: '',
-    fechaSes,
-    cursos,
-    cursoPrevinculado,
-    grupoIds: [gid],
-    defaultType: 'ASSIGNMENT'
-  });
-}
-
-async function abrirPublicarEnClassroom() {
-  // Get current session data from modal
-  const titulo = document.getElementById('ses-titulo')?.value?.trim();
-  const tarea = document.getElementById('ses-tarea')?.value?.trim();
-  const enlaceUrl = document.getElementById('ses-enlace-url')?.value?.trim();
-  const enlaceTitulo = document.getElementById('ses-enlace-titulo')?.value?.trim();
-  const fechaSes = document.getElementById('ses-fecha')?.value;
-
-  if (!titulo) { alert('Añade primero un título a la sesión.'); return; }
-
-  // Find linked grupo
-  const { ni } = _sesProgEdit || {};
-  const niv = ni !== undefined ? APP.programacion?.niveles?.[ni] : null;
-  const grupoIds = niv?.grupos || [];
-
-  // Get courses - try linked first
-  mostrarToast('Cargando cursos de Classroom...');
-  let cursos;
-  try { cursos = await classroomGetCursos(); }
-  catch(e) { alert('Error conectando con Classroom: ' + e.message); return; }
-
-  // Find pre-linked course for any of the grupos
-  const grupoConCurso = grupoIds.map(gid => APP.grupos.find(g => g.id === gid)).find(g => g?.classroomCursoId);
-  const cursoPrevinculado = grupoConCurso ? cursos.find(c => c.id === grupoConCurso.classroomCursoId) : null;
-
-  _mostrarModalPublicarClassroom({
-    titulo, tarea, enlaceUrl, enlaceTitulo, fechaSes,
-    cursos, cursoPrevinculado, grupoIds, defaultType: 'MATERIAL'
-  });
-}
-
-function _mostrarModalPublicarClassroom({ titulo, tarea, enlaceUrl, enlaceTitulo, fechaSes, cursos, cursoPrevinculado, grupoIds, defaultType = 'ASSIGNMENT' }) {
-  const cursoOpts = cursos.map(c =>
-    '<option value="' + c.id + '"' + (cursoPrevinculado?.id === c.id ? ' selected' : '') + '>' + c.name + (c.section ? ' · ' + c.section : '') + '</option>'
-  ).join('');
-
-  // Parse fecha for date inputs
-  let dueYear = '', dueMonth = '', dueDay = '';
-  if (fechaSes) {
-    const parts = fechaSes.split('-');
-    if (parts.length === 3) { dueYear = parts[0]; dueMonth = parts[1]; dueDay = parts[2]; }
-  }
-
-  const div = document.createElement('div');
-  div.id = 'classroom-publish-modal';
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9998;display:flex;align-items:center;justify-content:center';
-  div.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:500px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
-    + '<h3 style="font-size:16px;font-weight:700;margin-bottom:16px">🎓 Publicar tarea en Classroom</h3>'
-    + '<div style="display:flex;flex-direction:column;gap:12px">'
-
-    // Curso
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Curso</label>'
-    + '<select id="cp-curso" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">' + cursoOpts + '</select>'
-    + (grupoIds.length ? '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="cp-vincular"> Recordar este curso para esta clase</label>' : '')
-    + '</div>'
-
-    // Tipo de publicación
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Tipo</label>'
-    + '<select id="cp-worktype" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'
-    + '<option value="ASSIGNMENT"' + (defaultType==='ASSIGNMENT'?' selected':'') + '>📝 Tarea (con calificación)</option>'
-    + '<option value="MATERIAL"' + (defaultType==='MATERIAL'?' selected':'') + '>📚 Material didáctico</option>'
-    + '<option value="SHORT_ANSWER_QUESTION"' + (defaultType==='SHORT_ANSWER_QUESTION'?' selected':'') + '>💬 Pregunta respuesta corta</option>'
-    + '<option value="MULTIPLE_CHOICE_QUESTION"' + (defaultType==='MULTIPLE_CHOICE_QUESTION'?' selected':'') + '>🔘 Pregunta opción múltiple</option>'
-    + '</select></div>'
-
-    // Tema
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Tema</label>'
-    + '<div style="display:flex;gap:6px">'
-    + '<select id="cp-topic" style="flex:1;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)"><option value="">Cargando temas...</option></select>'
-    + '<button onclick="_cargarTemasClassroom()" style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12px">🔄</button>'
-    + '</div>'
-    + '<div style="margin-top:6px;display:flex;gap:6px;align-items:center">'
-    + '<input type="text" id="cp-newtopic" placeholder="O escribe un tema nuevo..." style="flex:1;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;background:var(--surface)">'
-    + '</div></div>'
-
-    // Título
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Título de la tarea</label>'
-    + '<input type="text" id="cp-titulo" value="' + titulo.replace(/"/g,'&quot;') + '" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface)"></div>'
-
-    // Instrucciones
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Instrucciones (opcional)</label>'
-    + '<textarea id="cp-desc" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;resize:vertical;min-height:60px;box-sizing:border-box;background:var(--surface)">' + (tarea||'') + '</textarea></div>'
-
-    // Fecha
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Fecha límite</label>'
-    + '<input type="date" id="cp-fecha" value="' + (fechaSes||'') + '" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--surface)"></div>'
-
-    // Archivo adjunto
-    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Archivo adjunto (opcional)</label>'
-    + '<div style="display:flex;gap:6px;align-items:center">'
-    + '<input type="url" id="cp-enlace" value="' + (enlaceUrl||'').replace(/"/g,'&quot;') + '" placeholder="URL de Drive..." style="flex:1;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;box-sizing:border-box;background:var(--surface)">'
-    + '<button onclick="abrirSelectorDrive(function(f){document.getElementById(\'cp-enlace\').value=f.url;document.getElementById(\'cp-enlace-titulo\').value=f.nombre})" style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12px">📂 Drive</button>'
-    + '</div>'
-    + '<input type="text" id="cp-enlace-titulo" value="' + (enlaceTitulo||'').replace(/"/g,'&quot;') + '" placeholder="Título del archivo" style="width:100%;margin-top:6px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12px;box-sizing:border-box;background:var(--surface)">'
-    + '</div>'
-
-    + '</div>'
-    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'
-    + '<button onclick="document.getElementById(\'classroom-publish-modal\').remove()" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>'
-    + '<button id="cp-ok" onclick="_confirmarPublicarClassroom(' + JSON.stringify(grupoIds) + ')" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">📤 Publicar</button>'
-    + '</div></div>';
-  document.body.appendChild(div);
-
-  // Auto-load topics for pre-linked course
-  _cargarTemasClassroom();
-}
-
-async function _cargarTemasClassroom() {
-  const cursoId = document.getElementById('cp-curso')?.value;
-  if (!cursoId) return;
-  const sel = document.getElementById('cp-topic');
-  if (sel) sel.innerHTML = '<option value="">Cargando...</option>';
-  try {
-    const topics = await classroomGetTopics(cursoId);
-    if (sel) {
-      sel.innerHTML = '<option value="">Sin tema</option>'
-        + topics.map(t => '<option value="' + t.topicId + '">' + t.name + '</option>').join('');
-    }
-  } catch(e) {
-    if (sel) sel.innerHTML = '<option value="">Error cargando temas</option>';
-  }
-}
-
-async function _confirmarPublicarClassroom(grupoIds) {
-  const cursoId = document.getElementById('cp-curso')?.value;
-  if (!cursoId) { alert('Selecciona un curso.'); return; }
-
-  const titulo = document.getElementById('cp-titulo')?.value?.trim();
-  if (!titulo) { alert('El título es obligatorio.'); return; }
-
-  const desc = document.getElementById('cp-desc')?.value?.trim();
-  const fechaStr = document.getElementById('cp-fecha')?.value;
-  const enlace = document.getElementById('cp-enlace')?.value?.trim();
-  const enlaceTitulo = document.getElementById('cp-enlace-titulo')?.value?.trim() || titulo;
-  let topicId = document.getElementById('cp-topic')?.value;
-  const nuevoTema = document.getElementById('cp-newtopic')?.value?.trim();
-  const vincular = document.getElementById('cp-vincular')?.checked;
-
-  const btn = document.getElementById('cp-ok');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicando...'; }
-
-  try {
-    // Create new topic if specified
-    if (nuevoTema) {
-      const t = await classroomApiPost('courses/' + cursoId + '/topics', { name: nuevoTema });
-      topicId = t.topicId;
-    }
-
-    // Build task body según tipo
-    const workType = document.getElementById('cp-worktype')?.value || 'ASSIGNMENT';
-
-    let endpoint, body;
-    if (workType === 'MATERIAL') {
-      // Materiales van a courseWorkMaterials con estructura diferente
-      endpoint = 'courses/' + cursoId + '/courseWorkMaterials';
-      body = { title: titulo, state: 'PUBLISHED' };
-      if (desc) body.description = desc;
-      if (topicId) body.topicId = topicId;
-      if (enlace) body.materials = [{ link: { url: enlace, title: enlaceTitulo } }];
-    } else if (workType === 'SHORT_ANSWER_QUESTION' || workType === 'MULTIPLE_CHOICE_QUESTION') {
-      endpoint = 'courses/' + cursoId + '/courseWork';
-      body = { title: titulo, workType, state: 'PUBLISHED' };
-      if (desc) body.description = desc;
-      if (topicId) body.topicId = topicId;
-      if (workType === 'MULTIPLE_CHOICE_QUESTION') body.multipleChoiceQuestion = { choices: ['Opción A', 'Opción B', 'Opción C'] };
-      if (fechaStr) {
-        const [y, m, d] = fechaStr.split('-');
-        body.dueDate = { year: parseInt(y), month: parseInt(m), day: parseInt(d) };
-        body.dueTime = { hours: 23, minutes: 59 };
-      }
-    } else {
-      // ASSIGNMENT (tarea con calificación)
-      endpoint = 'courses/' + cursoId + '/courseWork';
-      body = { title: titulo, workType: 'ASSIGNMENT', state: 'PUBLISHED' };
-      if (desc) body.description = desc;
-      if (topicId) body.topicId = topicId;
-      if (fechaStr) {
-        const [y, m, d] = fechaStr.split('-');
-        body.dueDate = { year: parseInt(y), month: parseInt(m), day: parseInt(d) };
-        body.dueTime = { hours: 23, minutes: 59 };
-      }
-      if (enlace) body.materials = [{ link: { url: enlace, title: enlaceTitulo } }];
-    }
-
-    await classroomApiPost(endpoint, body);
-
-    // Save course link if requested
-    if (vincular && grupoIds?.length) {
-      grupoIds.forEach(gid => {
-        const g = APP.grupos.find(x => x.id === gid);
-        if (g) g.classroomCursoId = cursoId;
-      });
-      guardarDatos();
-    }
-
-    document.getElementById('classroom-publish-modal')?.remove();
-    mostrarToast('✓ Tarea publicada en Classroom');
-  } catch(e) {
-    if (btn) { btn.disabled = false; btn.textContent = '📤 Publicar'; }
-    console.error('Classroom publish error:', e);
-    alert('Error al publicar en Classroom:\n' + (e.message || JSON.stringify(e)));
-  }
-}
-
-// ── Ajustes: carpeta raíz de Drive ─────────────────────────────────────────
 
 async function elegirCarpetaRaizDrive() {
   window._driveBrowserAllowFolder = true;
