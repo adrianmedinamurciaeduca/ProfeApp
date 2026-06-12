@@ -12038,6 +12038,7 @@ const DRIVE_CLIENT_ID = '132802016070-vsoa0ae73b2nqq8bhvutb89l1g1ec0dk.apps.goog
 const DRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.appdata';
 const CLASSROOM_SCOPES = [
   'https://www.googleapis.com/auth/classroom.courses.readonly',
+  'https://www.googleapis.com/auth/classroom.coursework.students',
   'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
   'https://www.googleapis.com/auth/classroom.rosters.readonly',
   'https://www.googleapis.com/auth/classroom.coursework.me',
@@ -12855,6 +12856,43 @@ async function classroomApiPost(endpoint, body) {
 async function classroomGetTopics(courseId) {
   const data = await classroomApiGet('courses/' + courseId + '/topics?pageSize=100');
   return data?.topic || [];
+}
+
+async function abrirPublicarApartadoClassroom(gid, trim, iIdx, jIdx) {
+  if (!_driveToken) { alert('Conecta primero con Google Drive para acceder a Classroom.'); return; }
+
+  const g = APP.grupos.find(x => x.id === gid);
+  if (!g) return;
+
+  // Obtener datos del apartado
+  const estr = g.estructura?.[trim];
+  const inst = estr?.[iIdx];
+  const item = inst?.items?.[jIdx];
+  if (!item) { alert('No se encontró el apartado.'); return; }
+
+  const titulo = item.nombre || inst?.nombre || 'Tarea';
+  const fechaSes = item.fecha || '';
+
+  mostrarToast('Cargando cursos de Classroom...');
+  let cursos;
+  try { cursos = await classroomGetCursos(); }
+  catch(e) { alert('Error conectando con Classroom: ' + e.message); return; }
+
+  if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
+
+  const cursoPrevinculado = g.classroomCursoId ? cursos.find(c => c.id === g.classroomCursoId) : null;
+
+  _mostrarModalPublicarClassroom({
+    titulo,
+    tarea: '',
+    enlaceUrl: '',
+    enlaceTitulo: '',
+    fechaSes,
+    cursos,
+    cursoPrevinculado,
+    grupoIds: [gid],
+    defaultType: 'ASSIGNMENT'
+  });
 }
 
 async function abrirPublicarEnClassroom() {
