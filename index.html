@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v3.9</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v4.0</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -12378,6 +12378,22 @@ async function _ejecutarImportarAlumnosClassroom(gid, cursoId) {
 }
 
 // ── Modal: Importar tareas desde Classroom ────────────────────────────────
+function _buscarTareaEnTodaEstructura(g, titulo, classroomId) {
+  for (const tr of ['T1','T2','T3']) {
+    const estructura = g?.estructura?.[tr] || [];
+    for (let ii = 0; ii < estructura.length; ii++) {
+      const inst2 = estructura[ii];
+      if (!inst2?.items) continue;
+      const jj = inst2.items.findIndex(it =>
+        (classroomId && it._classroomId && it._classroomId === classroomId) ||
+        it.nombre === titulo
+      );
+      if (jj >= 0) return { tr, ii, jj, nombre: inst2.nombre };
+    }
+  }
+  return null;
+}
+
 async function abrirImportarTareasClassroom(gid) {
   mostrarToast('Cargando cursos de Classroom...');
   let cursos;
@@ -12386,7 +12402,7 @@ async function abrirImportarTareasClassroom(gid) {
   if (!cursos.length) { alert('No se encontraron cursos activos en Classroom.'); return; }
 
   const g = APP.grupos.find(x => x.id === gid);
-  const insts0 = g?.estructura?.T1 || [];
+  const insts0 = g?.estructura?.[_cuadernoTrimGlobal || evalTrimPorDefecto()] || g?.estructura?.T1 || [];
 
   const div = document.createElement('div');
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
@@ -12428,6 +12444,32 @@ async function abrirImportarTareasClassroom(gid) {
   div.appendChild(box);
   document.body.appendChild(div);
 
+  // Preseleccionar curso vinculado si existe
+  const cursoVinculadoId = g?.classroomCursoId || null;
+  if (cursoVinculadoId) {
+    const sel = document.getElementById('cl-t-curso');
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === cursoVinculadoId) { sel.selectedIndex = i; break; }
+    }
+    // Añadir indicador visual
+    const lbl = box.querySelector('label');
+    if (lbl && lbl.textContent.includes('Curso')) {
+      lbl.innerHTML += ' <span style="font-size:10px;color:var(--accent);font-weight:600">● vinculado</span>';
+    }
+  }
+
+  // Preseleccionar evaluación activa por fecha
+  const trimDefecto = _cuadernoTrimGlobal || evalTrimPorDefecto();
+  const selTrim = document.getElementById('cl-t-trim');
+  for (let i = 0; i < selTrim.options.length; i++) {
+    if (selTrim.options[i].value === trimDefecto) { selTrim.selectedIndex = i; break; }
+  }
+  // Actualizar instrumentos según trim por defecto
+  const instsDefecto = g?.estructura?.[trimDefecto] || [];
+  document.getElementById('cl-t-inst').innerHTML = instsDefecto.map((inst, i) =>
+    '<option value="' + i + '">' + inst.nombre + '</option>'
+  ).join('');
+
   let tareasCache = [];
 
   document.getElementById('cl-t-cancel').addEventListener('click', () => div.remove());
@@ -12463,20 +12505,20 @@ async function abrirImportarTareasClassroom(gid) {
     itemsContainer.innerHTML = '';
     tareasCache.forEach((t, i) => {
       const fecha = t.dueDate ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0') : '';
-      const instIdx2cur = parseInt(document.getElementById('cl-t-inst').value)||0;
-      const yaEnTarget = ['T1','T2','T3'].some(tr => {
-        const inst2 = g?.estructura?.[tr]?.[instIdx2cur];
-        if (!inst2?.items) return false;
-        return inst2.items.some(it => (it._classroomId && it._classroomId === t.id) || it.nombre === t.title);
-      });
+      const _dondeImportada = _buscarTareaEnTodaEstructura(g, t.title, t.id);
+      const yaEnTarget = !!_dondeImportada;
       const lbl = document.createElement('label');
       lbl.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer';
       const cb = document.createElement('input');
       cb.type = 'checkbox'; cb.dataset.idx = i; cb.checked = !yaEnTarget;
       const txt = document.createElement('span');
       const titulo = t.title || t.id || '(sin título)';
+      const _trimLabels = {T1:'1ª eval',T2:'2ª eval',T3:'3ª eval'};
+      const dondeLabel = _dondeImportada
+        ? (' <span style="font-size:10px;color:var(--accent)">✓ ya en ' + _trimLabels[_dondeImportada.tr] + ' · ' + _dondeImportada.nombre + '</span>')
+        : '';
       txt.innerHTML = '<strong>' + titulo + '</strong>'
-        + (yaEnTarget ? ' <span style="font-size:10px;color:var(--accent)">✓ ya importada</span>' : '')
+        + dondeLabel
         + (fecha ? ' <span style="color:var(--text3)">· ' + fecha + '</span>' : '');
       lbl.appendChild(cb); lbl.appendChild(txt);
       itemsContainer.appendChild(lbl);
@@ -12509,12 +12551,17 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
   let nuevas = 0, yaExistian = 0;
 
   tareasSelec.forEach(t => {
-    const yaExiste = ['T1','T2','T3'].some(tr => {
-      const inst2 = g.estructura?.[tr]?.[instIdx];
-      if (!inst2?.items) return false;
-      return inst2.items.some(it => (it._classroomId && it._classroomId === t.id) || it.nombre === t.title);
-    });
-    if (yaExiste) { yaExistian++; return; }
+    const dondeExiste = _buscarTareaEnTodaEstructura(g, t.title, t.id);
+    if (dondeExiste) {
+      const esElMismoDestino = dondeExiste.tr === trim && dondeExiste.ii === instIdx;
+      if (!esElMismoDestino) {
+        // Está en otro instrumento o evaluación: avisar y no importar
+        const _trimLabels2 = {T1:'1ª eval',T2:'2ª eval',T3:'3ª eval'};
+        mostrarToast('⚠ "' + t.title + '" ya importada en ' + _trimLabels2[dondeExiste.tr] + ' · ' + dondeExiste.nombre);
+        yaExistian++; return;
+      }
+      // Mismo destino: permitir (actualizará la nota al importar)
+    }
     const fecha = t.dueDate
       ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0')
       : '';
