@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v4.0</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v4.1</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2055,16 +2055,24 @@ function renderInicio() {
         const esRango = ev.fechaFin && ev.fechaFin !== ev.fecha;
         const horaLabel = ev.diaEntero ? 'Todo el día' : (ev.horaInicio || '');
         const rangoLabel = esRango ? ` (hasta ${new Date(ev.fechaFin+'T12:00').toLocaleDateString('es-ES',{day:'numeric',month:'short'})})` : '';
-        return `<div onclick="navTo('calendario');setTimeout(()=>calEditarEvento('${ev.id}'),200)"
-          style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);cursor:pointer">
-          <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${horaLabel}</div>
-          <div style="width:3px;align-self:stretch;background:${tipo.bg};border-radius:2px;flex-shrink:0"></div>
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:600;color:${tipo.bg}">${ev.titulo}${rangoLabel}</div>
-            ${g?`<div style="font-size:12px;color:var(--text2)">${g.nombre}</div>`:''}
-            ${ev.descripcion?`<div style="font-size:11px;color:var(--text3)">${ev.descripcion}</div>`:''}
+        const evDescId = 'ev-desc-' + ev.id;
+        return `<div style="border-bottom:1px solid var(--border)">
+          <div onclick="navTo('calendario');setTimeout(()=>calEditarEvento('${ev.id}'),200)"
+            style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer">
+            <div style="min-width:70px;font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${horaLabel}</div>
+            <div style="width:3px;align-self:stretch;background:${tipo.bg};border-radius:2px;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:${tipo.bg}">${ev.titulo}${rangoLabel}</div>
+              ${g?`<div style="font-size:12px;color:var(--text2)">${g.nombre}</div>`:''}
+            </div>
+            <span style="font-size:12px;color:var(--text3)">›</span>
           </div>
-          <span style="font-size:12px;color:var(--text3)">›</span>
+          ${ev.descripcion?`
+          <div style="padding:0 14px 6px 14px">
+            <button onclick="event.stopPropagation();const d=document.getElementById('${evDescId}');const b=this;if(d.style.display==='none'){d.style.display='block';b.textContent='▴ ocultar'}else{d.style.display='none';b.textContent='▾ descripción'}"
+              style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0;font-family:inherit">▾ descripción</button>
+            <div id="${evDescId}" style="display:none;font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;white-space:pre-wrap">${ev.descripcion}</div>
+          </div>`:''}
         </div>`;
       }).join('');
     }
@@ -12177,6 +12185,87 @@ async function classroomGetToken() {
     return null;
   }
   return _driveToken;
+}
+
+async function abrirVincularClassroom(gid) {
+  const g = APP.grupos.find(x => x.id === gid);
+  if (!g) return;
+
+  // Asegurarse de que Drive/Google está conectado
+  if (!window._driveToken) {
+    alert('Conecta primero con Google Drive para acceder a Classroom.');
+    return;
+  }
+
+  // Crear overlay
+  const ov = document.createElement('div');
+  ov.id = 'modal-vincular-classroom';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:14px;padding:22px;max-width:380px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+  box.innerHTML = '<h3 style="font-size:15px;font-weight:700;margin-bottom:6px">🔗 Vincular con Classroom</h3>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Selecciona el curso de Classroom que corresponde a <strong>' + (g.nombre||'esta clase') + '</strong>. Una vez vinculado, las importaciones y exportaciones usarán ese curso por defecto.</p>'
+    + '<div id="vcl-body" style="min-height:60px;display:flex;align-items:center;justify-content:center">'
+    + '<span style="font-size:12px;color:var(--text3)">Cargando cursos…</span></div>'
+    + '<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">'
+    + '<button id="vcl-cancel" class="btn btn-secondary">Cancelar</button>'
+    + '<button id="vcl-ok" class="btn btn-primary" disabled>Vincular</button>'
+    + '</div>';
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  document.getElementById('vcl-cancel').addEventListener('click', () => ov.remove());
+
+  // Cargar cursos
+  let cursos = [];
+  try {
+    cursos = await classroomGetCursos();
+  } catch(e) {
+    document.getElementById('vcl-body').innerHTML = '<span style="font-size:12px;color:var(--red)">Error al cargar cursos: ' + e.message + '</span>';
+    return;
+  }
+
+  if (!cursos.length) {
+    document.getElementById('vcl-body').innerHTML = '<span style="font-size:12px;color:var(--text3)">No se encontraron cursos activos en Classroom.</span>';
+    return;
+  }
+
+  // Renderizar selector
+  const sel = document.createElement('select');
+  sel.style.cssText = 'width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)';
+  cursos.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name + (c.section ? ' · ' + c.section : '');
+    if (g.classroomCursoId && c.id === g.classroomCursoId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  const body = document.getElementById('vcl-body');
+  body.innerHTML = '';
+  body.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+
+  if (g.classroomCursoId) {
+    const actual = cursos.find(c => c.id === g.classroomCursoId);
+    const chip = document.createElement('div');
+    chip.style.cssText = 'font-size:11px;color:var(--accent);background:var(--accent-bg);padding:4px 10px;border-radius:6px';
+    chip.textContent = '● Vinculado actualmente: ' + (actual ? actual.name : g.classroomCursoId);
+    body.appendChild(chip);
+  }
+
+  body.appendChild(sel);
+
+  const okBtn = document.getElementById('vcl-ok');
+  okBtn.disabled = false;
+  okBtn.addEventListener('click', () => {
+    const cursoId = sel.value;
+    const cursoNombre = sel.options[sel.selectedIndex].textContent;
+    g.classroomCursoId = cursoId;
+    guardarDatos();
+    ov.remove();
+    mostrarToast('✓ ' + (g.nombre||'Clase') + ' vinculada con "' + cursoNombre + '"');
+  });
 }
 
 async function classroomApiGet(endpoint) {
