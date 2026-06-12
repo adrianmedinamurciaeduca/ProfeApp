@@ -13043,21 +13043,43 @@ async function _confirmarPublicarClassroom(grupoIds) {
       topicId = t.topicId;
     }
 
-    // Build task body
+    // Build task body según tipo
     const workType = document.getElementById('cp-worktype')?.value || 'ASSIGNMENT';
-    const body = { title: titulo, workType, state: 'PUBLISHED' };
-    if (desc) body.description = desc;
-    if (topicId) body.topicId = topicId;
-    if (fechaStr) {
-      const [y, m, d] = fechaStr.split('-');
-      body.dueDate = { year: parseInt(y), month: parseInt(m), day: parseInt(d) };
-      body.dueTime = { hours: 23, minutes: 59 };
-    }
-    if (enlace) {
-      body.materials = [{ link: { url: enlace, title: enlaceTitulo } }];
+
+    let endpoint, body;
+    if (workType === 'MATERIAL') {
+      // Materiales van a courseWorkMaterials con estructura diferente
+      endpoint = 'courses/' + cursoId + '/courseWorkMaterials';
+      body = { title: titulo, state: 'PUBLISHED' };
+      if (desc) body.description = desc;
+      if (topicId) body.topicId = topicId;
+      if (enlace) body.materials = [{ link: { url: enlace, title: enlaceTitulo } }];
+    } else if (workType === 'SHORT_ANSWER_QUESTION' || workType === 'MULTIPLE_CHOICE_QUESTION') {
+      endpoint = 'courses/' + cursoId + '/courseWork';
+      body = { title: titulo, workType, state: 'PUBLISHED' };
+      if (desc) body.description = desc;
+      if (topicId) body.topicId = topicId;
+      if (workType === 'MULTIPLE_CHOICE_QUESTION') body.multipleChoiceQuestion = { choices: ['Opción A', 'Opción B', 'Opción C'] };
+      if (fechaStr) {
+        const [y, m, d] = fechaStr.split('-');
+        body.dueDate = { year: parseInt(y), month: parseInt(m), day: parseInt(d) };
+        body.dueTime = { hours: 23, minutes: 59 };
+      }
+    } else {
+      // ASSIGNMENT (tarea con calificación)
+      endpoint = 'courses/' + cursoId + '/courseWork';
+      body = { title: titulo, workType: 'ASSIGNMENT', state: 'PUBLISHED' };
+      if (desc) body.description = desc;
+      if (topicId) body.topicId = topicId;
+      if (fechaStr) {
+        const [y, m, d] = fechaStr.split('-');
+        body.dueDate = { year: parseInt(y), month: parseInt(m), day: parseInt(d) };
+        body.dueTime = { hours: 23, minutes: 59 };
+      }
+      if (enlace) body.materials = [{ link: { url: enlace, title: enlaceTitulo } }];
     }
 
-    await classroomApiPost('courses/' + cursoId + '/courseWork', body);
+    await classroomApiPost(endpoint, body);
 
     // Save course link if requested
     if (vincular && grupoIds?.length) {
@@ -13072,7 +13094,8 @@ async function _confirmarPublicarClassroom(grupoIds) {
     mostrarToast('✓ Tarea publicada en Classroom');
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = '📤 Publicar'; }
-    alert('Error al publicar: ' + e.message);
+    console.error('Classroom publish error:', e);
+    alert('Error al publicar en Classroom:\n' + (e.message || JSON.stringify(e)));
   }
 }
 
