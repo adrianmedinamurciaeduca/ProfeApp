@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v4.2</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v4.3</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -12843,13 +12843,22 @@ function _driveBreadcrumbNav(idx) {
 // ── Classroom: vincular clase y publicar tarea ─────────────────────────────
 
 async function classroomApiPost(endpoint, body) {
-  if (!_driveToken) { alert('Conecta primero con Google Drive/Classroom.'); return null; }
+  const token = await classroomGetToken();
+  if (!token) return null;
   const resp = await fetch('https://classroom.googleapis.com/v1/' + endpoint, {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + _driveToken, 'Content-Type': 'application/json' },
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message||'Error '+resp.status); }
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({}));
+    const msg = e.error?.message || 'Error ' + resp.status;
+    // Si es 403 puede ser por scopes insuficientes — avisar al usuario
+    if (resp.status === 403) {
+      throw new Error(msg + '\n\nEs posible que el token no tenga permisos de escritura en Classroom. Pulsa el botón ☁️ para reconectar con Google y vuelve a intentarlo.');
+    }
+    throw new Error(msg);
+  }
   return resp.json();
 }
 
@@ -12860,6 +12869,13 @@ async function classroomGetTopics(courseId) {
 
 async function abrirPublicarApartadoClassroom(gid, trim, iIdx, jIdx) {
   if (!_driveToken) { alert('Conecta primero con Google Drive para acceder a Classroom.'); return; }
+  // Verificar que el token tiene acceso a Classroom (puede fallar si es un token antiguo sin scopes)
+  try { await classroomGetCursos(); } catch(e) {
+    if (confirm('El token actual no tiene permisos de Classroom.\n¿Reconectar con Google ahora?')) {
+      driveConectar();
+    }
+    return;
+  }
 
   const g = APP.grupos.find(x => x.id === gid);
   if (!g) return;
