@@ -12192,7 +12192,7 @@ async function abrirVincularClassroom(gid) {
   if (!g) return;
 
   // Asegurarse de que Drive/Google está conectado
-  if (!window._driveToken) {
+  if (!_driveToken) {
     alert('Conecta primero con Google Drive para acceder a Classroom.');
     return;
   }
