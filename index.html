@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v4.4</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v4.5</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -4212,7 +4212,7 @@ function renderTabObs(a) {
     obs.slice().reverse().map((o,i)=>{
       const idx = obs.length-1-i;
       return `
-      <div class="obs-entry" style="${o.privada?'border-left:3px solid var(--text3);opacity:0.8':''}">
+      <div class="obs-entry" id="obs-entry-${idx}" style="${o.privada?'border-left:3px solid var(--text3);opacity:0.8':''}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
           <div style="flex:1">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -4221,9 +4221,19 @@ function renderTabObs(a) {
                 ${o.privada?'🔒 Privada':'Privada'}
               </span>
             </div>
-            <div style="white-space:pre-wrap">${o.texto}</div>
+            <div id="obs-texto-${idx}" style="white-space:pre-wrap">${o.texto}</div>
+            <div id="obs-edit-${idx}" style="display:none;margin-top:6px">
+              <textarea id="obs-textarea-${idx}" style="width:100%;padding:8px;border:1px solid var(--accent);border-radius:8px;font-family:inherit;font-size:13px;outline:none;resize:vertical" rows="3">${o.texto}</textarea>
+              <div style="display:flex;gap:6px;margin-top:6px">
+                <button onclick="guardarEdicionObservacion(${idx})" class="btn btn-primary btn-sm">Guardar</button>
+                <button onclick="cancelarEdicionObservacion(${idx})" class="btn btn-secondary btn-sm">Cancelar</button>
+              </div>
+            </div>
           </div>
-          <button class="btn btn-delete" onclick="eliminarObservacion(${idx})" title="Eliminar">✕</button>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <button onclick="iniciarEdicionObservacion(${idx})" class="btn btn-secondary btn-sm" title="Editar" style="font-size:11px">✏</button>
+            <button class="btn btn-delete" onclick="eliminarObservacion(${idx})" title="Eliminar">✕</button>
+          </div>
         </div>
       </div>`;
     }).join('')}`;
@@ -4606,6 +4616,26 @@ function añadirObservacion() {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   if (!a.observaciones) a.observaciones = [];
   a.observaciones.push({fecha: new Date().toISOString(), texto});
+  guardarDatos();
+  cambiarTabFicha('observaciones');
+}
+
+function iniciarEdicionObservacion(idx) {
+  document.getElementById('obs-texto-' + idx).style.display = 'none';
+  document.getElementById('obs-edit-' + idx).style.display = 'block';
+  document.getElementById('obs-textarea-' + idx).focus();
+}
+
+function cancelarEdicionObservacion(idx) {
+  document.getElementById('obs-texto-' + idx).style.display = '';
+  document.getElementById('obs-edit-' + idx).style.display = 'none';
+}
+
+function guardarEdicionObservacion(idx) {
+  const a = APP.alumnos.find(x => x.id === alumnoActualId); if (!a) return;
+  const nuevoTexto = document.getElementById('obs-textarea-' + idx).value.trim();
+  if (!nuevoTexto) return;
+  a.observaciones[idx].texto = nuevoTexto;
   guardarDatos();
   cambiarTabFicha('observaciones');
 }
@@ -12382,12 +12412,17 @@ async function abrirImportarAlumnosClassroom(gid) {
   const box = document.createElement('div');
   box.style.cssText = 'background:var(--surface);border-radius:12px;padding:24px;max-width:440px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
 
-  const opcs = cursos.map((cur, i) =>
-    '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">'
-    + '<input type="radio" name="cl-curso" value="' + cur.id + '"' + (i===0?' checked':'') + '>'
-    + '<span style="font-size:13px"><strong>' + cur.name + '</strong>'
-    + (cur.section ? ' · ' + cur.section : '') + '</span></label>'
-  ).join('');
+  const g_alumnos = APP.grupos.find(x => x.id === gid);
+  const cursoVinculadoAlumnos = g_alumnos?.classroomCursoId || null;
+  const opcs = cursos.map((cur, i) => {
+    const seleccionado = cursoVinculadoAlumnos ? cur.id === cursoVinculadoAlumnos : i === 0;
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">'
+      + '<input type="radio" name="cl-curso" value="' + cur.id + '"' + (seleccionado ? ' checked' : '') + '>'
+      + '<span style="font-size:13px"><strong>' + cur.name + '</strong>'
+      + (cur.section ? ' · ' + cur.section : '')
+      + (seleccionado && cursoVinculadoAlumnos ? ' <span style="font-size:10px;color:var(--accent);font-weight:600">● vinculado</span>' : '')
+      + '</span></label>';
+  }).join('');
 
   box.innerHTML = '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">🎓 Importar desde Classroom</h3>'
     + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Selecciona el curso de Classroom que corresponde a este grupo:</p>'
@@ -12498,7 +12533,14 @@ async function abrirImportarTareasClassroom(gid) {
   const box = document.createElement('div');
   box.style.cssText = 'background:var(--surface);border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
 
-  const cursoOpts = cursos.map(cur => '<option value="' + cur.id + '">' + cur.name + (cur.section ? ' · ' + cur.section : '') + '</option>').join('');
+  const cursoVinculadoTareas = g?.classroomCursoId || null;
+  const cursoOpts = cursos.map(cur => {
+    const sel = cursoVinculadoTareas ? cur.id === cursoVinculadoTareas : false;
+    return '<option value="' + cur.id + '"' + (sel ? ' selected' : '') + '>'
+      + cur.name + (cur.section ? ' · ' + cur.section : '')
+      + (sel ? ' ★' : '')
+      + '</option>';
+  }).join('');
   const instOpts = insts0.map((inst, i) => '<option value="' + i + '">' + inst.nombre + '</option>').join('');
 
   box.innerHTML = '<h3 style="font-size:16px;font-weight:700;margin-bottom:14px">📚 Importar tareas desde Classroom</h3>'
@@ -12532,20 +12574,6 @@ async function abrirImportarTareasClassroom(gid) {
 
   div.appendChild(box);
   document.body.appendChild(div);
-
-  // Preseleccionar curso vinculado si existe
-  const cursoVinculadoId = g?.classroomCursoId || null;
-  if (cursoVinculadoId) {
-    const sel = document.getElementById('cl-t-curso');
-    for (let i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === cursoVinculadoId) { sel.selectedIndex = i; break; }
-    }
-    // Añadir indicador visual
-    const lbl = box.querySelector('label');
-    if (lbl && lbl.textContent.includes('Curso')) {
-      lbl.innerHTML += ' <span style="font-size:10px;color:var(--accent);font-weight:600">● vinculado</span>';
-    }
-  }
 
   // Preseleccionar evaluación activa por fecha
   const trimDefecto = _cuadernoTrimGlobal || evalTrimPorDefecto();
@@ -12642,14 +12670,13 @@ async function _ejecutarImportarTareasClassroom(gid, cursoId, tareas, selIdx, tr
   tareasSelec.forEach(t => {
     const dondeExiste = _buscarTareaEnTodaEstructura(g, t.title, t.id);
     if (dondeExiste) {
+      // Ya existe en algún sitio — no duplicar nunca
+      const _trimLabels2 = {T1:'1ª eval',T2:'2ª eval',T3:'3ª eval'};
       const esElMismoDestino = dondeExiste.tr === trim && dondeExiste.ii === instIdx;
       if (!esElMismoDestino) {
-        // Está en otro instrumento o evaluación: avisar y no importar
-        const _trimLabels2 = {T1:'1ª eval',T2:'2ª eval',T3:'3ª eval'};
-        mostrarToast('⚠ "' + t.title + '" ya importada en ' + _trimLabels2[dondeExiste.tr] + ' · ' + dondeExiste.nombre);
-        yaExistian++; return;
+        mostrarToast('⚠ "' + t.title + '" ya en ' + _trimLabels2[dondeExiste.tr] + ' · ' + dondeExiste.nombre + ' — solo se actualizará la nota');
       }
-      // Mismo destino: permitir (actualizará la nota al importar)
+      yaExistian++; return; // nunca hacer push, solo actualizar nota más abajo
     }
     const fecha = t.dueDate
       ? t.dueDate.year + '-' + String(t.dueDate.month).padStart(2,'0') + '-' + String(t.dueDate.day).padStart(2,'0')
