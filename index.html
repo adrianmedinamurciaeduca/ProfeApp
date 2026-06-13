@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v4.5</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v4.6</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2347,7 +2347,7 @@ function renderAlumnos() {
       <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoEdicionGlobal?'#d97706':'var(--border2)'};background:${_cuadernoEdicionGlobal?'#fef9c3':'transparent'};color:${_cuadernoEdicionGlobal?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoEdicionGlobal?'✏ Editando':'○ Editar'}</span>
     </label>
     <label onclick="setCuadernoRecGlobal()" style="cursor:pointer">
-      <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoRecGlobal?'var(--amber)':'var(--border2)'};background:${_cuadernoRecGlobal?'#fef9c3':'transparent'};color:${_cuadernoRecGlobal?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoRecGlobal?'● Rec':'○ Rec'}</span>
+      <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoRecGlobal?'var(--amber)':'var(--border2)'};background:${_cuadernoRecGlobal?'#fef9c3':'transparent'};color:${_cuadernoRecGlobal?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoRecGlobal?'● Recuperación':'○ Recuperación'}</span>
     </label>
   </div>` : ''}
   <div class="page" id="alumnos-lista-contenedor">
@@ -12556,7 +12556,7 @@ async function abrirImportarTareasClassroom(gid) {
     + '<select id="cl-t-inst" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">' + instOpts + '</select></div>'
     + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:6px">'
-    + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" id="cl-t-notas"> Importar también las calificaciones (÷10)</label>'
+    + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" id="cl-t-notas" checked> Importar también las calificaciones (÷10)</label>'
     + '</div>'
     + '</div>'
     + '<button id="cl-t-cargar" style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-size:13px;margin-bottom:14px">🔄 Cargar tareas del curso</button>'
