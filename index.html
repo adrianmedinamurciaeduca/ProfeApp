@@ -881,7 +881,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v4.7</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v4.9</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1631,7 +1631,7 @@ function cargarDatos() {
     if (d) {
       APP = JSON.parse(d);
       if (!APP.config) APP.config = {};
-      if (!APP.rubricasGuardadas) APP.rubricasGuardadas = [];
+      _sembrarRubricasPredefinidas();
       if (!APP.archivo) APP.archivo = [];
       if (APP.config.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
     }
@@ -10903,93 +10903,23 @@ function actualizarListaAlumnos(cont) {
 // =====================
 
 // Plantillas predefinidas
-const RUBRICA_PLANTILLAS = {
-  exposicion_oral: {
-    "nombre": "Exposición oral",
-    "criterios": [
-      {
-        "nombre": "Contenido",
-        "niveles": [
-          "Se nota un buen dominio del tema, no comete errores, no duda.",
-          "Demuestra un buen entendimiento de partes del tema. Exposición fluida, comete pocos errores.",
-          "Tiene que hacer algunas rectificaciones, y en ocasiones duda.",
-          "Rectifica continuamente. El contenido es mínimo, no muestra un conocimiento del tema."
-        ],
-        "peso": 13
-      },
-      {
-        "nombre": "Organización de la información",
-        "niveles": [
-          "La información está bien organizada, de forma clara y lógica.",
-          "La mayor parte de la información se organiza de forma clara y lógica, aunque de vez en cuando alguna diapositiva está fuera de lugar.",
-          "No existe un plan claro para organizar la información, cierta dispersión.",
-          "La información aparece dispersa y poco organizada."
-        ],
-        "peso": 13
-      },
-      {
-        "nombre": "Exposición",
-        "niveles": [
-          "Atrae la atención del público y mantiene el interés durante toda la exposición.",
-          "Interesa bastante en principio pero se hace un poco monótono.",
-          "Le cuesta conseguir o mantener el interés del público.",
-          "Apenas usa recursos para mantener la atención del público."
-        ],
-        "peso": 13
-      },
-      {
-        "nombre": "Expresión oral",
-        "niveles": [
-          "Habla claramente durante toda la presentación. Su pronunciación es correcta. Su tono de voz es adecuado.",
-          "Habla claramente durante la mayor parte de la presentación. Su pronunciación es aceptable, pero en ocasiones realiza pausas innecesarias. Su tono de voz es adecuado.",
-          "Algunas veces habla claramente durante la presentación. Su pronunciación es correcta, pero recurre frecuentemente al uso de pausas innecesarias. Su tono de voz no es el adecuado.",
-          "Durante la mayor parte de la presentación no habla claramente. Su pronunciación es pobre, hace muchas pausas y usa muletillas. Su tono de voz no es adecuado para mantener el interés de la audiencia."
-        ],
-        "peso": 13
-      },
-      {
-        "nombre": "Lenguaje no verbal",
-        "niveles": [
-          "Tiene buena postura, y demuestra seguridad en sí mismo durante la presentación. Establece contacto visual con todos los presentes.",
-          "Tiene buena postura la mayor parte del tiempo y establece contacto visual con todos los presentes. En ocasiones se muestra inseguro.",
-          "Algunas veces tiene buena postura y en ocasiones establece contacto visual con todos los presentes. Muestra inseguridad.",
-          "Tiene mala postura y no establece contacto visual con los presentes. Muestra gran inseguridad."
-        ],
-        "peso": 12
-      },
-      {
-        "nombre": "Tiempo",
-        "niveles": [
-          "Tiempo ajustado al previsto, con un final que retoma las ideas principales y redondea la exposición.",
-          "Tiempo ajustado al previsto, pero con un final precipitado o alargado por falta de control del tiempo.",
-          "Tiempo no ajustado. Exposición excesivamente corta.",
-          "Excesivamente largo o insuficiente para desarrollar correctamente el tema."
-        ],
-        "peso": 12
-      },
-      {
-        "nombre": "Soporte",
-        "niveles": [
-          "La exposición se acompaña de soportes visuales especialmente atractivos y de mucha calidad (imágenes, vídeos,...).",
-          "Soportes visuales adecuados e interesantes (imágenes, vídeos...).",
-          "Soportes visuales adecuados pero poco interesantes (imágenes, vídeos,...).",
-          "Soportes visuales inadecuados."
-        ],
-        "peso": 12
-      },
-      {
-        "nombre": "Trabajo en equipo",
-        "niveles": [
-          "La exposición muestra planificación y trabajo de equipo en el que todos han colaborado. Todos exponen y participan activamente.",
-          "Todos los miembros demuestran conocer la presentación global. Todos exponen, aunque hay alguna variación en la participación de los diferentes alumnos.",
-          "La exposición muestra cierta planificación entre los miembros. Todos participan, pero no al mismo nivel.",
-          "Demasiado individualista. No se ve colaboración. No todos los miembros del equipo exponen."
-        ],
-        "peso": 12
-      }
-    ]
-  },
-};
+
+// Sembrar plantilla de rúbrica predefinida "Exposición oral equipo" si no existe
+function _sembrarRubricasPredefinidas() {
+  if (!APP.rubricasGuardadas) APP.rubricasGuardadas = [];
+  const yaExiste = APP.rubricasGuardadas.some(r => r.id === 'seed-exposicion-oral-equipo');
+  if (!yaExiste) {
+    APP.rubricasGuardadas.push({
+      id: 'seed-exposicion-oral-equipo',
+      nombre: 'Exposición oral equipo',
+      modoDistribucion: 'aritmetico',
+      predeterminada: false,
+      criterios: [{"nombre": "Contenido", "peso": 13, "niveles": ["Se nota un buen dominio del tema, no comete errores, no duda.", "Demuestra un buen entendimiento de partes del tema. Exposición fluida, comete pocos errores.", "Tiene que hacer algunas rectificaciones, y en ocasiones duda.", "Rectifica continuamente. El contenido es mínimo, no muestra un conocimiento del tema."]}, {"nombre": "Organización de la información", "peso": 13, "niveles": ["La información está bien organizada, de forma clara y lógica.", "La mayor parte de la información se organiza de forma clara y lógica, aunque de vez en cuando alguna diapositiva está fuera de lugar.", "No existe un plan claro para organizar la información, cierta dispersión.", "La información aparece dispersa y poco organizada."]}, {"nombre": "Exposición", "peso": 13, "niveles": ["Atrae la atención del público y mantiene el interés durante toda la exposición.", "Interesa bastante en principio pero se hace un poco monótono.", "Le cuesta conseguir o mantener el interés del público.", "Apenas usa recursos para mantener la atención del público."]}, {"nombre": "Expresión oral", "peso": 13, "niveles": ["Habla claramente durante toda la presentación. Su pronunciación es correcta. Su tono de voz es adecuado.", "Habla claramente durante la mayor parte de la presentación. Su pronunciación es aceptable, pero en ocasiones realiza pausas innecesarias. Su tono de voz es adecuado.", "Algunas veces habla claramente durante la presentación. Su pronunciación es correcta, pero recurre frecuentemente al uso de pausas innecesarias. Su tono de voz no es el adecuado.", "Durante la mayor parte de la presentación no habla claramente. Su pronunciación es pobre, hace muchas pausas y usa muletillas. Su tono de voz no es adecuado para mantener el interés de la audiencia."]}, {"nombre": "Lenguaje no verbal", "peso": 12, "niveles": ["Tiene buena postura, y demuestra seguridad en sí mismo durante la presentación. Establece contacto visual con todos los presentes.", "Tiene buena postura la mayor parte del tiempo y establece contacto visual con todos los presentes. En ocasiones se muestra inseguro.", "Algunas veces tiene buena postura y en ocasiones establece contacto visual con todos los presentes. Muestra inseguridad.", "Tiene mala postura y no establece contacto visual con los presentes. Muestra gran inseguridad."]}, {"nombre": "Tiempo", "peso": 12, "niveles": ["Tiempo ajustado al previsto, con un final que retoma las ideas principales y redondea la exposición.", "Tiempo ajustado al previsto, pero con un final precipitado o alargado por falta de control del tiempo.", "Tiempo no ajustado. Exposición excesivamente corta.", "Excesivamente largo o insuficiente para desarrollar correctamente el tema."]}, {"nombre": "Soporte", "peso": 12, "niveles": ["La exposición se acompaña de soportes visuales especialmente atractivos y de mucha calidad (imágenes, vídeos,...).", "Soportes visuales adecuados e interesantes (imágenes, vídeos...).", "Soportes visuales adecuados pero poco interesantes (imágenes, vídeos,...).", "Soportes visuales inadecuados."]}, {"nombre": "Trabajo en equipo", "peso": 12, "niveles": ["La exposición muestra planificación y trabajo de equipo en el que todos han colaborado. Todos exponen y participan activamente.", "Todos los miembros demuestran conocer la presentación global. Todos exponen, aunque hay alguna variación en la participación de los diferentes alumnos.", "La exposición muestra cierta planificación entre los miembros. Todos participan, pero no al mismo nivel.", "Demasiado individualista. No se ve colaboración. No todos los miembros del equipo exponen."]}]
+    });
+  }
+}
+
+const RUBRICA_PLANTILLAS = {};
 
 // Estado del modal de rúbrica
 let _rubricaCtx = { aid: null, iIdx: null, jIdx: null };
@@ -11041,7 +10971,19 @@ function abrirRubrica(aid, iIdx, jIdx, trimOverride) {
     renderRubricaBody();
     document.getElementById('modal-rubrica').classList.remove('hidden');
   } else {
-    renderRubricaSelector(itemNombre);
+    // Si hay una rúbrica marcada como predeterminada, cargarla directamente
+    // (el usuario puede cambiarla con "Cambiar plantilla")
+    const predeterminada = (APP.rubricasGuardadas || []).find(r => r.predeterminada);
+    if (predeterminada) {
+      _rubricaData = {
+        plantilla: 'guardada',
+        modoDistribucion: predeterminada.modoDistribucion || 'aritmetico',
+        criterios: predeterminada.criterios.map(c => ({ ...c, nivel: null, niveles: [...c.niveles] }))
+      };
+      renderRubricaBody();
+    } else {
+      renderRubricaSelector(itemNombre);
+    }
     document.getElementById('modal-rubrica').classList.remove('hidden');
   }
 }
@@ -11191,6 +11133,7 @@ function renderRubricaBody() {
           ⭐ Guardar como plantilla
         </button>
         <button class="btn btn-secondary btn-sm" onclick="añadirCriterioRubrica()">+ Criterio</button>
+        <button class="btn btn-ghost btn-sm" onclick="renderRubricaSelector(document.getElementById('rubrica-titulo').textContent.replace('Rúbrica — ',''))">Cambiar plantilla</button>
         ${_rubricaData.plantilla !== 'custom' && _rubricaData.plantilla !== 'guardada' ? `<button class="btn btn-ghost btn-sm" onclick="crearRubricaCustom()">Personalizar</button>` : ''}
       </div>
     </div>
@@ -14088,6 +14031,7 @@ function renderRubricas() {
       <button class="btn btn-primary btn-sm" onclick="nuevaRubricaBiblioteca()">+ Nueva</button>
     </div>
   </div>`;
+  const ayuda = rubricasGuardadas.length ? `<div class="page" style="padding-bottom:0"><p style="font-size:12px;color:var(--text3);margin:0 0 4px">Marca con ★ la rúbrica que quieras usar por defecto al evaluar una tarea nueva. Siempre podrás elegir otra desde "Cambiar plantilla".</p></div>` : '';
 
   if (!rubricasGuardadas.length) {
     return topbar + `<div class="page" style="text-align:center;padding:60px 20px;color:var(--text3)">
@@ -14099,19 +14043,33 @@ function renderRubricas() {
   }
 
   const cards = rubricasGuardadas.map((r, i) => `
-    <div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:12px">
+    <div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:12px;${r.predeterminada?'border:1.5px solid var(--accent);background:var(--accent-bg)':''}">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:14px">${r.nombre}</div>
+        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px">
+          ${r.nombre}
+          ${r.predeterminada?'<span style="font-size:10px;font-weight:700;color:var(--accent);background:var(--surface);border-radius:10px;padding:1px 8px">★ Predeterminada</span>':''}
+        </div>
         <div style="font-size:12px;color:var(--text3);margin-top:2px">${r.criterios?.length||0} criterios</div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-secondary btn-sm" onclick="toggleRubricaPredeterminada(${i})" title="${r.predeterminada?'Quitar como predeterminada':'Usar como predeterminada al evaluar'}">${r.predeterminada?'★':'☆'}</button>
         <button class="btn btn-secondary btn-sm" onclick="editarRubricaBiblioteca(${i})">✏ Editar</button>
         <button class="btn btn-secondary btn-sm" onclick="duplicarRubricaBiblioteca(${i})">⧉</button>
         <button class="btn btn-delete" onclick="eliminarRubricaBiblioteca(${i})">✕</button>
       </div>
     </div>`).join('');
 
-  return topbar + `<div class="page"><div style="display:flex;flex-direction:column;gap:10px">${cards}</div></div>`;
+  return topbar + ayuda + `<div class="page" style="padding-top:8px"><div style="display:flex;flex-direction:column;gap:10px">${cards}</div></div>`;
+}
+
+function toggleRubricaPredeterminada(idx) {
+  if (!APP.rubricasGuardadas) return;
+  const yaEra = APP.rubricasGuardadas[idx].predeterminada;
+  // Solo una puede estar marcada como predeterminada a la vez
+  APP.rubricasGuardadas.forEach(r => r.predeterminada = false);
+  APP.rubricasGuardadas[idx].predeterminada = !yaEra;
+  guardarDatos();
+  renderPage();
 }
 
 function nuevaRubricaBiblioteca() {
