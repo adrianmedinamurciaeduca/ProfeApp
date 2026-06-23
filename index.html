@@ -384,6 +384,24 @@
     font-weight: 700;
     border: 1px solid #fed7aa;
   }
+  .rep-tag {
+    background: #f0f9ff;
+    color: #0369a1;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1px solid #bae6fd;
+  }
+  .pend-tag {
+    background: #f5f3ff;
+    color: #6d28d9;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1px solid #ddd6fe;
+  }
   .acnee-tag {
     background: var(--purple-bg);
     color: var(--purple);
@@ -881,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v5.4</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v5.5</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2790,6 +2808,8 @@ function renderVistaLista(g, als) {
             ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span>':''}
             ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
             ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
+            ${_mostrarAtencion&&a.rep?'<span class="rep-tag">Rep</span>':''}
+            ${_mostrarAtencion&&(a.asigPendientes?.length)?`<span class="pend-tag">Pend. ${a.asigPendientes.length}</span>`:''}
             </div>
           </div>
         </div></td>
@@ -2945,6 +2965,8 @@ function renderVistaCuaderno(g, als) {
             ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PAP</span>':''}
             ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PEP</span>':''}
             ${_mostrarAtencion&&a.abs?'<span style="background:#fff7ed;color:#c2410c;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Abs</span>':''}
+            ${_mostrarAtencion&&a.rep?'<span style="background:#f0f9ff;color:#0369a1;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Rep</span>':''}
+            ${_mostrarAtencion&&(a.asigPendientes?.length)?`<span style="background:#f5f3ff;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Pend.${a.asigPendientes.length}</span>`:''}
           </div>
         </div>
         </div>
@@ -3518,7 +3540,7 @@ function renderVistaMiniaturas(g, als) {
         <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
         <div style="font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
         ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
-        ${_mostrarAtencion&&(a.acnee||a.pap||a.pep||a.abs)?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP',a.abs&&'Abs'].filter(Boolean).join(' ')}</div>`:''}
+        ${_mostrarAtencion&&(a.acnee||a.pap||a.pep||a.abs||a.rep||a.asigPendientes?.length)?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP',a.abs&&'Abs',a.rep&&'Rep',a.asigPendientes?.length&&`Pend.${a.asigPendientes.length}`].filter(Boolean).join(' ')}</div>`:''}
       </div>`;
     }).join('')}
   </div>`;
@@ -3641,6 +3663,11 @@ function renderFicha(a) {
         <label onclick="toggleEtiqueta('abs')" style="cursor:pointer">
           <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.3px;background:${a.abs?'#fff7ed':'var(--bg)'};color:${a.abs?'#c2410c':'var(--text3)'};border:1.5px solid ${a.abs?'#fb923c':'var(--border2)'}">
             <span>${a.abs?'●':'○'}</span> Absentista
+          </span>
+        </label>
+        <label onclick="toggleEtiqueta('rep')" style="cursor:pointer">
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.3px;background:${a.rep?'#f0f9ff':'var(--bg)'};color:${a.rep?'#0369a1':'var(--text3)'};border:1.5px solid ${a.rep?'#38bdf8':'var(--border2)'}">
+            <span>${a.rep?'●':'○'}</span> Repetidor
           </span>
         </label>
       </div>
@@ -10461,6 +10488,8 @@ function renderArchivo() {
                         ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span> ':''}
                         ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
                         ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
+                        ${_mostrarAtencion&&a.rep?'<span class="rep-tag">Rep</span>':''}
+                        ${_mostrarAtencion&&(a.asigPendientes?.length)?`<span class="pend-tag">Pend. ${a.asigPendientes.length}</span>`:''}
                       </td>
                     </tr>`;
                   }).join('')}
@@ -10763,7 +10792,7 @@ function renderArchivo() {
                             </div>
                             <div>
                               <div style="font-weight:500">${a.apellidos||''}, ${a.nombre||''}</div>
-                              <div style="font-size:11px;color:var(--text3)">${a.acnee?'<span class="acnee-tag">ACNEE</span>':''} ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">PAP</span>':''} ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">PEP</span>':''}</div>
+                              <div style="font-size:11px;color:var(--text3)">${a.acnee?'<span class="acnee-tag">ACNEE</span>':''} ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">PAP</span>':''} ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">PEP</span>':''} ${a.rep?'<span class="rep-tag">Rep</span>':''} ${a.asigPendientes?.length?`<span class="pend-tag">Pend. ${a.asigPendientes.length}</span>`:''}</div>
                             </div>
                           </div>
                         </td>
@@ -10903,7 +10932,7 @@ function actualizarListaAlumnos(cont) {
       + '<div class="alumno-avatar">' + (a.foto ? '<img src="' + a.foto + '" style="width:100%;height:100%;object-fit:cover;border-radius:6px">' : iniciales(a)) + '</div>'
       + '<div><div style="font-weight:500">' + (a.apellidos || '') + ', ' + (a.nombre || '') + '</div>'
       + (a._archivado ? '<span style="font-size:10px;background:var(--amber-bg);color:var(--amber);border-radius:4px;padding:1px 5px;font-weight:600">Archivado ' + a._archivado + '</span>' : '')
-      + (a.acnee ? '<span class="acnee-tag">ACNEE</span>' : '')
+      + (a.acnee ? '<span class="acnee-tag">ACNEE</span>' : '') + (a.rep ? '<span class="rep-tag">Rep</span>' : '') + (a.asigPendientes?.length ? `<span class="pend-tag">Pend. ${a.asigPendientes.length}</span>` : '')
       + '</div></div></td>'
       + '<td style="color:var(--text2)">' + (g ? g.nombre : '—') + '</td>'
       + '<td><span class="nota-pill ' + notaColor(nr) + '">' + (nr !== null ? nr : '—') + '</span></td>'
