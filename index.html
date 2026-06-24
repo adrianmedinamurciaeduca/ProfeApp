@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v5.6</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v5.7</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2809,7 +2809,7 @@ function renderVistaLista(g, als) {
             ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
             ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
             ${_mostrarAtencion&&a.rep?'<span class="rep-tag">Rep</span>':''}
-            ${_mostrarAtencion&&(a.asigPendientes?.length)?`<span class="pend-tag">Pend. ${a.asigPendientes.length}</span>`:''}
+            ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span class="pend-tag">Pend. ${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
             ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;border:1px solid #ddd6fe">Ev. Pers.</span>':''}
             </div>
           </div>
@@ -2967,7 +2967,7 @@ function renderVistaCuaderno(g, als) {
             ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PEP</span>':''}
             ${_mostrarAtencion&&a.abs?'<span style="background:#fff7ed;color:#c2410c;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Abs</span>':''}
             ${_mostrarAtencion&&a.rep?'<span style="background:#f0f9ff;color:#0369a1;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Rep</span>':''}
-            ${_mostrarAtencion&&(a.asigPendientes?.length)?`<span style="background:#f5f3ff;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Pend.${a.asigPendientes.length}</span>`:''}
+            ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span style="background:#f5f3ff;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
             ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Ev.Pers.</span>':''}
           </div>
         </div>
@@ -3542,7 +3542,7 @@ function renderVistaMiniaturas(g, als) {
         <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
         <div style="font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
         ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
-        ${_mostrarAtencion&&(a.acnee||a.pap||a.pep||a.abs||a.rep||a.asigPendientes?.length||(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3))?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP',a.abs&&'Abs',a.rep&&'Rep',a.asigPendientes?.length&&`Pend.${a.asigPendientes.length}`,(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)&&'Ev.Pers.'].filter(Boolean).join(' ')}</div>`:''}
+        ${_mostrarAtencion&&(a.acnee||a.pap||a.pep||a.abs||a.rep||a.asigPendientes?.length||(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3))?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP',a.abs&&'Abs',a.rep&&'Rep',a.asigPendientes?.filter(p=>!p.recuperada).length&&`Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}`,(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)&&'Ev.Pers.'].filter(Boolean).join(' ')}</div>`:''}
       </div>`;
     }).join('')}
   </div>`;
@@ -3714,7 +3714,7 @@ function renderFicha(a) {
           🤝 Reuniones${(a.reuniones||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--green);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.reuniones||[]).length}</span>`:''}
         </div>
         <div class="ficha-tab ${fichaTabActual==='pendientes'?'active':''}" onclick="cambiarTabFicha('pendientes')" style="position:relative">
-          📚 Pendientes${(a.asigPendientes||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--amber);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.asigPendientes||[]).length}</span>`:''}
+          📚 Pendientes${(a.asigPendientes||[]).filter(p=>!p.recuperada).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--amber);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.asigPendientes||[]).filter(p=>!p.recuperada).length}</span>`:''}
         </div>
         ${(()=>{const g=APP.grupos.find(x=>x.id===a.grupoId);return '';})()}
       </div>
@@ -3853,12 +3853,24 @@ function renderTabPendientes(a) {
   const nivelesHtml = Object.entries(porNivel).map(([nivel, asigs]) => `
     <div style="margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;padding:0 2px">${nivel}</div>
-      ${asigs.map(p => `
+      ${asigs.filter(p=>!p.recuperada).map(p => `
         <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;margin-bottom:6px">
           <span style="font-size:16px">📗</span>
           <span style="flex:1;font-size:13px;font-weight:600;color:var(--amber)">${p.asig}</span>
+          <button onclick="recuperarPendiente(${p.idx})"
+            style="padding:3px 8px;border-radius:6px;border:1px solid var(--green);background:var(--green-bg);color:var(--green);font-size:11px;font-weight:700;cursor:pointer" title="Marcar como recuperada">✓ Rec.</button>
           <button onclick="eliminarPendiente(${p.idx})"
             style="background:none;border:none;color:var(--amber);font-size:16px;cursor:pointer;padding:0 4px;opacity:0.7" title="Eliminar">✕</button>
+        </div>`).join('')}
+      ${asigs.filter(p=>p.recuperada).map(p => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--green-bg);border:1px solid var(--green);border-radius:8px;margin-bottom:6px;opacity:0.85">
+          <span style="font-size:14px">✅</span>
+          <span style="flex:1;font-size:12px;font-weight:600;color:var(--green);text-decoration:line-through">${p.asig}</span>
+          ${p.notaRecuperacion!==undefined&&p.notaRecuperacion!==''?`<span style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">${parseFloat(p.notaRecuperacion).toFixed(2)}</span>`:''}
+          <button onclick="editarNotaRecuperada(${p.idx})"
+            style="padding:2px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);font-size:11px;cursor:pointer" title="Editar nota">✏</button>
+          <button onclick="eliminarPendiente(${p.idx})"
+            style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0 2px;opacity:0.6" title="Eliminar">✕</button>
         </div>`).join('')}
     </div>`).join('');
 
@@ -3866,7 +3878,7 @@ function renderTabPendientes(a) {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div>
         <div style="font-size:14px;font-weight:600">📚 Materias pendientes</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">${pends.length === 0 ? 'Sin materias pendientes' : pends.length + ' materia' + (pends.length !== 1 ? 's' : '')}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${(()=>{const activas=pends.filter(p=>!p.recuperada).length;const recup=pends.filter(p=>p.recuperada).length;return activas===0&&recup===0?'Sin materias pendientes':(activas>0?activas+' pendiente'+(activas!==1?'s':''):'')+(activas>0&&recup>0?' · ':'')+(recup>0?recup+' recuperada'+(recup!==1?'s':''):'')})()}</div>
       </div>
     </div>
 
@@ -4771,6 +4783,26 @@ function eliminarPendiente(idx) {
     guardarDatos();
     cambiarTabFicha('pendientes');
   });
+}
+
+function recuperarPendiente(idx) {
+  const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
+  const nota = prompt('Nota de recuperación (opcional, deja vacío si no hay nota):');
+  if (nota === null) return; // canceló
+  a.asigPendientes[idx].recuperada = true;
+  a.asigPendientes[idx].notaRecuperacion = nota.trim() !== '' ? parseFloat(nota) : '';
+  guardarDatos();
+  cambiarTabFicha('pendientes');
+}
+
+function editarNotaRecuperada(idx) {
+  const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
+  const actual = a.asigPendientes[idx].notaRecuperacion;
+  const nota = prompt('Nota de recuperación:', actual !== undefined && actual !== '' ? actual : '');
+  if (nota === null) return;
+  a.asigPendientes[idx].notaRecuperacion = nota.trim() !== '' ? parseFloat(nota) : '';
+  guardarDatos();
+  cambiarTabFicha('pendientes');
 }
 
 function cambiarRetrasos(delta) { cambiarIncidencia('retrasos', delta); }
@@ -10491,7 +10523,7 @@ function renderArchivo() {
                         ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
                         ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
                         ${_mostrarAtencion&&a.rep?'<span class="rep-tag">Rep</span>':''}
-                        ${_mostrarAtencion&&(a.asigPendientes?.length)?`<span class="pend-tag">Pend. ${a.asigPendientes.length}</span>`:''}
+                        ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span class="pend-tag">Pend. ${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
                         ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;border:1px solid #ddd6fe">Ev. Pers.</span>':''}
                       </td>
                     </tr>`;
