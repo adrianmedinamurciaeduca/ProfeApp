@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v5.7</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v5.8</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -4767,11 +4767,15 @@ function toggleSidePanel(id) {
 
 function añadirPendiente() {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
-  const nivel = document.getElementById('pend-nivel')?.value.trim();
-  const asig  = document.getElementById('pend-asig')?.value.trim();
-  if (!asig) { alert('Añade al menos el nombre de la asignatura'); return; }
+  const sel = document.getElementById('pend-nivel-sel');
+  const nivelNuevo = document.getElementById('pend-nivel-nuevo')?.value?.trim() || '';
+  // Si hay selector y tiene un nivel elegido, usarlo; si no, usar el input de nuevo nivel
+  const nivel = (sel && sel.value !== '') ? sel.value : nivelNuevo;
+  const asig = document.getElementById('pend-asig')?.value?.trim();
+  if (!asig) { alert('Escribe el nombre de la asignatura.'); return; }
+  if (!nivel) { alert('Elige o escribe el nivel/curso.'); return; }
   if (!a.asigPendientes) a.asigPendientes = [];
-  a.asigPendientes.push({ nivel: nivel||'', asig });
+  a.asigPendientes.push({ nivel, asig });
   guardarDatos();
   cambiarTabFicha('pendientes');
 }
@@ -9939,53 +9943,101 @@ function planoSeleccionarAlumno(aid) {
 // MÓDULO: TUTORÍA
 // =====================
 function renderTabPendientes(a) {
-  const pendientes = a.asigPendientes || [];
+  const pends = a.asigPendientes || [];
+  const activas = pends.filter(p=>!p.recuperada);
+  const recuperadas = pends.filter(p=>p.recuperada);
 
-  // Agrupar por nivel
+  // Niveles existentes para el selector
+  const nivelesExistentes = [...new Set(pends.map(p=>p.nivel).filter(Boolean))];
+
+  // Agrupar activas por nivel
   const porNivel = {};
-  pendientes.forEach((p, i) => {
-    const key = p.nivel || 'Sin nivel';
-    if (!porNivel[key]) porNivel[key] = [];
-    porNivel[key].push({ ...p, idx: i });
+  pends.forEach((p, i) => {
+    const nivel = p.nivel || 'Sin nivel';
+    if (!porNivel[nivel]) porNivel[nivel] = [];
+    porNivel[nivel].push({ ...p, idx: i });
   });
 
-  const listaHtml = Object.keys(porNivel).length === 0
-    ? `<div style="padding:28px;text-align:center;color:var(--text3)">
+  const nivelesHtml = Object.keys(porNivel).length === 0
+    ? `<div style="padding:24px;text-align:center;color:var(--text3)">
         <div style="font-size:32px;margin-bottom:8px">✅</div>
         <div style="font-size:13px">Sin materias pendientes</div>
       </div>`
-    : Object.entries(porNivel).map(([nivel, items]) => `
-      <div style="margin-bottom:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:6px">${nivel}</div>
-        ${items.map(p => `
-          <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;margin-bottom:6px">
-            <span style="font-size:16px">📚</span>
-            <span style="flex:1;font-size:13px;font-weight:600;color:var(--amber)">${p.asig}</span>
-            <button onclick="eliminarPendiente(${p.idx})"
-              style="background:none;border:none;color:var(--amber);font-size:16px;cursor:pointer;padding:0 4px;opacity:0.7" title="Eliminar">✕</button>
-          </div>`).join('')}
-      </div>`).join('');
+    : Object.entries(porNivel).map(([nivel, items]) => {
+        const itemsActivos = items.filter(p=>!p.recuperada);
+        const itemsRecup = items.filter(p=>p.recuperada);
+        if (!itemsActivos.length && !itemsRecup.length) return '';
+        return `
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:6px">${nivel}</div>
+          ${itemsActivos.map(p => `
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;margin-bottom:6px">
+              <span style="font-size:15px">📗</span>
+              <span style="flex:1;font-size:13px;font-weight:600;color:var(--amber)">${p.asig}</span>
+              <button onclick="recuperarPendiente(${p.idx})"
+                style="padding:3px 8px;border-radius:6px;border:1px solid var(--green);background:var(--green-bg);color:var(--green);font-size:11px;font-weight:700;cursor:pointer">✓ Rec.</button>
+              <button onclick="eliminarPendiente(${p.idx})"
+                style="background:none;border:none;color:var(--amber);font-size:16px;cursor:pointer;padding:0 2px;opacity:0.7">✕</button>
+            </div>`).join('')}
+          ${itemsRecup.map(p => `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--green-bg);border:1px solid var(--green);border-radius:8px;margin-bottom:6px;opacity:0.85">
+              <span style="font-size:14px">✅</span>
+              <span style="flex:1;font-size:12px;font-weight:600;color:var(--green);text-decoration:line-through">${p.asig}</span>
+              ${p.notaRecuperacion!==undefined&&p.notaRecuperacion!==''?`<span style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">${parseFloat(p.notaRecuperacion).toFixed(2)}</span>`:''}
+              <button onclick="editarNotaRecuperada(${p.idx})"
+                style="padding:2px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);font-size:11px;cursor:pointer">✏</button>
+              <button onclick="eliminarPendiente(${p.idx})"
+                style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0 2px;opacity:0.5">✕</button>
+            </div>`).join('')}
+        </div>`;
+      }).join('');
+
+  const resumen = activas.length===0&&recuperadas.length===0 ? 'Sin materias pendientes'
+    : (activas.length>0 ? activas.length+' pendiente'+(activas.length!==1?'s':'') : '')
+      + (activas.length>0&&recuperadas.length>0 ? ' · ' : '')
+      + (recuperadas.length>0 ? recuperadas.length+' recuperada'+(recuperadas.length!==1?'s':'') : '');
+
+  // Selector de nivel (niveles existentes + opción "Nuevo nivel")
+  const nivelOpts = nivelesExistentes.map(n =>
+    `<option value="${n}">${n}</option>`).join('');
 
   return `<div style="padding:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:600">Materias pendientes de evaluaciones anteriores</div>
-      ${pendientes.length > 0 ? `<span style="background:var(--amber);color:#fff;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:700">${pendientes.length}</span>` : ''}
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600">📚 Materias pendientes</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">${resumen}</div>
     </div>
 
-    ${listaHtml}
+    ${nivelesHtml}
 
-    <!-- Formulario para añadir -->
-    <div style="margin-top:14px;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+    <!-- Formulario añadir -->
+    <div style="margin-top:8px;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
       <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">➕ Añadir materia pendiente</div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <input type="text" id="pend-nivel" placeholder="Nivel / Curso (ej: 1º ESO, 2º Bachillerato...)"
+        ${nivelesExistentes.length > 0 ? `
+        <div>
+          <label style="font-size:11px;color:var(--text3);margin-bottom:3px;display:block">Nivel</label>
+          <select id="pend-nivel-sel"
+            style="width:100%;padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)"
+            onchange="const v=this.value;const ni=document.getElementById('pend-nivel-nuevo');if(ni){ni.style.display=v===''?'block':'none';}">
+            ${nivelOpts}
+            <option value="">+ Nuevo nivel...</option>
+          </select>
+        </div>
+        <input type="text" id="pend-nivel-nuevo" placeholder="Escribe el nuevo nivel..."
+          style="display:none;padding:8px 10px;border:1.5px solid var(--accent);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none">
+        ` : `
+        <input type="text" id="pend-nivel-nuevo" placeholder="Nivel / Curso (ej: 1º ESO, 2º Bach...)"
           style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
-        <input type="text" id="pend-asig" placeholder="Asignatura (ej: Matemáticas, Física y Química...)"
+        `}
+        <input type="text" id="pend-asig" placeholder="Asignatura (ej: Matemáticas, Inglés...)"
           style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'"
           onkeydown="if(event.key==='Enter')añadirPendiente()">
-        <button class="btn btn-secondary" onclick="añadirPendiente()" style="justify-content:center">+ Añadir asignatura pendiente</button>
+        <button onclick="añadirPendiente()"
+          style="padding:8px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-start">
+          + Añadir
+        </button>
       </div>
     </div>
   </div>`;
