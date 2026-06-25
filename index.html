@@ -14485,6 +14485,7 @@ function renderRubricas() {
     <button class="hamburger-btn" onclick="abrirSidebar()">☰</button>
     <h2>📋 Rúbricas</h2>
     <div style="display:flex;gap:8px;margin-left:auto">
+      <button class="btn btn-secondary btn-sm" onclick="importarRubricaJSON()">📥 Importar JSON</button>
       <button class="btn btn-secondary btn-sm" onclick="importarRubricaWord()">📥 Importar Word</button>
       <button class="btn btn-secondary btn-sm" onclick="exportarRubricasWord()" ${rubricasGuardadas.length?'':'disabled'}>📤 Exportar Word</button>
       <button class="btn btn-primary btn-sm" onclick="nuevaRubricaBiblioteca()">+ Nueva</button>
@@ -14578,6 +14579,84 @@ function eliminarRubricaBiblioteca(i) {
 }
 
 // ── Importar desde Word ───────────────────────────────────────────────────
+function importarRubricaJSON() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+
+  input.addEventListener('change', async () => {
+    const file = input.files[0];
+    if (!file) return;
+    input.remove();
+
+    let data;
+    try {
+      const text = await file.text();
+      data = JSON.parse(text);
+    } catch(e) {
+      alert('Error al leer el archivo JSON: ' + e.message);
+      return;
+    }
+
+    // Acepta tanto un objeto único como un array de rúbricas
+    const lista = Array.isArray(data) ? data : [data];
+    let importadas = 0;
+    let errores = [];
+
+    lista.forEach((r, idx) => {
+      if (!r.nombre || !Array.isArray(r.criterios) || !r.criterios.length) {
+        errores.push('Rúbrica ' + (idx+1) + ': falta "nombre" o "criterios"');
+        return;
+      }
+      const criteriosValidos = r.criterios.every(c =>
+        c.nombre && Array.isArray(c.niveles) && c.niveles.length === 4
+      );
+      if (!criteriosValidos) {
+        errores.push('"' + r.nombre + '": cada criterio necesita "nombre", "peso" y "niveles" (array de 4 textos)');
+        return;
+      }
+
+      if (!APP.rubricasGuardadas) APP.rubricasGuardadas = [];
+
+      // Si ya existe una con el mismo nombre, preguntar si sobreescribir
+      const existeIdx = APP.rubricasGuardadas.findIndex(x => x.nombre === r.nombre);
+      const nueva = {
+        id: existeIdx >= 0 ? APP.rubricasGuardadas[existeIdx].id : uid(),
+        nombre: r.nombre,
+        modoDistribucion: r.modoDistribucion || 'aritmetico',
+        predeterminada: existeIdx >= 0 ? !!APP.rubricasGuardadas[existeIdx].predeterminada : false,
+        criterios: r.criterios.map((c, i) => {
+          // Si no tiene peso, distribuir aritméticamente
+          const n = r.criterios.length;
+          const base = Math.floor(100 / n);
+          const peso = (c.peso !== undefined && c.peso !== null) ? c.peso : base + (i < (100 - base * n) ? 1 : 0);
+          return { nombre: c.nombre, peso, niveles: c.niveles };
+        })
+      };
+
+      if (existeIdx >= 0) {
+        APP.rubricasGuardadas[existeIdx] = nueva;
+      } else {
+        APP.rubricasGuardadas.push(nueva);
+      }
+      importadas++;
+    });
+
+    guardarDatos();
+    renderPage();
+
+    if (errores.length) {
+      alert('Importadas ' + importadas + ' rúbrica(s).\n\nErrores:\n' + errores.join('\n'));
+    } else {
+      mostrarToast('✓ ' + importadas + ' rúbrica' + (importadas !== 1 ? 's' : '') + ' importada' + (importadas !== 1 ? 's' : '') + ' correctamente');
+    }
+  });
+
+  input.click();
+}
+
 function importarRubricaWord() {
   // Show format instructions first
   const infoDiv = document.createElement('div');
