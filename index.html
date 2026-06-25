@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v5.8</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v5.9</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2431,6 +2431,8 @@ function renderAlumnos() {
                   <span style="width:8px;height:8px;border-radius:50%;background:#4a6a8a;display:inline-block"></span> Duplicar grupo</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirMoverAlumnoAClase('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#0891b2;display:inline-block"></span> 🔄 Traer alumno de otra clase</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();exportarPendientesPDF('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#7c3aed;display:inline-block"></span> 📄 Listado de pendientes</button>
                 <div class="grupo-menu-sep"></div>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();iniciarArchivar('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#8a6040;display:inline-block"></span> 🗄 Archivar</button>
@@ -4805,6 +4807,14 @@ function editarNotaRecuperada(idx) {
   const nota = prompt('Nota de recuperación:', actual !== undefined && actual !== '' ? actual : '');
   if (nota === null) return;
   a.asigPendientes[idx].notaRecuperacion = nota.trim() !== '' ? parseFloat(nota) : '';
+  guardarDatos();
+  cambiarTabFicha('pendientes');
+}
+
+function deshacerRecuperacionPendiente(idx) {
+  const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
+  delete a.asigPendientes[idx].recuperada;
+  delete a.asigPendientes[idx].notaRecuperacion;
   guardarDatos();
   cambiarTabFicha('pendientes');
 }
@@ -9985,7 +9995,9 @@ function renderTabPendientes(a) {
               <span style="flex:1;font-size:12px;font-weight:600;color:var(--green);text-decoration:line-through">${p.asig}</span>
               ${p.notaRecuperacion!==undefined&&p.notaRecuperacion!==''?`<span style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green)">${parseFloat(p.notaRecuperacion).toFixed(2)}</span>`:''}
               <button onclick="editarNotaRecuperada(${p.idx})"
-                style="padding:2px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);font-size:11px;cursor:pointer">✏</button>
+                style="padding:2px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);font-size:11px;cursor:pointer" title="Editar nota">✏</button>
+              <button onclick="deshacerRecuperacionPendiente(${p.idx})"
+                style="padding:2px 6px;border-radius:5px;border:1px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:11px;font-weight:600;cursor:pointer" title="Volver a pendiente">↩</button>
               <button onclick="eliminarPendiente(${p.idx})"
                 style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0 2px;opacity:0.5">✕</button>
             </div>`).join('')}
@@ -12467,6 +12479,74 @@ async function classroomGetToken() {
 
 
 // ── Mover/traer alumno de otra clase, mapeando notas por nombre de instrumento/apartado ──
+
+function exportarPendientesPDF(gid) {
+  const g = APP.grupos.find(x => x.id === gid);
+  if (!g) return;
+  const als = APP.alumnos
+    .filter(a => a.grupoId === gid && !a.archivado && (a.asigPendientes||[]).some(p => !p.recuperada))
+    .sort((a,b) => (a.nLista||99)-(b.nLista||99));
+
+  if (!als.length) {
+    alert('Ningún alumno de esta clase tiene materias pendientes sin recuperar.');
+    return;
+  }
+
+  const fecha = new Date().toLocaleDateString('es-ES', {day:'2-digit',month:'long',year:'numeric'});
+
+  const filas = als.map(a => {
+    const pends = (a.asigPendientes||[]).filter(p=>!p.recuperada);
+    // Agrupar por nivel
+    const porNivel = {};
+    pends.forEach(p => {
+      const n = p.nivel || 'Sin nivel';
+      if (!porNivel[n]) porNivel[n] = [];
+      porNivel[n].push(p.asig);
+    });
+    const asigHtml = Object.entries(porNivel).map(([nivel, asigs]) =>
+      `<div style="margin-bottom:4px"><strong style="color:#6d28d9">${nivel}:</strong> ${asigs.join(', ')}</div>`
+    ).join('');
+    return `<tr style="border-bottom:1px solid #e5e7eb">
+      <td style="padding:10px 12px;font-weight:600;white-space:nowrap;vertical-align:top">${a.nLista||''}. ${a.apellidos}, ${a.nombre}</td>
+      <td style="padding:10px 12px;vertical-align:top">${asigHtml}</td>
+      <td style="padding:10px 12px;text-align:center;font-weight:700;color:#6d28d9;vertical-align:top">${pends.length}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Pendientes — ${g.nombre}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #111; margin: 0; padding: 24px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    .sub { font-size: 12px; color: #666; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #6d28d9; color: #fff; }
+    thead td { padding: 9px 12px; font-weight: 700; }
+    tbody tr:nth-child(even) { background: #faf5ff; }
+    .footer { margin-top: 20px; font-size: 11px; color: #888; text-align: right; }
+    @media print { body { padding: 0; } button { display: none; } }
+  </style></head><body>
+  <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start">
+    <div>
+      <h1>📚 Materias pendientes — ${g.nombre}</h1>
+      <div class="sub">${g.asignatura||''} · ${als.length} alumno${als.length!==1?'s':''} con pendientes · Generado el ${fecha}</div>
+    </div>
+    <button onclick="window.print()" style="padding:8px 16px;background:#6d28d9;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">🖨 Imprimir / PDF</button>
+  </div>
+  <table>
+    <thead><tr>
+      <td style="width:35%">Alumno</td>
+      <td>Materias pendientes</td>
+      <td style="width:80px;text-align:center">Total</td>
+    </tr></thead>
+    <tbody>${filas}</tbody>
+  </table>
+  <div class="footer">ProfeApp v5.9</div>
+  </body></html>`;
+
+  abrirVentanaPDF(html, 'Pendientes — ' + g.nombre);
+}
+
 function abrirMoverAlumnoAClase(gidDestino) {
   const gDestino = APP.grupos.find(x => x.id === gidDestino);
   if (!gDestino) return;
