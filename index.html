@@ -12544,7 +12544,26 @@ function exportarPendientesPDF(gid) {
   <div class="footer">ProfeApp v5.9</div>
   </body></html>`;
 
-  abrirVentanaPDF(html, 'Pendientes — ' + g.nombre);
+  const ovPDF = document.createElement('div');
+  ovPDF.id = 'pdf-modal-pendientes';
+  ovPDF.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);display:flex;flex-direction:column';
+  const barPDF = document.createElement('div');
+  barPDF.style.cssText = 'background:#1e1e1e;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0';
+  const titPDF = document.createElement('span');
+  titPDF.style.cssText = 'color:#fff;font-size:14px;font-weight:600;flex:1';
+  titPDF.textContent = '📄 Pendientes — ' + g.nombre;
+  const btnClose = document.createElement('button');
+  btnClose.style.cssText = 'padding:6px 16px;border-radius:6px;border:none;background:#fff;color:#111;font-size:13px;font-weight:700;cursor:pointer';
+  btnClose.textContent = '✕ Cerrar';
+  btnClose.addEventListener('click', () => ovPDF.remove());
+  barPDF.appendChild(titPDF);
+  barPDF.appendChild(btnClose);
+  const iframePDF = document.createElement('iframe');
+  iframePDF.style.cssText = 'flex:1;border:none;background:#fff';
+  iframePDF.srcdoc = html;
+  ovPDF.appendChild(barPDF);
+  ovPDF.appendChild(iframePDF);
+  document.body.appendChild(ovPDF);
 }
 
 function abrirMoverAlumnoAClase(gidDestino) {
