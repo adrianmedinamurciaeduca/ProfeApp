@@ -9431,7 +9431,7 @@ function renderModalesProg() {
           <input type="date" id="niv-inicio"></div>
         <div class="form-group" style="margin-bottom:6px"><label>Grupos de este nivel</label>
           <div style="font-size:11px;color:var(--text3);margin-bottom:6px">La programación aplica a todos los grupos seleccionados. Cada grupo avanza por separado según su horario.</div>
-          <div style="border:1px solid var(--border2);border-radius:8px;padding:10px;max-height:200px;overflow-y:auto">
+          <div class="niv-grupos-wrap" style="border:1px solid var(--border2);border-radius:8px;padding:10px;max-height:200px;overflow-y:auto">
             ${APP.grupos.map(g => `<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:13px">
               <input type="checkbox" class="niv-grupo-cb" value="${g.id}">
               <span style="font-weight:500">${g.nombre}</span>
@@ -9528,12 +9528,28 @@ let _bloqEdit = { ni: -1, bi: -1 };
 let _sesProgEdit = { ni: -1, bi: -1, si: -1 };
 let _tipoSesActual = 'explicacion';
 
+
+// Regenera dinámicamente la lista de grupos en el modal de nivel
+function _refreshGruposModalNivel(gruposSeleccionados = []) {
+  const wrap = document.querySelector('#modal-nivel .niv-grupos-wrap');
+  if (!wrap) return;
+  if (!APP.grupos.length) {
+    wrap.innerHTML = '<p style="color:var(--text3);font-size:13px">Crea grupos en "Clases" primero.</p>';
+    return;
+  }
+  wrap.innerHTML = APP.grupos.map(g => `<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:13px">
+    <input type="checkbox" class="niv-grupo-cb" value="${g.id}" ${gruposSeleccionados.includes(g.id) ? 'checked' : ''}>
+    <span style="font-weight:500">${g.nombre}</span>
+    ${g.asignatura ? `<span style="color:var(--text3);font-size:11px">${g.asignatura}</span>` : ''}
+  </label>`).join('');
+}
+
 function abrirModalNivel() {
   _nivEdit = { ni: -1 };
   document.getElementById('nivel-modal-titulo').textContent = 'Nuevo nivel / materia';
   document.getElementById('niv-nombre').value = '';
   document.getElementById('niv-inicio').value = dKey(new Date());
-  document.querySelectorAll('.niv-grupo-cb').forEach(cb => cb.checked = false);
+  _refreshGruposModalNivel([]);
   document.getElementById('modal-nivel').classList.remove('hidden');
 }
 function abrirEditarNivel(ni) {
@@ -9542,7 +9558,7 @@ function abrirEditarNivel(ni) {
   document.getElementById('nivel-modal-titulo').textContent = 'Editar nivel';
   document.getElementById('niv-nombre').value = niv.nombre || '';
   document.getElementById('niv-inicio').value = niv.fechaInicio || '';
-  document.querySelectorAll('.niv-grupo-cb').forEach(cb => cb.checked = (niv.grupos || []).includes(cb.value));
+  _refreshGruposModalNivel(niv.grupos || []);
   document.getElementById('modal-nivel').classList.remove('hidden');
 }
 function guardarNivel() {
