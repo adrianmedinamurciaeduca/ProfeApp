@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v5.9</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v6.3</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -8782,11 +8782,21 @@ function renderProgramacion() {
     </label>
     <div style="position:relative;display:inline-block" id="prog-import-wrap">
       <button class="btn btn-secondary btn-sm" onclick="toggleProgImportMenu()">📥 Importar ▾</button>
-      <div id="prog-import-menu" class="hidden" style="position:absolute;top:100%;left:0;z-index:100;background:var(--surface);border:1.5px solid var(--border2);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.12);min-width:200px;margin-top:4px;overflow:hidden">
-        <button onclick="toggleProgImportMenu();document.getElementById('prog-import-file').click()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text)">📋 Importar JSON ProfeApp</button>
+      <div id="prog-import-menu" class="hidden" style="position:absolute;top:100%;left:0;z-index:100;background:var(--surface);border:1.5px solid var(--border2);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.12);min-width:220px;margin-top:4px;overflow:hidden">
+        <button onclick="toggleProgImportMenu();document.getElementById('prog-import-file').click()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:10px">
+          <span>📋</span><div><div style="font-weight:600">JSON ProfeApp</div><div style="font-size:11px;color:var(--text3)">Copia de seguridad de la app</div></div>
+        </button>
         <input id="prog-import-file" type="file" accept=".json" style="display:none" onchange="importarProgramacion(this)">
         <div style="height:1px;background:var(--border)"></div>
-        <button onclick="toggleProgImportMenu();abrirModalAnota()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text)">🏫 Importar formato Anota (.docx / texto)</button>
+        <button onclick="toggleProgImportMenu();document.getElementById('prog-import-word').click()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:10px">
+          <span>📝</span><div><div style="font-weight:600">Word (.docx) — Anota</div><div style="font-size:11px;color:var(--text3)">Exporta desde Anota como Word</div></div>
+        </button>
+        <input id="prog-import-word" type="file" accept=".docx" style="display:none" onchange="anotaLeerWord(this)">
+        <div style="height:1px;background:var(--border)"></div>
+        <button onclick="toggleProgImportMenu();document.getElementById('prog-import-pdf').click()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:10px">
+          <span>📄</span><div><div style="font-weight:600">PDF — Anota</div><div style="font-size:11px;color:var(--text3)">El PDF que genera Anota directamente</div></div>
+        </button>
+        <input id="prog-import-pdf" type="file" accept=".pdf" style="display:none" onchange="anotaLeerPDF(this)">
       </div>
     </div>
     <button class="btn btn-secondary btn-sm" onclick="exportarProgramacion()">📤 Exportar</button>
@@ -8991,6 +9001,42 @@ function cerrarModalAnota() {
   document.getElementById('modal-anota').classList.add('hidden');
 }
 
+async function anotaLeerPDF(input) {
+  const file = input.files[0]; if (!file) return;
+  input.value = '';
+  if (!window.pdfjsLib) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; res(); };
+      s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const lineas = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      let lastY = null, linea = '';
+      tc.items.forEach(item => {
+        const y = Math.round(item.transform[5]);
+        if (lastY !== null && Math.abs(y - lastY) > 3) { lineas.push(linea.trim()); linea = ''; }
+        linea += item.str + ' ';
+        lastY = y;
+      });
+      if (linea.trim()) lineas.push(linea.trim());
+      lineas.push('');
+    }
+    abrirModalAnota();
+    anotaProcesarTexto(lineas.join('\n'));
+  } catch(err) {
+    alert('Error al leer el PDF: ' + err.message + '\n\nPrueba a copiar el texto manualmente.');
+  }
+}
+
 async function anotaLeerWord(input) {
   const file = input.files[0]; if (!file) return;
   // Cargar mammoth si no está disponible
@@ -9018,60 +9064,52 @@ async function anotaLeerWord(input) {
 function anotaProcesarTexto(texto) {
   if (!texto?.trim()) { anotaMostrarError('No hay texto para analizar.'); return; }
 
-  // Extraer nombre del centro/materia para el nombre del nivel
   const materiaMatch = texto.match(/Materia:\s*([^\n]+)/);
-  const cursoMatch = texto.match(/Curso:\s*([^\n]+)/);
-  const centroMatch = texto.match(/^([^\n]+)\s*Curso Escolar/m);
+  const cursoMatch   = texto.match(/Curso:\s*([^\n]+)/);
   const materia = materiaMatch ? materiaMatch[1].trim().replace(/^BGE\w+\s*-\s*/,'') : 'Programación';
-  const curso = cursoMatch ? cursoMatch[1].trim() : '';
+  const curso   = cursoMatch   ? cursoMatch[1].trim() : '';
   _anotaNombreNivel = `${materia}${curso?' — '+curso:''}`;
 
-  // Detectar instrumentos de evaluación (globales)
-  const instrMap = {};
-  const instrRegex = /(?:Diario de clase|Prueba escrita|Cuaderno|Prácticas?|Trabajo)[:\s]*(\d+)%/gi;
-  let mInstr;
-  while ((mInstr = instrRegex.exec(texto)) !== null) {
-    const nombre = mInstr[0].replace(/:\s*\d+%/,'').trim();
-    const peso = parseInt(mInstr[1]);
-    if (!instrMap[nombre]) instrMap[nombre] = peso;
-  }
-
-  // Extraer unidades didácticas con sus criterios por instrumento
   const unidadRegex = /UNIDAD\s+(\w+):\s*([^\n]+?)\s+Fecha inicio prev\.:\s*([\d/]+)\s+Fecha fin\s+prev\.:\s*([\d/]+)\s+Sesiones prev\.:\s*(\d+)/gi;
   _anotaUnidades = [];
   let m;
   while ((m = unidadRegex.exec(texto)) !== null) {
-    const codigo = m[1];
-    const titulo = m[2].trim();
-    const fechaIni = anotaFecha(m[3]);
-    const fechaFin = anotaFecha(m[4]);
+    const codigo    = m[1];
+    const titulo    = m[2].trim();
+    const fechaIni  = anotaFecha(m[3]);
+    const fechaFin  = anotaFecha(m[4]);
     const nSesiones = parseInt(m[5]);
-    const trimEst = anotaEstimarTrim(fechaIni);
+    const trimEst   = anotaEstimarTrim(fechaIni);
 
-    // Extraer bloque de texto de esta unidad (hasta la siguiente UNIDAD o fin)
     const posActual = m.index;
-    const unidadRegex2 = /UNIDAD\s+\w+:/gi;
-    unidadRegex2.lastIndex = posActual + 1;
-    const sigMatch = unidadRegex2.exec(texto);
-    const bloqueUnidad = texto.slice(posActual, sigMatch ? sigMatch.index : texto.length);
+    const ur2 = /UNIDAD\s+\w+:/gi;
+    ur2.lastIndex = posActual + 1;
+    const sig = ur2.exec(texto);
+    const bloque = texto.slice(posActual, sig ? sig.index : texto.length);
 
-    // Extraer criterios por instrumento en esta unidad
-    const criteriosPorInstrumento = {};
-    // Buscar filas con formato: #.N.N + instrumento + %
-    const criterioRegex = /#\.(\d+\.\d+)/g;
-    let mc;
-    const criteriosUnidad = [];
-    while ((mc = criterioRegex.exec(bloqueUnidad)) !== null) {
-      criteriosUnidad.push(mc[1]);
+    const criterios = [];
+    const critSplit = bloque.split(/#\.(\d+\.\d+)/);
+    for (let ci = 1; ci < critSplit.length; ci += 2) {
+      const codCrit   = critSplit[ci];
+      const textoCrit = critSplit[ci+1] || '';
+      const valorMatch = textoCrit.match(/(\d+[,\.]\d+|\d+)\s*(?:CCL|CCEC|CC\b|CD\b|CE\b|CP\b|CPSAA|STEM)/);
+      const valor = valorMatch ? parseFloat(valorMatch[1].replace(',','.')) : 0;
+      const instrCrit = {};
+      const instrRe = /([A-ZÁÉÍÓÚÑ][^\n:]{2,40?}):\s*(\d+)%/g;
+      let mi;
+      while ((mi = instrRe.exec(textoCrit)) !== null) {
+        const nombre = mi[1].trim().replace(/\s+/g,' ');
+        const pct    = parseInt(mi[2]);
+        if (!nombre.match(/^(Eval|Criterio|Competencia|Saberes|Valor)/i) && pct > 0) {
+          instrCrit[nombre] = (instrCrit[nombre]||0) + pct;
+        }
+      }
+      if (Object.keys(instrCrit).length > 0 && codCrit) {
+        criterios.push({ codigo: codCrit, valor, instrumentos: instrCrit });
+      }
     }
-    // Asignar criterios a los instrumentos según qué % aparece después del criterio
-    Object.keys(instrMap).forEach(instr => {
-      // Criterios donde el instrumento tiene % (simplificado: todos los criterios van a todos los instrumentos)
-      // En el PDF de Anota la asociación instrumento-criterio no es siempre parseable directamente
-      criteriosPorInstrumento[instr] = [...new Set(criteriosUnidad)];
-    });
 
-    _anotaUnidades.push({ codigo, titulo, fechaIni, fechaFin, nSesiones, trim: trimEst, criteriosPorInstrumento });
+    _anotaUnidades.push({ codigo, titulo, fechaIni, fechaFin, nSesiones, trim: trimEst, criterios });
   }
 
   if (!_anotaUnidades.length) {
@@ -9079,11 +9117,51 @@ function anotaProcesarTexto(texto) {
     return;
   }
 
+  _anotaInstrPesosPorTrim = {};
+  const instrMap = {};
+  ['T1','T2','T3'].forEach(trim => {
+    const unidadesTrim = _anotaUnidades.filter(u => u.trim === trim);
+    if (!unidadesTrim.length) return;
+
+    const criteriosPorCod = {};
+    unidadesTrim.forEach(u => {
+      (u.criterios||[]).forEach(c => {
+        if (!criteriosPorCod[c.codigo]) criteriosPorCod[c.codigo] = [];
+        criteriosPorCod[c.codigo].push({ valor: c.valor, instrumentos: c.instrumentos });
+      });
+    });
+
+    const contribucion = {};
+    Object.values(criteriosPorCod).forEach(apariciones => {
+      const nApar = apariciones.length;
+      apariciones.forEach(apar => {
+        const valorParte = apar.valor / nApar;
+        const totalPct = Object.values(apar.instrumentos).reduce((s,p)=>s+p,0)||100;
+        Object.entries(apar.instrumentos).forEach(([instr, pct]) => {
+          contribucion[instr] = (contribucion[instr]||0) + valorParte * (pct/totalPct);
+        });
+      });
+    });
+
+    const totalPuntos = Object.values(contribucion).reduce((s,v)=>s+v,0);
+    if (totalPuntos > 0) {
+      _anotaInstrPesosPorTrim[trim] = {};
+      Object.entries(contribucion).forEach(([instr,pts]) => {
+        _anotaInstrPesosPorTrim[trim][instr] = Math.round(pts/totalPuntos*100);
+        instrMap[instr] = _anotaInstrPesosPorTrim[trim][instr];
+      });
+      const keys = Object.keys(_anotaInstrPesosPorTrim[trim]);
+      const suma = keys.reduce((s,k)=>s+_anotaInstrPesosPorTrim[trim][k],0);
+      if (suma !== 100 && keys.length) _anotaInstrPesosPorTrim[trim][keys[0]] += 100-suma;
+    }
+  });
+
   _anotaInstrumentos = instrMap;
   anotaMostrarPaso2();
 }
 
 let _anotaInstrumentos = {};
+let _anotaInstrPesosPorTrim = {};
 
 function anotaFecha(str) {
   if (!str) return '';
@@ -9181,26 +9259,25 @@ function anotaConfirmarImport() {
     };
   });
 
-  // Crear estructura de instrumentos si se detectaron
+  // Crear estructura de instrumentos con pesos calculados por trimestre
   const instruccionesEval = {};
-  if (Object.keys(_anotaInstrumentos).length) {
-    ['T1','T2','T3'].forEach(t => {
-      // Agrupar criterios por instrumento para este trimestre
-      const unidadesTrim = _anotaUnidades.filter(u => u.trim === t);
-      instruccionesEval[t] = Object.entries(_anotaInstrumentos).map(([nombre, peso]) => {
-        // Recoger criterios de las unidades de este trimestre para este instrumento
-        const criteriosSet = new Set();
-        unidadesTrim.forEach(u => {
-          (u.criteriosPorInstrumento?.[nombre] || []).forEach(c => criteriosSet.add(c));
+  ['T1','T2','T3'].forEach(t => {
+    const pesosTrim = _anotaInstrPesosPorTrim[t] || _anotaInstrumentos;
+    if (!Object.keys(pesosTrim).length) return;
+    const unidadesTrim = _anotaUnidades.filter(u => u.trim === t);
+    instruccionesEval[t] = Object.entries(pesosTrim).map(([nombre, peso]) => {
+      const criteriosList = [];
+      unidadesTrim.forEach(u => {
+        (u.criterios||[]).forEach(c => {
+          if (c.instrumentos?.[nombre] && !criteriosList.find(x=>x.codigo===c.codigo)) {
+            criteriosList.push({ codigo: c.codigo, valor: c.valor });
+          }
         });
-        const criteriosStr = criteriosSet.size > 0 ? [...criteriosSet].join(', ') : '';
-        return {
-          nombre, peso, items: [], mediaAritmetica: true,
-          criterios: criteriosStr || undefined
-        };
       });
+      const criteriosStr = criteriosList.map(c=>`${c.codigo}(${c.valor})`).join(', ');
+      return { nombre, peso, items: [], mediaAritmetica: true, criterios: criteriosStr||undefined };
     });
-  }
+  });
 
   const nivel = {
     id: uid(),
