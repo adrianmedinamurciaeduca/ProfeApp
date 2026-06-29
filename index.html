@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v6.3</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v6.4</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2484,6 +2484,7 @@ function cambiarVistaAlumnos(v) {
   }
   vistaAlumnos = v;
   APP.config.vistaAlumnos = v;
+  _cuadernoFilaSel = null; _cuadernoInstSel = null; _cuadernoItemSel = null; _listaFilaSel = null;
   if (v === 'cuaderno') {
     // Inicializar trim global al por defecto si no está fijado
     if (!_cuadernoTrimGlobal) _cuadernoTrimGlobal = evalTrimPorDefecto();
@@ -2504,6 +2505,67 @@ function cambiarVistaAlumnos(v) {
 
 // Columna extra por grupo: { gid: { trim, iIdx, jIdx } }
 let _columnasExtra = {};
+
+// Selección visual de fila/columna en el cuaderno
+let _cuadernoFilaSel = null;  // aid del alumno seleccionado
+let _cuadernoInstSel = null;  // iIdx del instrumento seleccionado
+let _cuadernoItemSel = null;  // jIdx del apartado seleccionado (null = toda la columna del instrumento)
+
+function _seleccionarFilaCuaderno(aid) {
+  _cuadernoFilaSel = _cuadernoFilaSel === aid ? null : aid;
+  _aplicarSeleccionCuaderno();
+}
+function _seleccionarInstCuaderno(iIdx) {
+  if (_cuadernoInstSel === iIdx && _cuadernoItemSel === null) {
+    _cuadernoInstSel = null; _cuadernoItemSel = null;
+  } else {
+    _cuadernoInstSel = iIdx; _cuadernoItemSel = null;
+  }
+  _aplicarSeleccionCuaderno();
+}
+function _seleccionarItemCuaderno(iIdx, jIdx) {
+  if (_cuadernoInstSel === iIdx && _cuadernoItemSel === jIdx) {
+    _cuadernoInstSel = null; _cuadernoItemSel = null;
+  } else {
+    _cuadernoInstSel = iIdx; _cuadernoItemSel = jIdx;
+  }
+  _aplicarSeleccionCuaderno();
+}
+
+function _aplicarSeleccionCuaderno() {
+  // Resetear todos los highlights
+  document.querySelectorAll('[data-aid]').forEach(td => {
+    td.style.outline = '';
+    td.style.outlineOffset = '';
+  });
+  document.querySelectorAll('[data-row-aid]').forEach(tr => {
+    tr.style.outline = '';
+  });
+
+  if (!_cuadernoFilaSel && _cuadernoInstSel === null) return;
+
+  // Highlight fila (alumno seleccionado)
+  if (_cuadernoFilaSel) {
+    document.querySelectorAll(`[data-aid="${_cuadernoFilaSel}"]`).forEach(td => {
+      td.style.outline = '2px solid #2563eb';
+      td.style.outlineOffset = '-2px';
+    });
+    const tr = document.querySelector(`[data-row-aid="${_cuadernoFilaSel}"]`);
+    if (tr) tr.style.outline = '2px solid #2563eb';
+  }
+
+  // Highlight columna (instrumento o apartado seleccionado)
+  if (_cuadernoInstSel !== null) {
+    const sel = _cuadernoItemSel !== null
+      ? `[data-iidx="${_cuadernoInstSel}"][data-jidx="${_cuadernoItemSel}"]`
+      : `[data-iidx="${_cuadernoInstSel}"]`;
+    document.querySelectorAll(sel).forEach(td => {
+      const esFila = _cuadernoFilaSel && td.dataset.aid === _cuadernoFilaSel;
+      td.style.outline = esFila ? '2px solid #7c3aed' : '2px solid #f59e0b';
+      td.style.outlineOffset = '-2px';
+    });
+  }
+}
 
 // Mostrar/ocultar etiquetas de atención (ACNEE, PAP, PEP, Abs)
 let _mostrarAtencion = true;
@@ -2796,7 +2858,13 @@ function renderVistaLista(g, als) {
       const col=getColorGrupo(a.grupoId);
       const extraVal = cfg ? getValorColumnaExtra(a, cfg) : null;
       const extraNR  = extraVal !== null ? redondear(extraVal, umbral) : null;
-      return `<tr onclick="abrirFicha('${a.id}')">
+      return `<tr data-list-aid="${a.id}"
+        onclick="_seleccionarFilaLista('${a.id}')"
+        oncontextmenu="event.preventDefault();abrirFicha('${a.id}')"
+        ontouchstart="_cuadernoTouchStart('${a.id}',event)"
+        ontouchend="_cuadernoTouchEnd(event)"
+        ontouchmove="_cuadernoTouchCancel()"
+        style="cursor:pointer">
         <td><div style="display:flex;align-items:center;gap:8px">
           <div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:20px">
             ${a.nLista?`<span style="font-size:10px;font-weight:700;color:var(--text3);font-family:'DM Mono',monospace">${a.nLista}</span>`:''}
@@ -2916,7 +2984,7 @@ function renderVistaCuaderno(g, als) {
           style="margin-left:4px;padding:1px 5px;border-radius:3px;border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:#fff;font-size:10px;cursor:pointer">+ apt.</button>`
       : '';
 
-    thInst += `<th colspan="${nCols}" style="background:var(--accent);color:#fff;border:1px solid var(--border2);padding:5px 8px;font-size:11px;font-weight:700;white-space:nowrap;text-align:center">
+    thInst += `<th colspan="${nCols}" onclick="_seleccionarInstCuaderno(${iIdx})" style="background:var(--accent);color:#fff;border:1px solid var(--border2);padding:5px 8px;font-size:11px;font-weight:700;white-space:nowrap;text-align:center;cursor:pointer" title="Seleccionar columna ${inst.nombre}">
       ${inst.nombre}&nbsp;
       <span style="font-weight:400;font-size:10px">(${pesoInput})</span>
       ${addItemBtn}
@@ -2941,7 +3009,7 @@ function renderVistaCuaderno(g, als) {
               onclick="event.stopPropagation()"
               onchange="cuadernoEditarNombreItem('${gid}','${trim}',${iIdx},${jIdx},this.value)">`
           : item.nombre;
-        thItems += `<th style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--border2);padding:3px 5px;font-size:10px;white-space:nowrap;text-align:center;min-width:${edicion?'90px':'70px'}">
+        thItems += `<th onclick="${!edicion?`_seleccionarItemCuaderno(${iIdx},${jIdx})`:''}" style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--border2);padding:3px 5px;font-size:10px;white-space:nowrap;text-align:center;min-width:${edicion?'90px':'70px'};cursor:${!edicion?'pointer':'default'}" title="${!edicion?'Seleccionar columna '+item.nombre:''}">
           ${nombreItemHtml}<br>${pesoItemInput}${delBtn}
         </th>`;
       });
@@ -3018,7 +3086,9 @@ function renderVistaCuaderno(g, als) {
         const _nEfec = (()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;return n!==null&&r!==null?Math.max(n,r):n;})();
         const tdBg = (_nEfec!==null) ? (_nEfec<5?'#fee2e2':'#dcfce7') : bg;
         const tdId = `td-nota-${a.id}-${iIdx}-${jIdx}`;
-        return `<td id="${tdId}" data-aid="${a.id}" data-iidx="${iIdx}" data-jidx="${jIdx}" style="background:${tdBg};border:1px solid var(--border2);padding:3px 4px;text-align:center;min-width:${edicion?'95px':'65px'}">
+        return `<td id="${tdId}" data-aid="${a.id}" data-iidx="${iIdx}" data-jidx="${jIdx}" style="background:${tdBg};border:1px solid var(--border2);padding:3px 4px;text-align:center;min-width:${edicion?'95px':'65px'}"
+          onclick="event.stopPropagation();${!edicion?`_seleccionarFilaCuaderno('${a.id}')`:''}"
+        >
           <div style="display:flex;align-items:center;justify-content:center;gap:2px;flex-wrap:wrap">
             ${inputNota}${undoBtn}${rubricaBtn}
           </div>
@@ -3048,7 +3118,15 @@ function renderVistaCuaderno(g, als) {
     </td>`;
 
     if (window._modoPrivadoAlumno && window._modoPrivadoAlumno !== a.id) return '';
-    return `<tr>${tdAlumno}${tdsNotas}${tdFinal}</tr>`;
+    // Toque breve → seleccionar fila; toque largo → abrir ficha
+    const trStyle = 'cursor:pointer';
+    return `<tr data-row-aid="${a.id}" style="${trStyle}"
+      onclick="_seleccionarFilaCuaderno('${a.id}')"
+      oncontextmenu="event.preventDefault();abrirFicha('${a.id}')"
+      ontouchstart="_cuadernoTouchStart('${a.id}',event)"
+      ontouchend="_cuadernoTouchEnd(event)"
+      ontouchmove="_cuadernoTouchCancel()"
+    >${tdAlumno}${tdsNotas}${tdFinal}</tr>`;
   }).join('');
 
   // ── Fila medias ──────────────────────────────────────────────
@@ -3302,6 +3380,18 @@ function cuadernoModoPrivado(gid, trim) {
 function cuadernoSalirPrivado() {
   window._modoPrivadoAlumno = null;
   renderPage();
+}
+
+let _listaFilaSel = null;
+function _seleccionarFilaLista(aid) {
+  _listaFilaSel = _listaFilaSel === aid ? null : aid;
+  document.querySelectorAll('[data-list-aid]').forEach(tr => {
+    tr.style.outline = '';
+  });
+  if (_listaFilaSel) {
+    const tr = document.querySelector(`[data-list-aid="${_listaFilaSel}"]`);
+    if (tr) tr.style.outline = '2px solid #2563eb';
+  }
 }
 
 function listaModoPrivado(gid) {
@@ -5486,14 +5576,80 @@ function renombrarGrupo(gid) {
 
 function duplicarGrupo(gid) {
   const orig = APP.grupos.find(g=>g.id===gid); if(!orig) return;
+
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+  box.innerHTML = '<h3 style="font-size:15px;font-weight:700;margin-bottom:6px">⧉ Duplicar clase</h3>'
+    + '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Elige qué quieres duplicar de <strong>' + orig.nombre + '</strong>:</p>'
+    + '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">'
+    + '<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid var(--border2);border-radius:8px">'
+    + '<input type="checkbox" id="dup-estructura" checked style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)">'
+    + '<div><div style="font-size:13px;font-weight:600">Estructura de evaluación</div><div style="font-size:11px;color:var(--text3)">Instrumentos, apartados y pesos de cada evaluación</div></div></label>'
+    + '<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid var(--border2);border-radius:8px">'
+    + '<input type="checkbox" id="dup-alumnos" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)">'
+    + '<div><div style="font-size:13px;font-weight:600">Alumnos</div><div style="font-size:11px;color:var(--text3)">Lista de alumnos con sus datos, observaciones y fichas</div></div></label>'
+    + '<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid var(--border2);border-radius:8px">'
+    + '<input type="checkbox" id="dup-notas" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)">'
+    + '<div><div style="font-size:13px;font-weight:600">Calificaciones</div><div style="font-size:11px;color:var(--text3)">Todas las notas de los alumnos (requiere duplicar alumnos)</div></div></label>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button id="dup-cancel" class="btn btn-secondary">Cancelar</button>'
+    + '<button id="dup-ok" class="btn btn-primary">Duplicar</button>'
+    + '</div>';
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+
+  // Si notas está marcado y alumnos no, marcar alumnos automáticamente
+  document.getElementById('dup-notas').addEventListener('change', e => {
+    if (e.target.checked) document.getElementById('dup-alumnos').checked = true;
+  });
+  document.getElementById('dup-alumnos').addEventListener('change', e => {
+    if (!e.target.checked) document.getElementById('dup-notas').checked = false;
+  });
+
+  document.getElementById('dup-cancel').addEventListener('click', () => ov.remove());
+  document.getElementById('dup-ok').addEventListener('click', () => {
+    const copiarEstructura = document.getElementById('dup-estructura').checked;
+    const copiarAlumnos   = document.getElementById('dup-alumnos').checked;
+    const copiarNotas     = document.getElementById('dup-notas').checked;
+    ov.remove();
+    _ejecutarDuplicarGrupo(gid, copiarEstructura, copiarAlumnos, copiarNotas);
+  });
+}
+
+function _ejecutarDuplicarGrupo(gid, copiarEstructura, copiarAlumnos, copiarNotas) {
+  const orig = APP.grupos.find(g=>g.id===gid); if(!orig) return;
+  const nuevoGid = uid();
+
   const nuevo = {
-    id: uid(),
+    id: nuevoGid,
     nombre: orig.nombre + ' (copia)',
     asignatura: orig.asignatura,
-    estructura: orig.estructura ? JSON.parse(JSON.stringify(orig.estructura)) : undefined
+    color: orig.color,
+    estructura: (copiarEstructura && orig.estructura) ? JSON.parse(JSON.stringify(orig.estructura)) : undefined
   };
   APP.grupos.push(nuevo);
-  guardarDatos(); renderPage();
+
+  if (copiarAlumnos) {
+    const alumnosOrig = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
+    alumnosOrig.forEach(a => {
+      const nuevoAlumno = JSON.parse(JSON.stringify(a));
+      nuevoAlumno.id = uid();
+      nuevoAlumno.grupoId = nuevoGid;
+      if (!copiarNotas) {
+        delete nuevoAlumno.notas;
+        delete nuevoAlumno.estructuraPersonal;
+      }
+      APP.alumnos.push(nuevoAlumno);
+    });
+  }
+
+  guardarDatos();
+  renderPage();
+  mostrarToast('✓ Clase duplicada: ' + nuevo.nombre);
 }
 
 // =====================
@@ -10493,6 +10649,26 @@ function calcNotaTrimestreConInst(alumno, trim, instrumentos) {
 }
 
 // ── Navegación siguiente/anterior alumno ──────────────────────
+let _cuadernoLongPressTimer = null;
+
+function _cuadernoTouchStart(aid, event) {
+  _cuadernoTouchCancel();
+  _cuadernoLongPressTimer = setTimeout(() => {
+    _cuadernoLongPressTimer = null;
+    abrirFicha(aid);
+  }, 600);
+}
+function _cuadernoTouchEnd(event) {
+  if (_cuadernoLongPressTimer) {
+    clearTimeout(_cuadernoLongPressTimer);
+    _cuadernoLongPressTimer = null;
+    // El onclick del tr se encarga de la selección
+  }
+}
+function _cuadernoTouchCancel() {
+  if (_cuadernoLongPressTimer) { clearTimeout(_cuadernoLongPressTimer); _cuadernoLongPressTimer = null; }
+}
+
 function navAlumno(dir) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   const grupo = APP.alumnos.filter(x=>x.grupoId===a.grupoId)
@@ -14578,8 +14754,22 @@ function renderRubricas() {
     <button class="hamburger-btn" onclick="abrirSidebar()">☰</button>
     <h2>📋 Rúbricas</h2>
     <div style="display:flex;gap:8px;margin-left:auto">
-      <button class="btn btn-secondary btn-sm" onclick="importarRubricaJSON()">📥 Importar JSON</button>
-      <button class="btn btn-secondary btn-sm" onclick="importarRubricaWord()">📥 Importar Word</button>
+      <div style="position:relative;display:inline-block">
+        <button class="btn btn-secondary btn-sm" onclick="toggleRubricaImportMenu()">📥 Importar ▾</button>
+        <div id="rubrica-import-menu" class="hidden" style="position:absolute;top:100%;right:0;z-index:100;background:var(--surface);border:1.5px solid var(--border2);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.12);min-width:220px;margin-top:4px;overflow:hidden">
+          <button onclick="toggleRubricaImportMenu();importarRubricaJSON()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:10px">
+            <span>📋</span><div><div style="font-weight:600">JSON ProfeApp</div><div style="font-size:11px;color:var(--text3)">Formato nativo de la app</div></div>
+          </button>
+          <div style="height:1px;background:var(--border)"></div>
+          <button onclick="toggleRubricaImportMenu();importarRubricaWord()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:10px">
+            <span>📝</span><div><div style="font-weight:600">Word (.docx)</div><div style="font-size:11px;color:var(--text3)">Tabla de rúbrica en Word</div></div>
+          </button>
+          <div style="height:1px;background:var(--border)"></div>
+          <button onclick="toggleRubricaImportMenu();importarRubricaPDF()" style="width:100%;padding:10px 14px;border:none;background:none;text-align:left;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:10px">
+            <span>📄</span><div><div style="font-weight:600">PDF</div><div style="font-size:11px;color:var(--text3)">Guía de formato incluida</div></div>
+          </button>
+        </div>
+      </div>
       <button class="btn btn-secondary btn-sm" onclick="exportarRubricasWord()" ${rubricasGuardadas.length?'':'disabled'}>📤 Exportar Word</button>
       <button class="btn btn-primary btn-sm" onclick="nuevaRubricaBiblioteca()">+ Nueva</button>
     </div>
@@ -14672,6 +14862,153 @@ function eliminarRubricaBiblioteca(i) {
 }
 
 // ── Importar desde Word ───────────────────────────────────────────────────
+function toggleRubricaImportMenu() {
+  const menu = document.getElementById('rubrica-import-menu');
+  if (!menu) return;
+  const isOpen = !menu.classList.contains('hidden');
+  menu.classList.toggle('hidden');
+  if (!isOpen) {
+    const closeOnClick = (e) => {
+      if (!menu.contains(e.target)) { menu.classList.add('hidden'); document.removeEventListener('click', closeOnClick); }
+    };
+    setTimeout(() => document.addEventListener('click', closeOnClick), 0);
+  }
+}
+
+function importarRubricaPDF() {
+  // Mostrar guía de formato para PDF y luego abrir selector
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = `<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:480px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:12px">📄 Importar rúbrica desde PDF</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">El PDF debe contener una tabla de rúbrica con este formato para que la app lo reconozca:</p>
+    <div style="font-size:12px;display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border-left:3px solid var(--accent)">
+        <div style="font-weight:600;margin-bottom:4px">📌 Título de la rúbrica</div>
+        <div style="color:var(--text3)">El nombre de la rúbrica debe aparecer en el texto antes de la tabla, en una línea separada.</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border-left:3px solid var(--accent)">
+        <div style="font-weight:600;margin-bottom:4px">📊 Estructura de la tabla</div>
+        <div style="color:var(--text3)">La primera fila debe contener los niveles (Excelente, Notable, Aprobado, Insuficiente — o equivalentes). La primera columna es el nombre del criterio, el resto los descriptores de cada nivel.</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border-left:3px solid var(--accent)">
+        <div style="font-weight:600;margin-bottom:4px">⚖️ Pesos (opcional)</div>
+        <div style="color:var(--text3)">Escribe el peso en el nombre del criterio: <em>"Presentación (30%)"</em> o <em>"Presentación 30%"</em>. Si no aparece, la app repartirá los pesos a partes iguales.</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border-left:3px solid var(--amber)">
+        <div style="font-weight:600;margin-bottom:4px">⚠️ Limitación del formato PDF</div>
+        <div style="color:var(--text3)">Los PDF con tablas complejas o columnas muy juntas pueden no extraerse perfectamente. Si el resultado no es correcto, usa el formato Word o JSON.</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="imp-pdf-cancel" style="padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:13px">Cancelar</button>
+      <button id="imp-pdf-ok" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Seleccionar PDF</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('imp-pdf-cancel').onclick = () => ov.remove();
+  document.getElementById('imp-pdf-ok').onclick = () => {
+    ov.remove();
+    _abrirSelectorRubricaPDF();
+  };
+}
+
+async function _abrirSelectorRubricaPDF() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.pdf';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+
+  input.addEventListener('change', async () => {
+    const file = input.files[0]; if (!file) return;
+    input.remove();
+
+    if (!window.pdfjsLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; res(); };
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const lineas = [];
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const tc = await page.getTextContent();
+        let lastY = null, linea = '';
+        tc.items.forEach(item => {
+          const y = Math.round(item.transform[5]);
+          if (lastY !== null && Math.abs(y - lastY) > 3) { lineas.push(linea.trim()); linea = ''; }
+          linea += item.str + ' ';
+          lastY = y;
+        });
+        if (linea.trim()) lineas.push(linea.trim());
+        lineas.push('');
+      }
+      _parsearRubricaDesdeTexto(lineas.join('\n'), file.name.replace('.pdf',''));
+    } catch(err) {
+      alert('Error al leer el PDF: ' + err.message);
+    }
+  });
+  input.click();
+}
+
+function _parsearRubricaDesdeTexto(texto, nombreDefault) {
+  // Intentar extraer rúbrica desde texto plano (PDF)
+  // Buscar líneas que parezcan niveles (Excelente, Notable, etc.)
+  const nivelesConocidos = ['excelente','sobresaliente','notable','bien','aprobado','básico','insuficiente','regular','malo','deficiente','excellent','good','average','poor'];
+  const lineas = texto.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Encontrar fila de cabecera (contiene palabras de nivel)
+  let cabIndex = -1;
+  let niveles = [];
+  for (let i = 0; i < lineas.length; i++) {
+    const words = lineas[i].toLowerCase().split(/\s+/);
+    const hits = words.filter(w => nivelesConocidos.some(n => w.includes(n)));
+    if (hits.length >= 2) { cabIndex = i; break; }
+  }
+
+  if (cabIndex === -1) {
+    alert('No se pudo detectar la tabla de la rúbrica en el PDF.\nAsegúrate de que la primera fila de la tabla contiene los niveles (Excelente, Notable, Aprobado, Insuficiente).');
+    return;
+  }
+
+  // Extraer nombre de la rúbrica (línea anterior a la cabecera)
+  const nombre = cabIndex > 0 ? lineas[cabIndex-1] : nombreDefault;
+
+  // Extraer criterios (líneas después de la cabecera que no sean niveles)
+  const criterios = [];
+  for (let i = cabIndex + 1; i < lineas.length; i++) {
+    const linea = lineas[i];
+    if (!linea || lineas[i].toLowerCase().split(/\s+/).some(w => nivelesConocidos.some(n => w.includes(n)))) continue;
+    // Cada criterio: el texto de la línea podría contener nombre + descriptores juntos
+    // Simplificado: cada línea distinta es un criterio o un nivel del criterio anterior
+    criterios.push({ nombre: linea, peso: 0, niveles: ['','','',''] });
+  }
+
+  if (!criterios.length) {
+    alert('No se encontraron criterios en el PDF. Prueba con el formato Word para mayor precisión.');
+    return;
+  }
+
+  // Distribuir pesos aritméticamente
+  const n = criterios.length;
+  const base = Math.floor(100/n);
+  criterios.forEach((c,i) => c.peso = base + (i < (100-base*n) ? 1 : 0));
+
+  if (!APP.rubricasGuardadas) APP.rubricasGuardadas = [];
+  APP.rubricasGuardadas.push({ id: uid(), nombre, modoDistribucion: 'aritmetico', predeterminada: false, criterios });
+  guardarDatos();
+  renderPage();
+  mostrarToast('✓ Rúbrica "' + nombre + '" importada desde PDF. Revisa y edita los descriptores de cada nivel.');
+}
+
 function importarRubricaJSON() {
   const input = document.createElement('input');
   input.type = 'file';
