@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v6.7</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.0</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1144,6 +1144,51 @@
 <!-- MODAL EDITAR COLOR GRUPO -->
 <!-- MODAL CONFIRMAR -->
 <!-- MODAL OPCIONES INFORME -->
+<div class="modal-overlay hidden" id="modal-centro" onclick="event.target===this&&document.getElementById('modal-centro').classList.add('hidden')">
+  <div class="modal" style="max-width:420px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="centro-modal-titulo">🏫 Centro educativo</h3>
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('modal-centro').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:6px">Logo del centro</label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="centro-logo-preview" style="width:60px;height:60px;border-radius:10px;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+            <span style="font-size:26px">🏫</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer">
+              📤 Subir logo
+              <input type="file" accept="image/*" style="display:none" onchange="_cargarLogoCentro(this)">
+            </label>
+            <button class="btn btn-ghost btn-sm" onclick="_quitarLogoCentro()">Quitar logo</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Nombre del centro *</label>
+        <input type="text" id="centro-nombre" placeholder="ej: IES Santa María de los Baños"
+          style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Teléfono de contacto</label>
+        <input type="tel" id="centro-telefono" placeholder="ej: 968 123 456"
+          style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Email de contacto</label>
+        <input type="email" id="centro-email" placeholder="ej: secretaria@iescentro.es"
+          style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-centro').classList.add('hidden')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCentro()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="modal-informe-opciones" onclick="event.target===this&&document.getElementById('modal-informe-opciones').classList.add('hidden')">
   <div class="modal" style="max-width:400px" onclick="event.stopPropagation()">
     <div class="modal-header">
@@ -1153,6 +1198,11 @@
     <div class="modal-body" style="padding:16px">
       <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Elige qué apartados incluir:</p>
       <div style="display:flex;flex-direction:column;gap:8px">
+
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2)">
+          <input type="checkbox" id="inf-centro" checked style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
+          <span style="font-size:13px;font-weight:500">🏫 Encabezado del centro</span>
+        </label>
 
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2)">
           <input type="checkbox" id="inf-datos" checked style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
@@ -1232,7 +1282,7 @@
       <button class="btn btn-ghost btn-icon" onclick="cerrarModalAnota()">✕</button>
     </div>
     <div class="modal-body" style="padding:16px">
-      <div id="anota-paso1">
+      <div id="anota-paso1" class="hidden">
         <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Elige cómo proporcionar la programación:</p>
         <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
           <label style="display:flex;align-items:center;gap:12px;padding:12px;border:1.5px solid var(--border2);border-radius:10px;background:var(--surface2);cursor:pointer">
@@ -1257,8 +1307,8 @@
             <button onclick="anotaProcesarTexto(document.getElementById('anota-texto').value)" class="btn btn-primary btn-sm" style="margin-top:8px">Analizar →</button>
           </div>
         </div>
-        <div id="anota-error" class="hidden" style="padding:10px;background:var(--red-bg);border-radius:8px;color:var(--red);font-size:12px"></div>
       </div>
+      <div id="anota-error" class="hidden" style="padding:10px;background:var(--red-bg);border-radius:8px;color:var(--red);font-size:12px;margin-bottom:12px"></div>
       <div id="anota-paso2" class="hidden">
         <div style="font-size:13px;font-weight:600;margin-bottom:4px" id="anota-nivel-preview"></div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Asigna cada unidad a su evaluación:</p>
@@ -2361,6 +2411,9 @@ function renderAlumnos() {
     <label onclick="setCuadernoFotosGlobal()" style="cursor:pointer">
       <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoFotosGlobal?'var(--accent)':'var(--border2)'};background:${_cuadernoFotosGlobal?'var(--accent-bg)':'transparent'};color:${_cuadernoFotosGlobal?'var(--accent)':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoFotosGlobal?'● Fotos':'○ Fotos'}</span>
     </label>
+    <label onclick="setMostrarIniciales()" style="cursor:pointer">
+      <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_mostrarIniciales?'#0891b2':'var(--border2)'};background:${_mostrarIniciales?'#ecfeff':'transparent'};color:${_mostrarIniciales?'#0891b2':'var(--text3)'};font-size:11px;font-weight:600" title="Mostrar solo iniciales en lugar del nombre completo (privacidad)">${_mostrarIniciales?'● Iniciales':'○ Iniciales'}</span>
+    </label>
     <label onclick="setCuadernoEdicionGlobal()" style="cursor:pointer">
       <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoEdicionGlobal?'#d97706':'var(--border2)'};background:${_cuadernoEdicionGlobal?'#fef9c3':'transparent'};color:${_cuadernoEdicionGlobal?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoEdicionGlobal?'✏ Editando':'○ Editar'}</span>
     </label>
@@ -2577,6 +2630,30 @@ function toggleAtencion() {
 // ── Controles globales del cuaderno (afectan a todas las clases) ──
 let _cuadernoTrimGlobal   = null; // null = usar evalTrimPorDefecto()
 let _cuadernoFotosGlobal  = true;
+let _mostrarIniciales = false; // privacidad: mostrar solo iniciales en vez del nombre completo
+
+function setMostrarIniciales() {
+  _mostrarIniciales = !_mostrarIniciales;
+  renderPage();
+}
+
+// Devuelve el nombre del alumno formateado, respetando el modo privacidad (iniciales)
+function nombreAlumno(a, formato) {
+  if (!_mostrarIniciales) {
+    if (formato === 'apellidos') return a.apellidos || '';
+    if (formato === 'nombre') return a.nombre || '';
+    return `${a.apellidos||''}, ${a.nombre||''}`;
+  }
+  // Modo iniciales: cada palabra del apellido/nombre se reduce a su inicial + punto
+  const inicializar = (txt) => (txt||'').trim().split(/\s+/).filter(Boolean)
+    .map(p => p[0]?.toUpperCase() + '.').join(' ');
+  const apeIni = inicializar(a.apellidos);
+  const nomIni = inicializar(a.nombre);
+  if (formato === 'apellidos') return apeIni;
+  if (formato === 'nombre') return nomIni;
+  return `${apeIni}, ${nomIni}`;
+}
+
 let _cuadernoEdicionGlobal = false;
 let _cuadernoRecGlobal    = false;
 
@@ -2872,7 +2949,7 @@ function renderVistaLista(g, als) {
           </div>
           <div style="width:42px;height:42px;border-radius:6px;overflow:hidden;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0">${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}</div>
           <div>
-            <div style="font-weight:500">${a.apellidos||''}, ${a.nombre||''}</div>
+            <div style="font-weight:500">${nombreAlumno(a)}</div>
             <div style="display:flex;gap:4px;margin-top:2px">
             ${_mostrarAtencion&&a.acnee?'<span class="acnee-tag">ACNEE</span>':''}
             ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span>':''}
@@ -3030,7 +3107,7 @@ function renderVistaCuaderno(g, als) {
         <div onclick="abrirFicha('${a.id}')" style="display:flex;align-items:center;gap:5px;cursor:pointer" title="Abrir ficha">
         ${fotoHtml}
         <div>
-          <div style="font-size:12px;font-weight:600;line-height:1.2">${a.apellidos||''}, ${a.nombre||''}</div>
+          <div style="font-size:12px;font-weight:600;line-height:1.2">${nombreAlumno(a)}</div>
           <div style="display:flex;gap:3px;margin-top:1px">
             ${_mostrarAtencion&&a.acnee?'<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">ACNEE</span>':''}
             ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PAP</span>':''}
@@ -3631,8 +3708,8 @@ function renderVistaMiniaturas(g, als) {
         <div style="width:52px;height:52px;border-radius:6px;margin:0 auto 6px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:${brd}">
           ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}
         </div>
-        <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
-        <div style="font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${nombreAlumno(a,'apellidos')}</div>
+        <div style="font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${nombreAlumno(a,'nombre')}</div>
         ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
         ${_mostrarAtencion&&(a.acnee||a.pap||a.pep||a.abs||a.rep||a.asigPendientes?.length||(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3))?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP',a.abs&&'Abs',a.rep&&'Rep',a.asigPendientes?.filter(p=>!p.recuperada).length&&`Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}`,(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)&&'Ev.Pers.'].filter(Boolean).join(' ')}</div>`:''}
       </div>`;
@@ -3676,8 +3753,8 @@ function renderVistaPlano(g, als) {
           <div style="width:40px;height:40px;border-radius:5px;margin:0 auto 4px;overflow:hidden;border:2px solid ${brd};background:var(--surface);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${brd}">
             ${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}
           </div>
-          <div style="font-size:9px;font-weight:700;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${a.apellidos||''}</div>
-          <div style="font-size:9px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${a.nombre||''}</div>
+          <div style="font-size:9px;font-weight:700;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${nombreAlumno(a,'apellidos')}</div>
+          <div style="font-size:9px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${nombreAlumno(a,'nombre')}</div>
           ${nr!==null?`<div style="margin-top:3px"><span class="nota-pill ${notaColor(nr)}" style="font-size:10px;padding:1px 5px">${nr}</span></div>`:''}
         </div>`;
       } else {
@@ -6508,6 +6585,93 @@ function renderAyuda() {
     </div>`;
 }
 
+
+// ── Centros educativos ──────────────────────────────────────
+let _centroEditIdx = -1;
+
+function getCentroPredeterminado() {
+  return (APP.centros||[]).find(c => c.predeterminado) || (APP.centros||[])[0] || null;
+}
+
+function abrirModalCentro(idx) {
+  if (!APP.centros) APP.centros = [];
+  _centroEditIdx = idx;
+  const c = idx >= 0 ? APP.centros[idx] : null;
+  document.getElementById('centro-modal-titulo').textContent = idx >= 0 ? '✏ Editar centro' : '🏫 Nuevo centro';
+  document.getElementById('centro-nombre').value = c ? c.nombre||'' : '';
+  document.getElementById('centro-telefono').value = c ? c.telefono||'' : '';
+  document.getElementById('centro-email').value = c ? c.email||'' : '';
+  const preview = document.getElementById('centro-logo-preview');
+  if (c && c.logo) {
+    preview.innerHTML = '<img src="'+c.logo+'" style="width:100%;height:100%;object-fit:contain">';
+  } else {
+    preview.innerHTML = '<span style="font-size:26px">🏫</span>';
+  }
+  preview.dataset.logo = (c && c.logo) ? c.logo : '';
+  document.getElementById('modal-centro').classList.remove('hidden');
+}
+
+function _cargarLogoCentro(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const preview = document.getElementById('centro-logo-preview');
+    preview.innerHTML = '<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:contain">';
+    preview.dataset.logo = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function _quitarLogoCentro() {
+  const preview = document.getElementById('centro-logo-preview');
+  preview.innerHTML = '<span style="font-size:26px">🏫</span>';
+  preview.dataset.logo = '';
+}
+
+function guardarCentro() {
+  if (!APP.centros) APP.centros = [];
+  const nombre = document.getElementById('centro-nombre').value.trim();
+  if (!nombre) { alert('Escribe el nombre del centro.'); return; }
+  const esPrimero = APP.centros.length === 0;
+  const centro = {
+    nombre,
+    telefono: document.getElementById('centro-telefono').value.trim(),
+    email: document.getElementById('centro-email').value.trim(),
+    logo: document.getElementById('centro-logo-preview').dataset.logo || '',
+    predeterminado: _centroEditIdx >= 0 ? !!APP.centros[_centroEditIdx].predeterminado : esPrimero
+  };
+  if (_centroEditIdx >= 0) {
+    APP.centros[_centroEditIdx] = centro;
+  } else {
+    APP.centros.push(centro);
+  }
+  guardarDatos();
+  document.getElementById('modal-centro').classList.add('hidden');
+  renderPage();
+  mostrarToast('✓ Centro "' + nombre + '" guardado');
+}
+
+function toggleCentroPredeterminado(idx) {
+  if (!APP.centros) return;
+  const yaEra = APP.centros[idx].predeterminado;
+  APP.centros.forEach(function(c) { c.predeterminado = false; });
+  APP.centros[idx].predeterminado = !yaEra;
+  guardarDatos();
+  renderPage();
+}
+
+function eliminarCentro(idx) {
+  if (!APP.centros) return;
+  const nombre = APP.centros[idx].nombre;
+  confirmar('Eliminar centro', '¿Eliminar "' + nombre + '"? Esta acción no se puede deshacer.', function() {
+    const eraDefault = APP.centros[idx].predeterminado;
+    APP.centros.splice(idx, 1);
+    if (eraDefault && APP.centros.length > 0) APP.centros[0].predeterminado = true;
+    guardarDatos();
+    renderPage();
+  });
+}
+
 function renderAjustes() {
   const cfg = APP.config;
   const redOn = cfg.redondeoActivo !== false;
@@ -6561,6 +6725,27 @@ function renderAjustes() {
       </div>
     </div>
     </div>
+    <div class="card" style="padding:20px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:14px;font-weight:600">🏫 Centros educativos</h3>
+        <button class="btn btn-primary btn-sm" onclick="abrirModalCentro(-1)">+ Añadir</button>
+      </div>
+      ${(APP.centros||[]).length === 0
+        ? '<p style="font-size:13px;color:var(--text3)">Sin centros configurados. Añade uno para asociarlo a clases archivadas y mostrarlo en informes.</p>'
+        : (APP.centros||[]).map((c,ci) => '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid '+(c.predeterminado?'var(--accent)':'var(--border2)')+';border-radius:10px;background:'+(c.predeterminado?'var(--accent-bg)':'var(--surface2)')+';margin-bottom:8px">'
+          +'<div style="width:40px;height:40px;border-radius:8px;background:var(--surface);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">'
+          +(c.logo?'<img src="'+c.logo+'" style="width:100%;height:100%;object-fit:contain">':'<span style="font-size:18px">🏫</span>')+'</div>'
+          +'<div style="flex:1;min-width:0">'
+          +'<div style="font-weight:600;font-size:13px">'+c.nombre+(c.predeterminado?' <span style="font-size:10px;color:var(--accent);font-weight:700">★ Pred.</span>':'')+'</div>'
+          +'<div style="font-size:11px;color:var(--text3)">'+([c.telefono,c.email].filter(Boolean).join(' · ')||'Sin contacto')+'</div></div>'
+          +'<div style="display:flex;gap:4px">'
+          +'<button class="btn btn-secondary btn-sm" onclick="toggleCentroPredeterminado('+ci+')" title="'+(c.predeterminado?'Quitar predeterminado':'Predeterminado')+'">'+(c.predeterminado?'★':'☆')+'</button>'
+          +'<button class="btn btn-secondary btn-sm" onclick="abrirModalCentro('+ci+')">✏</button>'
+          +'<button class="btn btn-delete" onclick="eliminarCentro('+ci+')">✕</button>'
+          +'</div></div>').join('')
+      }
+    </div>
+
     <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <h3 style="font-size:14px;font-weight:600">Redondeo de notas</h3>
@@ -9144,6 +9329,13 @@ function toggleProgImportMenu() {
   }, 10);
 }
 
+function abrirModalAnotaResultado() {
+  document.getElementById('anota-paso1').classList.add('hidden');
+  document.getElementById('anota-paso2').classList.add('hidden');
+  document.getElementById('anota-error').classList.add('hidden');
+  document.getElementById('modal-anota').classList.remove('hidden');
+}
+
 function abrirModalAnota() {
   _anotaUnidades = [];
   document.getElementById('anota-paso1').classList.remove('hidden');
@@ -9187,10 +9379,11 @@ async function anotaLeerPDF(input) {
       if (linea.trim()) lineas.push(linea.trim());
       lineas.push('');
     }
-    abrirModalAnota();
+    abrirModalAnotaResultado();
     anotaProcesarTexto(lineas.join('\n'));
   } catch(err) {
-    alert('Error al leer el PDF: ' + err.message + '\n\nPrueba a copiar el texto manualmente.');
+    abrirModalAnotaResultado();
+    anotaMostrarError('Error al leer el PDF: ' + err.message);
   }
 }
 
@@ -9207,6 +9400,7 @@ async function anotaLeerWord(input) {
   }
   const reader = new FileReader();
   reader.onload = async (e) => {
+    abrirModalAnotaResultado();
     try {
       const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
       anotaProcesarTexto(result.value);
@@ -10857,13 +11051,29 @@ function archivarGrupo(gid) {
   }
 
   if (!año) return;
-  if (!confirm(`¿Archivar "${g.nombre}" en el curso ${año}? El grupo y sus alumnos desaparecerán de la vista activa.`)) return;
+
+  // Selección de centro (opcional, si hay centros configurados)
+  let _centroArchivo = '';
+  if ((APP.centros||[]).length > 0) {
+    const _cDef = getCentroPredeterminado();
+    const _opcs = ['0) Sin especificar'].concat((APP.centros||[]).map((c,i) => (i+1)+') '+c.nombre));
+    const _defIdx = _cDef ? (APP.centros||[]).indexOf(_cDef)+1 : 0;
+    const _resp = prompt('¿A qué centro asociar "'+g.nombre+'"?\n\n'+_opcs.join('\n')+'\n\nEscribe el número:', String(_defIdx));
+    if (_resp === null) return;
+    const _n = parseInt(_resp.trim());
+    if (!isNaN(_n) && _n >= 1 && _n <= (APP.centros||[]).length) {
+      _centroArchivo = (APP.centros||[])[_n-1].nombre;
+    }
+  }
+
+  if (!confirm('¿Archivar "'+g.nombre+'" en el curso '+año+(_centroArchivo?' ('+_centroArchivo+')':'')+'?\nEl grupo y sus alumnos desaparecerán de la vista activa.')) return;
 
   // Snapshot del grupo y sus alumnos
   const snapshot = {
     grupo: JSON.parse(JSON.stringify(g)),
     alumnos: JSON.parse(JSON.stringify(alumnos)),
-    fechaArchivo: new Date().toISOString()
+    fechaArchivo: new Date().toISOString(),
+    centro: _centroArchivo || undefined
   };
 
   if (!APP.archivo) APP.archivo = [];
@@ -14034,6 +14244,7 @@ function abrirInformeOpciones(aid) {
 function ejecutarExportarInforme() {
   document.getElementById('modal-informe-opciones').classList.add('hidden');
   const opciones = {
+    centro:     document.getElementById('inf-centro')?.checked,
     datos:      document.getElementById('inf-datos')?.checked,
     notas:      document.getElementById('inf-notas')?.checked,
     obs:        document.getElementById('inf-obs')?.checked,
@@ -14138,6 +14349,20 @@ function generarInformeAlumno(aid, opciones) {
   // Tags ACNEE/PAP/PEP
   const tags = [a.acnee&&'ACNEE', a.pap&&'PAP', a.pep&&'PEP'].filter(Boolean);
 
+  let centroHeaderHTML = '';
+  if (opciones.centro) {
+    const _c = getCentroPredeterminado();
+    if (_c) {
+      const _parts = [];
+      if (_c.logo) _parts.push('<img src="' + _c.logo + '" style="height:60px;max-width:120px;object-fit:contain">');
+      const _texts = [];
+      if (_c.nombre) _texts.push('<div style="font-size:16px;font-weight:700;color:#1a1917">' + _c.nombre + '</div>');
+      if (_c.telefono) _texts.push('<div style="font-size:12px;color:#555">📞 ' + _c.telefono + '</div>');
+      if (_c.email) _texts.push('<div style="font-size:12px;color:#555">✉️ ' + _c.email + '</div>');
+      centroHeaderHTML = '<div style="display:flex;align-items:center;gap:16px;padding:12px 16px;background:#f8f8f8;border-bottom:2px solid #2d5be3;margin-bottom:0">' + _parts.join('') + '<div>' + _texts.join('') + '</div></div>';
+    }
+  }
+
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -14175,6 +14400,7 @@ function generarInformeAlumno(aid, opciones) {
   <button class="btn-close" onclick="window.close()">✕ Cerrar</button>
 </div>
 <div class="contenido">
+  ${centroHeaderHTML}
   <div class="cabecera">
     <div class="foto">${a.foto?`<img src="${a.foto}">`:(a.nombre||'?')[0]+(a.apellidos||'?')[0]}</div>
     <div class="datos-basicos">
