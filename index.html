@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.0</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.1</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1668,6 +1668,7 @@ let APP = {
     pesos_trimestres: { T1: 33, T2: 33, T3: 34 }
   },
   rubricasGuardadas: [],   // [{id, nombre, criterios:[{nombre,peso,niveles}]}]
+  centros: [],             // [{nombre, telefono, email, logo, predeterminado}]
   version: '1.3',
   archivo: []
 };
@@ -1700,6 +1701,7 @@ function cargarDatos() {
       APP = JSON.parse(d);
       if (!APP.config) APP.config = {};
       _sembrarRubricasPredefinidas();
+  if (!APP.centros) APP.centros = [];
       if (!APP.archivo) APP.archivo = [];
       if (APP.config.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
     }
@@ -2433,9 +2435,16 @@ function renderAlumnos() {
       const exp = gruposExpandidos[g.id] !== false;
       gruposExpandidos[g.id] = exp;
       return `
-      <div class="card" style="margin-bottom:16px">
+      <div class="card" id="grupo-card-${g.id}" data-grupo-drag-id="${g.id}" style="margin-bottom:16px">
         <div class="grupo-header" data-grupo-id="${g.id}" style="flex-direction:column;align-items:stretch;gap:10px;cursor:default">
           <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleGrupo('${g.id}')">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span data-drag-handle="${g.id}"
+                onmousedown="_grupoDragStart(event,'${g.id}')"
+                ontouchstart="_grupoDragStart(event,'${g.id}')"
+                onclick="event.stopPropagation()"
+                title="Arrastrar para reordenar"
+                style="color:var(--text3);font-size:16px;cursor:grab;padding:4px 6px;border-radius:6px;user-select:none;flex-shrink:0;line-height:1">⠿</span>
             <div>
               <div style="display:flex;align-items:center;gap:10px">
                 ${(()=>{const c=getColorGrupo(g.id);return c?`<span style="width:14px;height:14px;border-radius:4px;background:${c.bg};border:2px solid ${c.border};display:inline-block;flex-shrink:0"></span>`:''})()}
@@ -2443,6 +2452,7 @@ function renderAlumnos() {
                 ${g.esTutor?'<span style="background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700">⭐ TUTOR</span>':''}
               </div>
               ${g.asignatura?`<div style="font-size:12px;color:var(--text3);margin-left:24px;margin-top:1px">${g.asignatura}</div>`:''}
+            </div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:12px;color:var(--text3)">${als.length} al.</span>
@@ -3779,6 +3789,92 @@ function renderVistaPlano(g, als) {
     gridHTML += `<div style="padding:8px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">Sin asignar: ${sinAsignar.map(a=>`<span onclick="abrirFicha('${a.id}')" style="cursor:pointer;margin-right:6px;color:var(--text2)">${a.apellidos||''}, ${a.nombre||''}</span>`).join('')}</div>`;
   }
   return gridHTML;
+}
+
+
+// ── Reordenar grupos arrastrando ───────────────────────────
+let _grupoDrag = { active: false, gid: null, startY: 0, startIdx: 0, ghost: null, timer: null };
+
+function _grupoDragStart(e, gid) {
+  e.stopPropagation();
+  const isTouchEvent = e.type === 'touchstart';
+  const clientY = isTouchEvent ? e.touches[0].clientY : e.clientY;
+
+  // En touch esperamos 150ms para distinguir de scroll
+  _grupoDrag.timer = setTimeout(() => {
+    _grupoDrag.active = true;
+    _grupoDrag.gid = gid;
+    _grupoDrag.startY = clientY;
+    _grupoDrag.startIdx = APP.grupos.findIndex(g => g.id === gid);
+
+    // Visual: el card original se hace semitransparente
+    const card = document.querySelector('[data-grupo-drag-id="'+gid+'"]');
+    if (card) { card.style.opacity = '0.5'; card.style.outline = '2px dashed var(--accent)'; }
+
+    // Añadir listeners
+    if (isTouchEvent) {
+      document.addEventListener('touchmove', _grupoDragMove, { passive: false });
+      document.addEventListener('touchend', _grupoDragEnd);
+    } else {
+      document.addEventListener('mousemove', _grupoDragMove);
+      document.addEventListener('mouseup', _grupoDragEnd);
+    }
+  }, isTouchEvent ? 150 : 0);
+}
+
+function _grupoDragMove(e) {
+  if (!_grupoDrag.active) return;
+  e.preventDefault();
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+  // Encontrar sobre qué card estamos
+  const cards = [...document.querySelectorAll('[data-grupo-drag-id]')];
+  let targetGid = null;
+  cards.forEach(card => {
+    const rect = card.getBoundingClientRect();
+    if (clientY >= rect.top && clientY <= rect.bottom) {
+      targetGid = card.dataset.grupoDragId;
+    }
+  });
+
+  if (targetGid && targetGid !== _grupoDrag.gid) {
+    // Mover en el array
+    const fromIdx = APP.grupos.findIndex(g => g.id === _grupoDrag.gid);
+    const toIdx = APP.grupos.findIndex(g => g.id === targetGid);
+    if (fromIdx !== -1 && toIdx !== -1) {
+      const [moved] = APP.grupos.splice(fromIdx, 1);
+      APP.grupos.splice(toIdx, 0, moved);
+      // Re-render rápido sin animación
+      _grupoDragRerenderLite();
+    }
+  }
+}
+
+function _grupoDragEnd(e) {
+  if (_grupoDrag.timer) { clearTimeout(_grupoDrag.timer); _grupoDrag.timer = null; }
+  if (!_grupoDrag.active) return;
+  _grupoDrag.active = false;
+
+  document.removeEventListener('mousemove', _grupoDragMove);
+  document.removeEventListener('mouseup', _grupoDragEnd);
+  document.removeEventListener('touchmove', _grupoDragMove);
+  document.removeEventListener('touchend', _grupoDragEnd);
+
+  // Quitar visual
+  const card = document.querySelector('[data-grupo-drag-id="'+_grupoDrag.gid+'"]');
+  if (card) { card.style.opacity = ''; card.style.outline = ''; }
+
+  guardarDatos();
+  renderPage();
+  _grupoDrag.gid = null;
+}
+
+function _grupoDragRerenderLite() {
+  // Re-render solo los handles de arrastre para reflejar nuevo orden visualmente
+  // durante el drag (sin reconstruir todo el DOM)
+  const container = document.querySelector('.page-body') || document.getElementById('main-content');
+  // Nada que hacer: los cards se moverán al final del drag con renderPage()
+  // Solo re-coloreamos el card que se está moviendo
 }
 
 function toggleGrupo(gid) {
