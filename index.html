@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.1</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.2</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1669,6 +1669,7 @@ let APP = {
   },
   rubricasGuardadas: [],   // [{id, nombre, criterios:[{nombre,peso,niveles}]}]
   centros: [],             // [{nombre, telefono, email, logo, predeterminado}]
+  etiquetasAtencion: [],   // [{id, nombre, abrev, color, fondo, visibleAtencion}]
   version: '1.3',
   archivo: []
 };
@@ -1702,6 +1703,15 @@ function cargarDatos() {
       if (!APP.config) APP.config = {};
       _sembrarRubricasPredefinidas();
   if (!APP.centros) APP.centros = [];
+  if (!APP.etiquetasAtencion || APP.etiquetasAtencion.length === 0) {
+    APP.etiquetasAtencion = [
+      {id:'acnee',nombre:'ACNEE',abrev:'ACNEE',color:'#991b1b',fondo:'#fee2e2',visibleAtencion:true},
+      {id:'pap',nombre:'PAP',abrev:'PAP',color:'#854d0e',fondo:'#fef9c3',visibleAtencion:true},
+      {id:'pep',nombre:'PEP',abrev:'PEP',color:'#166534',fondo:'#dcfce7',visibleAtencion:true},
+      {id:'abs',nombre:'Absentista',abrev:'Abs',color:'#c2410c',fondo:'#fff7ed',visibleAtencion:true},
+      {id:'rep',nombre:'Repetidor',abrev:'Rep',color:'#0369a1',fondo:'#f0f9ff',visibleAtencion:true}
+    ];
+  }
       if (!APP.archivo) APP.archivo = [];
       if (APP.config.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
     }
@@ -2642,6 +2652,30 @@ let _cuadernoTrimGlobal   = null; // null = usar evalTrimPorDefecto()
 let _cuadernoFotosGlobal  = true;
 let _mostrarIniciales = false; // privacidad: mostrar solo iniciales en vez del nombre completo
 
+
+function _getEtiquetasHtml(a, tamano) {
+  if (!_mostrarAtencion) return '';
+  var etqs = APP.etiquetasAtencion || [];
+  var activas = etqs.filter(function(e){ return e.visibleAtencion && a.etiquetasAtencion && a.etiquetasAtencion[e.id]; });
+  // Compatibilidad legacy (campos booleanos antiguos)
+  var ids = activas.map(function(e){return e.id;});
+  if (a.acnee && ids.indexOf('acnee')<0) activas.push({abrev:'ACNEE',color:'#991b1b',fondo:'#fee2e2'});
+  if (a.pap   && ids.indexOf('pap')<0)   activas.push({abrev:'PAP',color:'#854d0e',fondo:'#fef9c3'});
+  if (a.pep   && ids.indexOf('pep')<0)   activas.push({abrev:'PEP',color:'#166534',fondo:'#dcfce7'});
+  if (a.abs   && ids.indexOf('abs')<0)   activas.push({abrev:'Abs',color:'#c2410c',fondo:'#fff7ed'});
+  if (a.rep   && ids.indexOf('rep')<0)   activas.push({abrev:'Rep',color:'#0369a1',fondo:'#f0f9ff'});
+  var nPend = (a.asigPendientes||[]).filter(function(p){return !p.recuperada;}).length;
+  if (nPend) activas.push({abrev:'Pend.'+nPend, color:'#6d28d9', fondo:'#f5f3ff'});
+  if (a.estructuraPersonal&&(a.estructuraPersonal.T1||a.estructuraPersonal.T2||a.estructuraPersonal.T3))
+    activas.push({abrev:'Ev.Pers.',color:'#6d28d9',fondo:'#ede9fe'});
+  if (!activas.length) return '';
+  var pad = tamano==='sm' ? '0 3px' : '1px 6px';
+  var fs  = tamano==='sm' ? '9px' : '10px';
+  return activas.map(function(t){
+    return '<span style="background:'+t.fondo+';color:'+t.color+';border-radius:4px;padding:'+pad+';font-size:'+fs+';font-weight:700;display:inline-block;margin:1px">'+t.abrev+'</span>';
+  }).join(' ');
+}
+
 function setMostrarIniciales() {
   _mostrarIniciales = !_mostrarIniciales;
   renderPage();
@@ -2961,14 +2995,7 @@ function renderVistaLista(g, als) {
           <div>
             <div style="font-weight:500">${nombreAlumno(a)}</div>
             <div style="display:flex;gap:4px;margin-top:2px">
-            ${_mostrarAtencion&&a.acnee?'<span class="acnee-tag">ACNEE</span>':''}
-            ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span>':''}
-            ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
-            ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
-            ${_mostrarAtencion&&a.rep?'<span class="rep-tag">Rep</span>':''}
-            ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span class="pend-tag">Pend. ${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
-            ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;border:1px solid #ddd6fe">Ev. Pers.</span>':''}
-            </div>
+            ${_getEtiquetasHtml(a,'sm')}
           </div>
         </div></td>
         <td style="color:var(--text2)">${a.email||'—'}</td>
@@ -3119,13 +3146,7 @@ function renderVistaCuaderno(g, als) {
         <div>
           <div style="font-size:12px;font-weight:600;line-height:1.2">${nombreAlumno(a)}</div>
           <div style="display:flex;gap:3px;margin-top:1px">
-            ${_mostrarAtencion&&a.acnee?'<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">ACNEE</span>':''}
-            ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PAP</span>':''}
-            ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PEP</span>':''}
-            ${_mostrarAtencion&&a.abs?'<span style="background:#fff7ed;color:#c2410c;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Abs</span>':''}
-            ${_mostrarAtencion&&a.rep?'<span style="background:#f0f9ff;color:#0369a1;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Rep</span>':''}
-            ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span style="background:#f5f3ff;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
-            ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Ev.Pers.</span>':''}
+            ${_getEtiquetasHtml(a,'md')}
           </div>
         </div>
         </div>
@@ -3721,7 +3742,7 @@ function renderVistaMiniaturas(g, als) {
         <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${nombreAlumno(a,'apellidos')}</div>
         <div style="font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${nombreAlumno(a,'nombre')}</div>
         ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
-        ${_mostrarAtencion&&(a.acnee||a.pap||a.pep||a.abs||a.rep||a.asigPendientes?.length||(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3))?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.acnee&&'ACNEE',a.pap&&'PAP',a.pep&&'PEP',a.abs&&'Abs',a.rep&&'Rep',a.asigPendientes?.filter(p=>!p.recuperada).length&&`Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}`,(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)&&'Ev.Pers.'].filter(Boolean).join(' ')}</div>`:''}
+        ${_getEtiquetasHtml(a,'sm')}
       </div>`;
     }).join('')}
   </div>`;
@@ -3971,6 +3992,7 @@ function renderFicha(a) {
     <div>
       <div class="ficha-tabs">
         <div class="ficha-tab ${fichaTabActual==='datos'?'active':''}" onclick="cambiarTabFicha('datos')">👤 Datos</div>
+        <div class="ficha-tab ${fichaTabActual==='atencion'?'active':''}" onclick="cambiarTabFicha('atencion')">🏷 Atención</div>
         <div class="ficha-tab ${fichaTabActual==='notas'?'active':''}" onclick="cambiarTabFicha('notas')">📊 Notas</div>
         <div class="ficha-tab ${fichaTabActual==='observaciones'?'active':''}" onclick="cambiarTabFicha('observaciones')" style="position:relative">
           📝 Observaciones${(a.observaciones||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--accent);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.observaciones||[]).length}</span>`:''}
@@ -3993,6 +4015,7 @@ function renderFicha(a) {
 
 function renderTabFicha(a) {
   switch(fichaTabActual) {
+    case 'atencion': return renderTabAtencion(a);
     case 'datos': return renderTabDatos(a);
     case 'notas': return renderTabNotas(a);
     case 'observaciones': return renderTabObs(a);
@@ -4174,6 +4197,44 @@ function renderTabPendientes(a) {
   </div>`;
 }
 
+function renderTabAtencion(a) {
+  const etqs = APP.etiquetasAtencion || [];
+  const activas = a.etiquetasAtencion || {};
+  const nota = a.notasRapidas || '';
+
+  let etqsHtml = '';
+  etqs.forEach(function(e, ei) {
+    const on = !!activas[e.id];
+    etqsHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid '
+      + (on ? e.color : 'var(--border2)')
+      + ';border-radius:10px;background:' + (on ? e.fondo : 'var(--surface2)') + ';margin-bottom:8px">'
+      + '<div style="flex:1">'
+      + '<div style="font-weight:600;font-size:13px;color:' + (on ? e.color : 'var(--text2)') + '">' + e.nombre + '</div>'
+      + '<div style="font-size:11px;color:var(--text3)">Abrev: ' + e.abrev + ' &middot; ' + (e.visibleAtencion ? 'Visible en modo atenci&oacute;n' : 'Oculta') + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:6px;align-items:center">'
+      + '<label style="cursor:pointer;display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:' + (on ? e.color : 'var(--text3)') + '">'
+      + '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="toggleEtiquetaAtencion(\'' + e.id + '\',this.checked)" style="width:16px;height:16px;accent-color:' + e.color + ';flex-shrink:0"> '
+      + (on ? 'Activa' : 'Inactiva') + '</label>'
+      + '<button onclick="editarEtiquetaAtencion(' + ei + ')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 4px" title="Editar">&#x270F;</button>'
+      + '<button onclick="eliminarEtiquetaAtencion(' + ei + ')" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px;padding:2px 4px" title="Eliminar">&#x2715;</button>'
+      + '</div></div>';
+  });
+
+  return '<div style="padding:14px">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    + '<div style="font-size:14px;font-weight:600">&#x1F3F7; Atenci&oacute;n al alumnado</div>'
+    + '<button onclick="nuevaEtiquetaAtencion()" style="padding:5px 12px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer">+ Nueva etiqueta</button>'
+    + '</div>'
+    + (etqs.length === 0 ? '<p style="font-size:13px;color:var(--text3);margin-bottom:14px">No hay etiquetas. Pulsa &quot;+ Nueva etiqueta&quot; para crear la primera.</p>' : etqsHtml)
+    + '<div style="margin-top:14px;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border2)">'
+    + '<label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:6px">Nota de atenci&oacute;n</label>'
+    + '<textarea id="f-notas-atencion" rows="3" placeholder="Anotaciones espec&iacute;ficas sobre este alumno..." '
+    + 'style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none;resize:vertical;box-sizing:border-box">'
+    + nota + '</textarea>'
+    + '</div></div>';
+}
+
 function renderTabDatos(a) {
   return `
   <div class="form-row">
@@ -4194,10 +4255,7 @@ function renderTabDatos(a) {
     <div class="form-group"><label>Nº lista</label><input type="number" id="f-nlista" value="${a.nLista||''}"></div>
     <div class="form-group"><label>NRE</label><input type="text" id="f-nre" value="${a.nre||''}" placeholder="Número regional"></div>
   </div>
-  <div class="form-group" style="margin-bottom:14px">
-    <label>Notas / observaciones rápidas</label>
-    <textarea id="f-notas-rapidas" rows="2">${a.notasRapidas||''}</textarea>
-  </div>
+
   <div id="campos-extra">
     ${(a.camposExtra||[]).map((c,i)=>`
     <div class="form-row" style="align-items:center">
@@ -11290,13 +11348,7 @@ function renderArchivo() {
                         ${nf!==null?`<div style="font-size:10px;color:var(--text3)">(${fmtNota(nf)})</div>`:''}
                       </td>
                       <td style="padding:8px 14px">
-                        ${_mostrarAtencion&&a.acnee?'<span class="acnee-tag">ACNEE</span> ':''}
-                        ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PAP</span> ':''}
-                        ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">PEP</span>':''}
-                        ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
-                        ${_mostrarAtencion&&a.rep?'<span class="rep-tag">Rep</span>':''}
-                        ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span class="pend-tag">Pend. ${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
-                        ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;border:1px solid #ddd6fe">Ev. Pers.</span>':''}
+                        ${_getEtiquetasHtml(a,'md')}
                       </td>
                     </tr>`;
                   }).join('')}
@@ -14346,6 +14398,7 @@ function ejecutarExportarInforme() {
     obs:        document.getElementById('inf-obs')?.checked,
     reuniones:  document.getElementById('inf-reuniones')?.checked,
     pendientes: document.getElementById('inf-pendientes')?.checked,
+    atencion:   document.getElementById('inf-atencion')?.checked,
     trims:      ['T1','T2','T3'].filter(t => document.getElementById('inf-'+t)?.checked),
   };
   generarInformeAlumno(window._informeAid, opciones);
