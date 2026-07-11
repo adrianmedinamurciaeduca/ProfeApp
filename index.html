@@ -1669,7 +1669,6 @@ let APP = {
   },
   rubricasGuardadas: [],   // [{id, nombre, criterios:[{nombre,peso,niveles}]}]
   centros: [],             // [{nombre, telefono, email, logo, predeterminado}]
-  etiquetasAtencion: [],   // [{id, nombre, abrev, color, fondo, visibleAtencion}]
   version: '1.3',
   archivo: []
 };
@@ -1703,15 +1702,6 @@ function cargarDatos() {
       if (!APP.config) APP.config = {};
       _sembrarRubricasPredefinidas();
   if (!APP.centros) APP.centros = [];
-  if (!APP.etiquetasAtencion || APP.etiquetasAtencion.length === 0) {
-    APP.etiquetasAtencion = [
-      {id:'acnee',nombre:'ACNEE',abrev:'ACNEE',color:'#991b1b',fondo:'#fee2e2',visibleAtencion:true},
-      {id:'pap',nombre:'PAP',abrev:'PAP',color:'#854d0e',fondo:'#fef9c3',visibleAtencion:true},
-      {id:'pep',nombre:'PEP',abrev:'PEP',color:'#166534',fondo:'#dcfce7',visibleAtencion:true},
-      {id:'abs',nombre:'Absentista',abrev:'Abs',color:'#c2410c',fondo:'#fff7ed',visibleAtencion:true},
-      {id:'rep',nombre:'Repetidor',abrev:'Rep',color:'#0369a1',fondo:'#f0f9ff',visibleAtencion:true}
-    ];
-  }
       if (!APP.archivo) APP.archivo = [];
       if (APP.config.vistaAlumnos) vistaAlumnos = APP.config.vistaAlumnos;
     }
@@ -2653,26 +2643,22 @@ let _cuadernoFotosGlobal  = true;
 let _mostrarIniciales = false; // privacidad: mostrar solo iniciales en vez del nombre completo
 
 
-function _getEtiquetasHtml(a, tamano) {
+// Devuelve los chips de etiquetas únicas de las observaciones de un alumno
+function _getObsEtiquetasHtml(a, tamano) {
   if (!_mostrarAtencion) return '';
-  var etqs = APP.etiquetasAtencion || [];
-  var activas = etqs.filter(function(e){ return e.visibleAtencion && a.etiquetasAtencion && a.etiquetasAtencion[e.id]; });
-  // Compatibilidad legacy (campos booleanos antiguos)
-  var ids = activas.map(function(e){return e.id;});
-  if (a.acnee && ids.indexOf('acnee')<0) activas.push({abrev:'ACNEE',color:'#991b1b',fondo:'#fee2e2'});
-  if (a.pap   && ids.indexOf('pap')<0)   activas.push({abrev:'PAP',color:'#854d0e',fondo:'#fef9c3'});
-  if (a.pep   && ids.indexOf('pep')<0)   activas.push({abrev:'PEP',color:'#166534',fondo:'#dcfce7'});
-  if (a.abs   && ids.indexOf('abs')<0)   activas.push({abrev:'Abs',color:'#c2410c',fondo:'#fff7ed'});
-  if (a.rep   && ids.indexOf('rep')<0)   activas.push({abrev:'Rep',color:'#0369a1',fondo:'#f0f9ff'});
-  var nPend = (a.asigPendientes||[]).filter(function(p){return !p.recuperada;}).length;
-  if (nPend) activas.push({abrev:'Pend.'+nPend, color:'#6d28d9', fondo:'#f5f3ff'});
-  if (a.estructuraPersonal&&(a.estructuraPersonal.T1||a.estructuraPersonal.T2||a.estructuraPersonal.T3))
-    activas.push({abrev:'Ev.Pers.',color:'#6d28d9',fondo:'#ede9fe'});
-  if (!activas.length) return '';
-  var pad = tamano==='sm' ? '0 3px' : '1px 6px';
-  var fs  = tamano==='sm' ? '9px' : '10px';
-  return activas.map(function(t){
-    return '<span style="background:'+t.fondo+';color:'+t.color+';border-radius:4px;padding:'+pad+';font-size:'+fs+';font-weight:700;display:inline-block;margin:1px">'+t.abrev+'</span>';
+  const obs = a.observaciones || [];
+  const vistas = {};
+  obs.forEach(function(o) {
+    if (o.etiqueta && o.etiqueta.abrev && !vistas[o.etiqueta.abrev]) {
+      vistas[o.etiqueta.abrev] = o.etiqueta;
+    }
+  });
+  const etqs = Object.values(vistas);
+  if (!etqs.length) return '';
+  var pad = tamano === 'sm' ? '0 3px' : '1px 6px';
+  var fs  = tamano === 'sm' ? '9px' : '10px';
+  return etqs.map(function(e) {
+    return '<span style="background:'+e.fondo+';color:'+e.color+';border-radius:4px;padding:'+pad+';font-size:'+fs+';font-weight:700;display:inline-block;margin:1px">'+e.abrev+'</span>';
   }).join(' ');
 }
 
@@ -2995,7 +2981,11 @@ function renderVistaLista(g, als) {
           <div>
             <div style="font-weight:500">${nombreAlumno(a)}</div>
             <div style="display:flex;gap:4px;margin-top:2px">
-            ${_getEtiquetasHtml(a,'sm')}
+            ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
+            ${_getObsEtiquetasHtml(a,'sm')}
+            ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span class="pend-tag">Pend. ${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
+            ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;border:1px solid #ddd6fe">Ev. Pers.</span>':''}
+            </div>
           </div>
         </div></td>
         <td style="color:var(--text2)">${a.email||'—'}</td>
@@ -3146,7 +3136,13 @@ function renderVistaCuaderno(g, als) {
         <div>
           <div style="font-size:12px;font-weight:600;line-height:1.2">${nombreAlumno(a)}</div>
           <div style="display:flex;gap:3px;margin-top:1px">
-            ${_getEtiquetasHtml(a,'md')}
+            ${_mostrarAtencion&&a.acnee?'<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">ACNEE</span>':''}
+            ${_mostrarAtencion&&a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PAP</span>':''}
+            ${_mostrarAtencion&&a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">PEP</span>':''}
+            ${_mostrarAtencion&&a.abs?'<span style="background:#fff7ed;color:#c2410c;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Abs</span>':''}
+            ${_mostrarAtencion&&a.rep?'<span style="background:#f0f9ff;color:#0369a1;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Rep</span>':''}
+            ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span style="background:#f5f3ff;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
+            ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Ev.Pers.</span>':''}
           </div>
         </div>
         </div>
@@ -3741,8 +3737,9 @@ function renderVistaMiniaturas(g, als) {
         </div>
         <div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txtColor}">${nombreAlumno(a,'apellidos')}</div>
         <div style="font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${txt2Color}">${nombreAlumno(a,'nombre')}</div>
+        <div style="margin-top:2px;display:flex;flex-wrap:wrap;gap:2px">${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}${_getObsEtiquetasHtml(a,'md')}${_mostrarAtencion&&(a.asigPendientes?.filter(p=>!p.recuperada).length)?`<span class="pend-tag">Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}</div>
         ${nr!==null?`<div style="margin-top:5px"><span class="nota-pill ${notaColor(nr)}" style="font-size:11px;padding:2px 7px">${nr}</span></div>`:''}
-        ${_getEtiquetasHtml(a,'sm')}
+        ${_mostrarAtencion&&(a.abs||a.asigPendientes?.filter(p=>!p.recuperada).length)?`<div style="margin-top:3px;font-size:9px;color:${brd};font-weight:700">${[a.abs&&'Abs',a.asigPendientes?.filter(p=>!p.recuperada).length&&`Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}`].filter(Boolean).join(' ')}</div>`:''}
       </div>`;
     }).join('')}
   </div>`;
@@ -3933,31 +3930,12 @@ function renderFicha(a) {
       ${a.foto ? `<button class="btn btn-danger btn-sm" onclick="quitarFoto()">Quitar foto</button>` : `<span style="font-size:11px;color:var(--text3)">Pulsa para añadir foto</span>`}
       <!-- Etiquetas -->
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
-        <label onclick="toggleAcnee()" style="cursor:pointer">
-          <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.3px;background:${a.acnee?'var(--purple-bg)':'var(--bg)'};color:${a.acnee?'var(--purple)':'var(--text3)'};border:1.5px solid ${a.acnee?'var(--purple)':'var(--border2)'}">
-            <span>${a.acnee?'●':'○'}</span> ACNEE
-          </span>
-        </label>
-        <label onclick="toggleEtiqueta('pap')" style="cursor:pointer">
-          <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.3px;background:${a.pap?'#fef9c3':'var(--bg)'};color:${a.pap?'#854d0e':'var(--text3)'};border:1.5px solid ${a.pap?'#eab308':'var(--border2)'}">
-            <span>${a.pap?'●':'○'}</span> PAP
-          </span>
-        </label>
-        <label onclick="toggleEtiqueta('pep')" style="cursor:pointer">
-          <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.3px;background:${a.pep?'#dcfce7':'var(--bg)'};color:${a.pep?'var(--green)':'var(--text3)'};border:1.5px solid ${a.pep?'var(--green)':'var(--border2)'}">
-            <span>${a.pep?'●':'○'}</span> PEP
-          </span>
-        </label>
         <label onclick="toggleEtiqueta('abs')" style="cursor:pointer">
           <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.3px;background:${a.abs?'#fff7ed':'var(--bg)'};color:${a.abs?'#c2410c':'var(--text3)'};border:1.5px solid ${a.abs?'#fb923c':'var(--border2)'}">
             <span>${a.abs?'●':'○'}</span> Absentista
           </span>
         </label>
-        <label onclick="toggleEtiqueta('rep')" style="cursor:pointer">
-          <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.3px;background:${a.rep?'#f0f9ff':'var(--bg)'};color:${a.rep?'#0369a1':'var(--text3)'};border:1.5px solid ${a.rep?'#38bdf8':'var(--border2)'}">
-            <span>${a.rep?'●':'○'}</span> Repetidor
-          </span>
-        </label>
+        ${a.abs?'<div style="font-size:11px;color:#c2410c;background:#fff7ed;border-radius:6px;padding:4px 10px;margin-top:4px">⚠ Este alumno no se tendrá en cuenta en las estadísticas del grupo</div>':''}
       </div>
 
       <!-- Retrasos -->
@@ -3992,7 +3970,6 @@ function renderFicha(a) {
     <div>
       <div class="ficha-tabs">
         <div class="ficha-tab ${fichaTabActual==='datos'?'active':''}" onclick="cambiarTabFicha('datos')">👤 Datos</div>
-        <div class="ficha-tab ${fichaTabActual==='atencion'?'active':''}" onclick="cambiarTabFicha('atencion')">🏷 Atención</div>
         <div class="ficha-tab ${fichaTabActual==='notas'?'active':''}" onclick="cambiarTabFicha('notas')">📊 Notas</div>
         <div class="ficha-tab ${fichaTabActual==='observaciones'?'active':''}" onclick="cambiarTabFicha('observaciones')" style="position:relative">
           📝 Observaciones${(a.observaciones||[]).length>0?`<span style="position:absolute;top:-4px;right:-4px;background:var(--accent);color:#fff;border-radius:10px;padding:0 5px;font-size:9px;font-weight:700">${(a.observaciones||[]).length}</span>`:''}
@@ -4015,7 +3992,6 @@ function renderFicha(a) {
 
 function renderTabFicha(a) {
   switch(fichaTabActual) {
-    case 'atencion': return renderTabAtencion(a);
     case 'datos': return renderTabDatos(a);
     case 'notas': return renderTabNotas(a);
     case 'observaciones': return renderTabObs(a);
@@ -4195,44 +4171,6 @@ function renderTabPendientes(a) {
       </div>
     </div>
   </div>`;
-}
-
-function renderTabAtencion(a) {
-  const etqs = APP.etiquetasAtencion || [];
-  const activas = a.etiquetasAtencion || {};
-  const nota = a.notasRapidas || '';
-
-  let etqsHtml = '';
-  etqs.forEach(function(e, ei) {
-    const on = !!activas[e.id];
-    etqsHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid '
-      + (on ? e.color : 'var(--border2)')
-      + ';border-radius:10px;background:' + (on ? e.fondo : 'var(--surface2)') + ';margin-bottom:8px">'
-      + '<div style="flex:1">'
-      + '<div style="font-weight:600;font-size:13px;color:' + (on ? e.color : 'var(--text2)') + '">' + e.nombre + '</div>'
-      + '<div style="font-size:11px;color:var(--text3)">Abrev: ' + e.abrev + ' &middot; ' + (e.visibleAtencion ? 'Visible en modo atenci&oacute;n' : 'Oculta') + '</div>'
-      + '</div>'
-      + '<div style="display:flex;gap:6px;align-items:center">'
-      + '<label style="cursor:pointer;display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:' + (on ? e.color : 'var(--text3)') + '">'
-      + '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="toggleEtiquetaAtencion(\'' + e.id + '\',this.checked)" style="width:16px;height:16px;accent-color:' + e.color + ';flex-shrink:0"> '
-      + (on ? 'Activa' : 'Inactiva') + '</label>'
-      + '<button onclick="editarEtiquetaAtencion(' + ei + ')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 4px" title="Editar">&#x270F;</button>'
-      + '<button onclick="eliminarEtiquetaAtencion(' + ei + ')" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px;padding:2px 4px" title="Eliminar">&#x2715;</button>'
-      + '</div></div>';
-  });
-
-  return '<div style="padding:14px">'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
-    + '<div style="font-size:14px;font-weight:600">&#x1F3F7; Atenci&oacute;n al alumnado</div>'
-    + '<button onclick="nuevaEtiquetaAtencion()" style="padding:5px 12px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer">+ Nueva etiqueta</button>'
-    + '</div>'
-    + (etqs.length === 0 ? '<p style="font-size:13px;color:var(--text3);margin-bottom:14px">No hay etiquetas. Pulsa &quot;+ Nueva etiqueta&quot; para crear la primera.</p>' : etqsHtml)
-    + '<div style="margin-top:14px;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border2)">'
-    + '<label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:6px">Nota de atenci&oacute;n</label>'
-    + '<textarea id="f-notas-atencion" rows="3" placeholder="Anotaciones espec&iacute;ficas sobre este alumno..." '
-    + 'style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none;resize:vertical;box-sizing:border-box">'
-    + nota + '</textarea>'
-    + '</div></div>';
 }
 
 function renderTabDatos(a) {
@@ -4586,8 +4524,14 @@ function renderTabObs(a) {
               <span onclick="toggleObsPrivada(${idx})" style="cursor:pointer;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;border:1.5px solid ${o.privada?'var(--text3)':'var(--border2)'};background:${o.privada?'var(--surface2)':'transparent'};color:${o.privada?'var(--text2)':'var(--text3)'};user-select:none">
                 ${o.privada?'🔒 Privada':'Privada'}
               </span>
+              <span onclick="abrirEtiquetaObs(${idx})" style="cursor:pointer;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;border:1.5px solid ${o.etiqueta?o.etiqueta.color:'var(--border2)'};background:${o.etiqueta?o.etiqueta.fondo:'transparent'};color:${o.etiqueta?o.etiqueta.color:'var(--text3)'};user-select:none" title="Etiqueta de atención">
+                ${o.etiqueta?o.etiqueta.abrev:'🏷'}
+              </span>
             </div>
-            <div id="obs-texto-${idx}" style="white-space:pre-wrap">${o.texto}</div>
+            <div id="obs-texto-${idx}" style="white-space:pre-wrap;display:flex;align-items:flex-start;gap:6px">
+              ${o.etiqueta?`<span style="flex-shrink:0;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:${o.etiqueta.fondo};color:${o.etiqueta.color};border:1px solid ${o.etiqueta.color}">${o.etiqueta.abrev}</span>`:''}
+              <span>${o.texto}</span>
+            </div>
             <div id="obs-edit-${idx}" style="display:none;margin-top:6px">
               <textarea id="obs-textarea-${idx}" style="width:100%;padding:8px;border:1px solid var(--accent);border-radius:8px;font-family:inherit;font-size:13px;outline:none;resize:vertical" rows="3">${o.texto}</textarea>
               <div style="display:flex;gap:6px;margin-top:6px">
@@ -5006,6 +4950,57 @@ function guardarEdicionObservacion(idx) {
   cambiarTabFicha('observaciones');
 }
 
+
+function abrirEtiquetaObs(idx) {
+  const a = APP.alumnos.find(x => x.id === alumnoActualId); if (!a) return;
+  const obs = a.observaciones[idx]; if (!obs) return;
+  const etq = obs.etiqueta || null;
+
+  const ov = document.createElement('div');
+  ov.id = 'modal-etq-obs';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:18px;max-width:320px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,0.25)">'
+    + '<h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🏷 Etiqueta de atención</h3>'
+    + '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">'
+    + '<div><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Abreviatura</label>'
+    + '<input id="etqobs-abrev" type="text" maxlength="8" value="' + (etq ? etq.abrev : '') + '" placeholder="ej: PAP" '
+    + 'style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)"></div>'
+    + '<div style="display:flex;gap:10px">'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Color texto</label>'
+    + '<input id="etqobs-color" type="color" value="' + (etq ? etq.color : '#1e40af') + '" style="width:100%;height:34px;border:1px solid var(--border2);border-radius:8px;cursor:pointer"></div>'
+    + '<div style="flex:1"><label style="font-size:12px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Color fondo</label>'
+    + '<input id="etqobs-fondo" type="color" value="' + (etq ? etq.fondo : '#dbeafe') + '" style="width:100%;height:34px;border:1px solid var(--border2);border-radius:8px;cursor:pointer"></div>'
+    + '</div></div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + (etq ? '<button onclick="_quitarEtiquetaObs(' + idx + ')" style="padding:6px 12px;border:1px solid var(--red);border-radius:8px;background:none;color:var(--red);font-size:12px;font-weight:600;cursor:pointer;margin-right:auto">Quitar</button>' : '')
+    + '<button onclick="document.getElementById(\'modal-etq-obs\').remove()" class="btn btn-secondary" style="font-size:12px">Cancelar</button>'
+    + '<button onclick="_guardarEtiquetaObs(' + idx + ')" class="btn btn-primary" style="font-size:12px">Aplicar</button>'
+    + '</div></div>';
+  document.body.appendChild(ov);
+}
+
+function _guardarEtiquetaObs(idx) {
+  const a = APP.alumnos.find(x => x.id === alumnoActualId); if (!a) return;
+  const abrev = document.getElementById('etqobs-abrev').value.trim();
+  if (!abrev) { alert('Escribe una abreviatura.'); return; }
+  a.observaciones[idx].etiqueta = {
+    abrev,
+    color: document.getElementById('etqobs-color').value,
+    fondo: document.getElementById('etqobs-fondo').value
+  };
+  guardarDatos();
+  document.getElementById('modal-etq-obs')?.remove();
+  cambiarTabFicha('observaciones');
+}
+
+function _quitarEtiquetaObs(idx) {
+  const a = APP.alumnos.find(x => x.id === alumnoActualId); if (!a) return;
+  delete a.observaciones[idx].etiqueta;
+  guardarDatos();
+  document.getElementById('modal-etq-obs')?.remove();
+  cambiarTabFicha('observaciones');
+}
+
 function toggleObsPrivada(idx) {
   const a = APP.alumnos.find(x=>x.id===alumnoActualId); if(!a) return;
   if (!a.observaciones[idx]) return;
@@ -5238,7 +5233,7 @@ function guardarAlumno() {
     a.grupoId = document.getElementById('f-grupo')?.value||'';
     a.nLista = document.getElementById('f-nlista')?.value||'';
     a.nre = document.getElementById('f-nre')?.value||'';
-    a.notasRapidas = document.getElementById('f-notas-rapidas')?.value||'';
+
     // campos extra
     const nombres = document.querySelectorAll('.campo-extra-nombre');
     const valores = document.querySelectorAll('.campo-extra-valor');
@@ -11348,7 +11343,10 @@ function renderArchivo() {
                         ${nf!==null?`<div style="font-size:10px;color:var(--text3)">(${fmtNota(nf)})</div>`:''}
                       </td>
                       <td style="padding:8px 14px">
-                        ${_getEtiquetasHtml(a,'md')}
+                        ${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''}
+                        ${_getObsEtiquetasHtml(a,'md')}
+                        ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span class="pend-tag">Pend. ${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
+                        ${_mostrarAtencion&&(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;border:1px solid #ddd6fe">Ev. Pers.</span>':''}
                       </td>
                     </tr>`;
                   }).join('')}
@@ -11651,7 +11649,7 @@ function renderArchivo() {
                             </div>
                             <div>
                               <div style="font-weight:500">${a.apellidos||''}, ${a.nombre||''}</div>
-                              <div style="font-size:11px;color:var(--text3)">${a.acnee?'<span class="acnee-tag">ACNEE</span>':''} ${a.pap?'<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">PAP</span>':''} ${a.pep?'<span style="background:#dcfce7;color:var(--green);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">PEP</span>':''} ${a.rep?'<span class="rep-tag">Rep</span>':''} ${a.asigPendientes?.length?`<span class="pend-tag">Pend. ${a.asigPendientes.length}</span>`:''} ${(a.estructuraPersonal?.T1||a.estructuraPersonal?.T2||a.estructuraPersonal?.T3)?'<span style="background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">Ev. Pers.</span>':''}</div>
+                              <div style="font-size:11px;color:var(--text3)">${_mostrarAtencion&&a.abs?'<span class="abs-tag">Abs</span>':''} ${_getObsEtiquetasHtml(a,'md')} ${_mostrarAtencion&&(a.asigPendientes?.filter(p=>!p.recuperada).length)?`<span class="pend-tag">Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}</div>
                             </div>
                           </div>
                         </td>
@@ -11791,7 +11789,7 @@ function actualizarListaAlumnos(cont) {
       + '<div class="alumno-avatar">' + (a.foto ? '<img src="' + a.foto + '" style="width:100%;height:100%;object-fit:cover;border-radius:6px">' : iniciales(a)) + '</div>'
       + '<div><div style="font-weight:500">' + (a.apellidos || '') + ', ' + (a.nombre || '') + '</div>'
       + (a._archivado ? '<span style="font-size:10px;background:var(--amber-bg);color:var(--amber);border-radius:4px;padding:1px 5px;font-weight:600">Archivado ' + a._archivado + '</span>' : '')
-      + (a.acnee ? '<span class="acnee-tag">ACNEE</span>' : '') + (a.rep ? '<span class="rep-tag">Rep</span>' : '') + (a.asigPendientes?.length ? `<span class="pend-tag">Pend. ${a.asigPendientes.length}</span>` : '')
+      + (a.abs ? '<span class="abs-tag">Abs</span>' : '') + _getObsEtiquetasHtml(a,'md') + (a.asigPendientes?.filter(p=>!p.recuperada).length ? '<span class="pend-tag">Pend.'+a.asigPendientes.filter(p=>!p.recuperada).length+'</span>' : '')
       + '</div></div></td>'
       + '<td style="color:var(--text2)">' + (g ? g.nombre : '—') + '</td>'
       + '<td><span class="nota-pill ' + notaColor(nr) + '">' + (nr !== null ? nr : '—') + '</span></td>'
@@ -14398,7 +14396,6 @@ function ejecutarExportarInforme() {
     obs:        document.getElementById('inf-obs')?.checked,
     reuniones:  document.getElementById('inf-reuniones')?.checked,
     pendientes: document.getElementById('inf-pendientes')?.checked,
-    atencion:   document.getElementById('inf-atencion')?.checked,
     trims:      ['T1','T2','T3'].filter(t => document.getElementById('inf-'+t)?.checked),
   };
   generarInformeAlumno(window._informeAid, opciones);
