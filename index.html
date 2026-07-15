@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.2</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.3</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -9455,6 +9455,7 @@ function exportarProgramacion() {
 
 // ── Importar desde Anota ─────────────────────────────────────
 let _anotaUnidades = [];
+let _anotaUnidadesIncompletas = [];
 let _anotaNombreNivel = '';
 
 function toggleProgImportMenu() {
@@ -9563,22 +9564,48 @@ function anotaProcesarTexto(texto) {
   const curso   = cursoMatch   ? cursoMatch[1].trim() : '';
   _anotaNombreNivel = `${materia}${curso?' — '+curso:''}`;
 
-  const unidadRegex = /UNIDAD\s+([\w\d]+):\s*([^\n]+?)\s+Fecha inicio prev\.:\s*([\d/]*)\s+Fecha fin\s+prev\.:\s*([\d/]*)\s+Sesiones prev\.:\s*(\d+)/gi;
-  _anotaUnidades = [];
-  let m;
-  while ((m = unidadRegex.exec(texto)) !== null) {
-    const codigo    = m[1];
-    const titulo    = m[2].trim();
-    const fechaIni  = anotaFecha(m[3]);
-    const fechaFin  = anotaFecha(m[4]);
-    const nSesiones = parseInt(m[5]);
-    const trimEst   = fechaIni ? anotaEstimarTrim(fechaIni) : _anotaEstimarTrimPorOrden(_anotaUnidades.length);
+  // Paso 1: localizar cabeceras de unidad SOLO por título (independiente de fechas/sesiones,
+  // que pueden faltar en el documento o llegar desordenadas por un salto de página del PDF).
+  const unidadHeaderRegex = /UNIDAD\s+([\w\d]+):\s*([^\n]+?)\s+Fecha inicio prev\.:/gi;
+  const cabeceras = [];
+  let mh;
+  while ((mh = unidadHeaderRegex.exec(texto)) !== null) {
+    cabeceras.push({ codigo: mh[1], titulo: mh[2].trim(), index: mh.index });
+  }
 
-    const posActual = m.index;
-    const ur2 = /UNIDAD\s+\w+:/gi;
-    ur2.lastIndex = posActual + 1;
-    const sig = ur2.exec(texto);
-    const bloque = texto.slice(posActual, sig ? sig.index : texto.length);
+  _anotaUnidades = [];
+  _anotaUnidadesIncompletas = [];
+
+  cabeceras.forEach((cab, i) => {
+    const posActual = cab.index;
+    const bloque = texto.slice(posActual, cabeceras[i+1] ? cabeceras[i+1].index : texto.length);
+
+    // Paso 2: extraer fechas/sesiones. Intento 1 = patrón estricto etiqueta→valor en orden.
+    let fechaIniStr = '', fechaFinStr = '', nSesiones = null;
+    const strict = bloque.match(/Fecha inicio prev\.:\s*([\d/]*)\s+Fecha fin\s+prev\.:\s*([\d/]*)\s+Sesiones prev\.:\s*(\d+)/i);
+    if (strict) {
+      fechaIniStr = strict[1]; fechaFinStr = strict[2]; nSesiones = parseInt(strict[3]);
+    } else {
+      // Intento 2: recuperación tolerante a desorden (etiquetas y valores desalineados,
+      // típico cuando la fila se ha partido por un salto de página). Los VALORES suelen
+      // conservar su orden cronológico aunque las etiquetas se hayan desordenado.
+      const zonaFinIdx = bloque.search(/Saberes b[aá]sicos/i);
+      const zona = zonaFinIdx > -1 ? bloque.slice(0, zonaFinIdx) : bloque.slice(0, 300);
+      const fechas = [...zona.matchAll(/\d{2}\/\d{2}\/\d{4}/g)];
+      if (fechas.length >= 1) fechaIniStr = fechas[0][0];
+      if (fechas.length >= 2) {
+        fechaFinStr = fechas[1][0];
+        const tras = zona.slice(fechas[1].index + fechas[1][0].length);
+        const numMatch = tras.match(/\b(\d{1,3})\b/);
+        if (numMatch) nSesiones = parseInt(numMatch[1]);
+      }
+    }
+
+    const fechaIni  = fechaIniStr ? anotaFecha(fechaIniStr) : '';
+    const fechaFin  = fechaFinStr ? anotaFecha(fechaFinStr) : '';
+    const trimEst   = fechaIni ? anotaEstimarTrim(fechaIni) : _anotaEstimarTrimPorOrden(_anotaUnidades.length);
+    const codigo    = cab.codigo;
+    const titulo    = cab.titulo;
 
     const criterios = [];
     const critSplit = bloque.split(/#\.(\d+\.\d+)/);
@@ -9588,7 +9615,7 @@ function anotaProcesarTexto(texto) {
       const valorMatch = textoCrit.match(/(\d+[,\.]\d+|\d+)\s*(?:CCL|CCEC|CC\b|CD\b|CE\b|CP\b|CPSAA|STEM)/);
       const valor = valorMatch ? parseFloat(valorMatch[1].replace(',','.')) : 0;
       const instrCrit = {};
-      const instrRe = /([A-ZÁÉÍÓÚÑ][^\n:]{2,40?}):\s*(\d+)%/g;
+      const instrRe = /([A-ZÁÉÍÓÚÑ][^:]{2,60}?):\s*(\d+)%/g;
       let mi;
       while ((mi = instrRe.exec(textoCrit)) !== null) {
         const nombre = mi[1].trim().replace(/\s+/g,' ')
@@ -9600,7 +9627,7 @@ function anotaProcesarTexto(texto) {
         }
       }
       if (Object.keys(instrCrit).length === 0) {
-        const fallbackRe = /Eval\.?\s*Ordinaria:\s*\n?\s*([^\n:]{3,40}):?\s*\n?\s*(\d+)%/gi;
+        const fallbackRe = /Eval\.?\s*Ordinaria:\s*([^:]{3,60}?):?\s*(\d+)%/gi;
         let mf;
         while ((mf = fallbackRe.exec(textoCrit)) !== null) {
           const nombre = mf[1].trim().replace(/\s+/g,' ');
@@ -9615,22 +9642,23 @@ function anotaProcesarTexto(texto) {
       }
     }
 
-    _anotaUnidades.push({ codigo, titulo, fechaIni, fechaFin, nSesiones, trim: trimEst, criterios });
-  }
+    const incompleta = !nSesiones;
+    if (incompleta) _anotaUnidadesIncompletas.push(`${codigo} (${titulo})`);
+
+    _anotaUnidades.push({ codigo, titulo, fechaIni, fechaFin, nSesiones: nSesiones || 0, trim: trimEst, criterios, incompleta });
+  });
 
   if (!_anotaUnidades.length) {
     // Generar diagnóstico: qué patrones se buscaron y qué se encontró en el texto
     const tieneLaPalabraUnidad = /UNIDAD/i.test(texto);
     const tieneFechaInicio = /Fecha inicio prev/i.test(texto);
-    const tieneSesiones = /Sesiones prev/i.test(texto);
     const tieneMateria = /Materia:/i.test(texto);
     const muestraTexto = texto.slice(0, 400).replace(/\s+/g,' ').trim();
 
     const diag = []
       .concat([`Longitud del texto analizado: ${texto.length} caracteres`])
       .concat([`¿Contiene la palabra "UNIDAD"?: ${tieneLaPalabraUnidad ? 'Sí' : 'NO — el documento no parece tener el formato esperado de Anota'}`])
-      .concat([`¿Contiene "Fecha inicio prev."?: ${tieneFechaInicio ? 'Sí' : 'NO'}`])
-      .concat([`¿Contiene "Sesiones prev."?: ${tieneSesiones ? 'Sí' : 'NO — campo obligatorio para detectar una unidad'}`])
+      .concat([`¿Contiene "Fecha inicio prev."?: ${tieneFechaInicio ? 'Sí' : 'NO — campo obligatorio para detectar una unidad'}`])
       .concat([`¿Contiene "Materia:"?: ${tieneMateria ? 'Sí' : 'NO'}`])
       .concat([``, `Primeros 400 caracteres del texto detectado:`, muestraTexto])
       .join('\n');
@@ -9638,8 +9666,8 @@ function anotaProcesarTexto(texto) {
     let msg = 'No se encontraron unidades didácticas.';
     if (!tieneLaPalabraUnidad) {
       msg = 'El documento no contiene la palabra "UNIDAD" — no parece ser una programación exportada de Anota, o el texto no se extrajo correctamente.';
-    } else if (!tieneSesiones) {
-      msg = 'Se encontró "UNIDAD" pero falta el campo "Sesiones prev." en al menos una unidad — es obligatorio para que la app la reconozca.';
+    } else if (!tieneFechaInicio) {
+      msg = 'Se encontró "UNIDAD" pero falta el campo "Fecha inicio prev." — es obligatorio para que la app reconozca el inicio de cada unidad.';
     } else {
       msg = 'Se detectaron palabras clave de Anota pero no se pudo extraer ninguna unidad completa. El formato del documento puede diferir ligeramente del esperado.';
     }
@@ -9655,6 +9683,12 @@ function anotaProcesarTexto(texto) {
   } else {
     window._anotaAvisoUnidadesVacias = null;
   }
+
+  // Diagnóstico de unidades sin sesiones/fechas (faltaban en el documento origen o no se pudieron
+  // recuperar tras el desorden de un salto de página); se importan igualmente con sus criterios.
+  window._anotaAvisoUnidadesIncompletas = _anotaUnidadesIncompletas.length
+    ? _anotaUnidadesIncompletas.join(', ')
+    : null;
 
   _anotaInstrPesosPorTrim = {};
   const instrMap = {};
@@ -9735,30 +9769,42 @@ function anotaMostrarPaso2() {
   document.getElementById('anota-paso2').classList.remove('hidden');
   document.getElementById('anota-nivel-preview').textContent = `📖 ${_anotaNombreNivel} — ${_anotaUnidades.length} unidades detectadas`;
 
+  const avisos = [];
   if (window._anotaAvisoUnidadesVacias) {
-    anotaMostrarError(
-      'Atención: las siguientes unidades se importarán sin criterios ni instrumentos (puedes completarlas a mano después): ' + window._anotaAvisoUnidadesVacias,
-      null
-    );
+    avisos.push('Sin criterios ni instrumentos (faltaban en el documento): ' + window._anotaAvisoUnidadesVacias);
+  }
+  if (window._anotaAvisoUnidadesIncompletas) {
+    avisos.push('Sin sesiones/fechas detectadas — revisa y completa el nº de sesiones a mano: ' + window._anotaAvisoUnidadesIncompletas);
+  }
+  if (avisos.length) {
+    anotaMostrarError('Atención, algunas unidades necesitan revisión:\n' + avisos.join('\n'), null);
   } else {
     document.getElementById('anota-error').classList.add('hidden');
   }
 
   const lista = document.getElementById('anota-unidades-lista');
   lista.innerHTML = _anotaUnidades.map((u, i) => `
-    <div style="padding:10px 12px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2)">
+    <div style="padding:10px 12px;border:1px solid ${u.incompleta?'var(--danger,#c0392b)':'var(--border2)'};border-radius:8px;background:var(--surface2)">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div>
           <span style="font-size:11px;font-weight:700;color:var(--accent)">${u.codigo}</span>
           <span style="font-size:12px;font-weight:600;margin-left:6px">${u.titulo}</span>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${u.nSesiones} sesiones · ${u.fechaIni||'Sin fecha'} → ${u.fechaFin||'Sin fecha'}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">
+            ${u.fechaIni||'Sin fecha'} → ${u.fechaFin||'Sin fecha'}
+            ${u.incompleta ? ' · <span style="color:var(--danger,#c0392b);font-weight:600">revisar sesiones</span>' : ''}
+          </div>
         </div>
-        <select onchange="_anotaUnidades[${i}].trim=this.value"
-          style="padding:4px 8px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
-          <option value="T1" ${u.trim==='T1'?'selected':''}>1ª Evaluación</option>
-          <option value="T2" ${u.trim==='T2'?'selected':''}>2ª Evaluación</option>
-          <option value="T3" ${u.trim==='T3'?'selected':''}>3ª Evaluación</option>
-        </select>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" min="0" value="${u.nSesiones}" title="Nº de sesiones"
+            onchange="_anotaUnidades[${i}].nSesiones=parseInt(this.value)||0"
+            style="width:48px;padding:4px 6px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
+          <select onchange="_anotaUnidades[${i}].trim=this.value"
+            style="padding:4px 8px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
+            <option value="T1" ${u.trim==='T1'?'selected':''}>1ª Evaluación</option>
+            <option value="T2" ${u.trim==='T2'?'selected':''}>2ª Evaluación</option>
+            <option value="T3" ${u.trim==='T3'?'selected':''}>3ª Evaluación</option>
+          </select>
+        </div>
       </div>
     </div>`).join('');
 
