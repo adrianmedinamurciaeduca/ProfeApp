@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.3</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.4</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1265,9 +1265,11 @@
       <div id="aleatorio-avatar" style="width:80px;height:80px;border-radius:10px;margin:0 auto 14px;overflow:hidden;border:3px solid var(--accent);background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--accent)"></div>
       <div id="aleatorio-nombre" style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px"></div>
       <div id="aleatorio-veces" style="font-size:12px;color:var(--text3);margin-bottom:20px"></div>
-      <div style="display:flex;gap:8px;justify-content:center">
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         <button onclick="abrirFichaDesdeAleatorio()" class="btn btn-secondary">Ver ficha</button>
-        <button onclick="repetirAleatorio()" class="btn btn-primary">🎲 Otro</button>
+        <button id="aleatorio-btn-noesta" onclick="noEstaAleatorio()" class="btn btn-secondary">❌ No está</button>
+        <button id="aleatorio-btn-sale" onclick="confirmarSalidaAleatorio()" class="btn btn-primary">✅ Sale</button>
+        <button id="aleatorio-btn-nuevo" onclick="repetirAleatorio()" class="btn btn-primary hidden">🎲 Nuevo sorteo</button>
       </div>
       <button onclick="resetearContadorGrupo()" style="margin-top:14px;background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline">Resetear contadores del grupo</button>
     </div>
@@ -5427,16 +5429,32 @@ function abrirTutoriaGrupo(gid) {
 // ── Selector aleatorio ponderado ─────────────────────────────
 let _aleatorioGid = null;
 let _aleatorioAid = null;
+let _aleatorioDescartados = [];
+let _aleatorioConfirmado = false;
 
 function selectorAleatorio(gid) {
   _aleatorioGid = gid;
+  _aleatorioDescartados = [];
+  _aleatorioConfirmado = false;
   document.getElementById('modal-aleatorio').classList.remove('hidden');
+  _mostrarBotonesAleatorio(false);
   elegirAlumnoAleatorio(gid);
+}
+
+function _mostrarBotonesAleatorio(confirmado) {
+  document.getElementById('aleatorio-btn-noesta').classList.toggle('hidden', confirmado);
+  document.getElementById('aleatorio-btn-sale').classList.toggle('hidden', confirmado);
+  document.getElementById('aleatorio-btn-nuevo').classList.toggle('hidden', !confirmado);
 }
 
 function elegirAlumnoAleatorio(gid) {
   const g = APP.grupos.find(x => x.id === gid); if (!g) return;
-  const als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
+  let als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado && !_aleatorioDescartados.includes(a.id));
+  if (!als.length) {
+    // Ya se ha pasado por todos los alumnos del grupo en esta ronda: se reinicia el descarte
+    _aleatorioDescartados = [];
+    als = APP.alumnos.filter(a => a.grupoId === gid && !a.archivado);
+  }
   if (!als.length) { alert('No hay alumnos en este grupo.'); return; }
 
   // Calcular peso inverso: menos veces participado = más probabilidad
@@ -5453,13 +5471,10 @@ function elegirAlumnoAleatorio(gid) {
   }
 
   _aleatorioAid = elegido.id;
+  _aleatorioConfirmado = false;
+  _mostrarBotonesAleatorio(false);
 
-  // Incrementar contador
-  if (!elegido.vecesSeleccionado) elegido.vecesSeleccionado = 0;
-  elegido.vecesSeleccionado++;
-  guardarDatos();
-
-  // Mostrar resultado
+  // Mostrar resultado (el contador NO se incrementa hasta confirmar que ha salido)
   const col = getColorGrupo(gid);
   const brd = col ? col.border : 'var(--accent)';
   const av = document.getElementById('aleatorio-avatar');
@@ -5474,10 +5489,32 @@ function elegirAlumnoAleatorio(gid) {
   document.getElementById('aleatorio-grupo').textContent = g.nombre;
   document.getElementById('aleatorio-nombre').textContent = `${elegido.apellidos||''}, ${elegido.nombre||''}`;
   document.getElementById('aleatorio-veces').textContent =
-    `Ha participado ${elegido.vecesSeleccionado} vez${elegido.vecesSeleccionado !== 1 ? 'ces' : ''}`;
+    `Ha participado ${elegido.vecesSeleccionado||0} vez${(elegido.vecesSeleccionado||0) !== 1 ? 'ces' : ''}`;
 }
 
+// El alumno elegido no está en clase: se descarta para esta ronda (sin contar) y se sortea otro
+function noEstaAleatorio() {
+  if (_aleatorioAid) _aleatorioDescartados.push(_aleatorioAid);
+  elegirAlumnoAleatorio(_aleatorioGid);
+}
+
+// El alumno elegido sale de verdad: ahora sí se contabiliza la participación
+function confirmarSalidaAleatorio() {
+  if (!_aleatorioAid) return;
+  const a = APP.alumnos.find(x => x.id === _aleatorioAid);
+  if (!a) return;
+  a.vecesSeleccionado = (a.vecesSeleccionado || 0) + 1;
+  guardarDatos();
+  _aleatorioConfirmado = true;
+  _mostrarBotonesAleatorio(true);
+  document.getElementById('aleatorio-veces').textContent =
+    `✅ Ha salido — ${a.vecesSeleccionado} vez${a.vecesSeleccionado !== 1 ? 'ces' : ''} en total`;
+}
+
+// Nuevo sorteo completo (tras confirmar una salida, o para volver a empezar)
 function repetirAleatorio() {
+  _aleatorioDescartados = [];
+  _aleatorioConfirmado = false;
   elegirAlumnoAleatorio(_aleatorioGid);
 }
 
@@ -5485,6 +5522,8 @@ function cerrarAleatorio() {
   document.getElementById('modal-aleatorio').classList.add('hidden');
   _aleatorioGid = null;
   _aleatorioAid = null;
+  _aleatorioDescartados = [];
+  _aleatorioConfirmado = false;
 }
 
 function abrirFichaDesdeAleatorio() {
@@ -5503,6 +5542,8 @@ function resetearContadorGrupo() {
   confirmar('Resetear contadores', '¿Resetear el contador de participaciones de todos los alumnos de este grupo?', () => {
     APP.alumnos.filter(a => a.grupoId === _aleatorioGid).forEach(a => { a.vecesSeleccionado = 0; });
     guardarDatos();
+    _aleatorioDescartados = [];
+    _aleatorioConfirmado = false;
     elegirAlumnoAleatorio(_aleatorioGid);
   }, 'Resetear');
 }
