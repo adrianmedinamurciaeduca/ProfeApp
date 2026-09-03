@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.5</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.6</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2438,7 +2438,7 @@ function renderAlumnos() {
     </label>
     <!-- Selector de vista -->
     <div style="display:flex;border:1.5px solid var(--border2);border-radius:8px;overflow:hidden;flex-shrink:0">
-      ${[['cuaderno','📒','Cuaderno'],['miniaturas','⊞','Miniaturas'],['plano','🗺','Plano'],['lista','☰','Lista']].map(([v,ico,lbl])=>`
+      ${[['cuaderno','📒','Cuaderno'],['criterios','📐','Evaluación por criterios'],['miniaturas','⊞','Miniaturas'],['plano','🗺','Plano'],['lista','☰','Lista']].map(([v,ico,lbl])=>`
       <button onclick="cambiarVistaAlumnos('${v}')" title="${lbl}"
         style="padding:5px 10px;border:none;cursor:pointer;font-size:14px;background:${vistaAlumnos===v?'var(--accent)':'var(--surface)'};color:${vistaAlumnos===v?'#fff':'var(--text2)'};transition:all 0.15s">${ico}</button>`).join('')}
     </div>
@@ -2450,7 +2450,7 @@ function renderAlumnos() {
       ${_mostrarAtencion?'● Atención':'○ Atención'}
     </button>
   </div>
-  ${vistaAlumnos === 'cuaderno' ? `
+  ${(vistaAlumnos === 'cuaderno' || vistaAlumnos === 'criterios') ? `
   <div id="cuaderno-controls-global" class="cuaderno-controls-sticky" style="padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:2px solid var(--border);background:var(--surface2)">
     <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-right:4px">Evaluación:</span>
     <div style="display:flex;gap:4px">
@@ -2464,12 +2464,13 @@ function renderAlumnos() {
     <label onclick="setMostrarIniciales()" style="cursor:pointer">
       <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_mostrarIniciales?'#0891b2':'var(--border2)'};background:${_mostrarIniciales?'#ecfeff':'transparent'};color:${_mostrarIniciales?'#0891b2':'var(--text3)'};font-size:11px;font-weight:600" title="Mostrar solo iniciales en lugar del nombre completo (privacidad)">${_mostrarIniciales?'● Iniciales':'○ Iniciales'}</span>
     </label>
+    ${vistaAlumnos === 'cuaderno' ? `
     <label onclick="setCuadernoEdicionGlobal()" style="cursor:pointer">
       <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoEdicionGlobal?'#d97706':'var(--border2)'};background:${_cuadernoEdicionGlobal?'#fef9c3':'transparent'};color:${_cuadernoEdicionGlobal?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoEdicionGlobal?'✏ Editando':'○ Editar'}</span>
     </label>
     <label onclick="setCuadernoRecGlobal()" style="cursor:pointer">
       <span style="padding:3px 10px;border-radius:12px;border:1.5px solid ${_cuadernoRecGlobal?'var(--amber)':'var(--border2)'};background:${_cuadernoRecGlobal?'#fef9c3':'transparent'};color:${_cuadernoRecGlobal?'#854d0e':'var(--text3)'};font-size:11px;font-weight:600">${_cuadernoRecGlobal?'● Recuperación':'○ Recuperación'}</span>
-    </label>
+    </label>` : `<span style="padding:3px 10px;border-radius:12px;background:var(--surface);color:var(--text3);font-size:11px;font-weight:600">👁 Solo consulta</span>`}
   </div>` : ''}
   <div class="page" id="alumnos-lista-contenedor">
     ${APP.grupos.length === 0 ? `
@@ -2558,6 +2559,7 @@ function renderAlumnos() {
             : vistaAlumnos === 'miniaturas' ? renderVistaMiniaturas(g, als)
             : vistaAlumnos === 'plano'      ? renderVistaPlano(g, als)
             : vistaAlumnos === 'cuaderno'   ? renderVistaCuaderno(g, als)
+            : vistaAlumnos === 'criterios'  ? renderVistaCriterios(g, als)
             : renderVistaLista(g, als)
           }
         </div>
@@ -2596,7 +2598,7 @@ function cambiarVistaAlumnos(v) {
   vistaAlumnos = v;
   APP.config.vistaAlumnos = v;
   _cuadernoFilaSel = null; _cuadernoInstSel = null; _cuadernoItemSel = null; _listaFilaSel = null;
-  if (v === 'cuaderno') {
+  if (v === 'cuaderno' || v === 'criterios') {
     // Inicializar trim global al por defecto si no está fijado
     if (!_cuadernoTrimGlobal) _cuadernoTrimGlobal = evalTrimPorDefecto();
     // Sincronizar todos los grupos con el trim global (siempre, no solo si no tienen)
@@ -3370,6 +3372,135 @@ function renderVistaCuaderno(g, als) {
         </tfoot>
       </table>
     </div></div>`;
+}
+
+// ── Vista "Evaluación por criterios" (solo consulta) ───────────
+function renderVistaCriterios(g, als) {
+  const gid = g.id;
+  const trim = _cuadernoTrim[gid] || _cuadernoTrimGlobal || evalTrimPorDefecto();
+  const mostrarFotos = _cuadernoFotos[gid] !== false;
+  const insts = g.estructura?.[trim] || [];
+  const niv = APP.programacion?.niveles?.find(n => (n.grupos||[]).includes(gid));
+
+  // Columnas: una por cada criterio asociado a cada instrumento (agrupadas por instrumento)
+  const columnas = [];
+  insts.forEach((inst, iIdx) => {
+    const lista = (inst.criterios||'').split(',').map(s=>s.trim()).filter(Boolean);
+    lista.forEach(cr => {
+      const m = cr.match(/^([\d.]+)\(([\d.]+)\)?$/);
+      if (!m) return;
+      columnas.push({ iIdx, instNombre: inst.nombre, codigo: m[1], valor: parseFloat(m[2]) });
+    });
+  });
+
+  if (!insts.length || !columnas.length) {
+    return `<div id="cuaderno-wrap-${gid}">
+      <div style="padding:6px 14px;border-bottom:1px solid var(--border);background:var(--surface)">
+        <span style="font-size:12px;font-weight:700;color:var(--text2)">${g.nombre}</span>
+      </div>
+      <div style="padding:32px 20px;text-align:center;color:var(--text3);font-size:13px">
+        <div style="font-size:32px;margin-bottom:12px">📐</div>
+        <div style="font-weight:600;margin-bottom:6px">No hay criterios asociados a los instrumentos de esta evaluación</div>
+        <div style="font-size:12px;margin-bottom:16px">Asocia criterios a los instrumentos desde Programación → "✏ Editar criterios", o importa una programación de Anota.</div>
+        <button class="btn btn-secondary btn-sm" onclick="navTo('programacion')">📖 Ir a Programación</button>
+      </div>
+    </div>`;
+  }
+
+  // ── Cabecera de dos niveles: instrumento → criterios ─────────
+  let thInst = '';
+  let thCrit = '';
+  let iIdxActual = null, colspanActual = 0, instNombreActual = '';
+  const flushInst = () => {
+    if (colspanActual > 0) {
+      thInst += `<th colspan="${colspanActual}" style="background:var(--accent);color:#fff;border:1px solid var(--border2);padding:5px 8px;font-size:11px;font-weight:700;white-space:nowrap;text-align:center">${instNombreActual}</th>`;
+    }
+  };
+  columnas.forEach(col => {
+    if (col.iIdx !== iIdxActual) {
+      flushInst();
+      iIdxActual = col.iIdx; instNombreActual = col.instNombre; colspanActual = 0;
+    }
+    colspanActual++;
+    const desc = niv?.criteriosDesc?.[col.codigo] || '';
+    const codHtml = desc
+      ? `<span data-desc="${encodeURIComponent(desc)}" onclick="event.stopPropagation();togglePopoverCriterio(this,decodeURIComponent(this.dataset.desc))" style="cursor:pointer;text-decoration:underline dotted" title="Ver descripción del criterio">${col.codigo} ⓘ</span>`
+      : col.codigo;
+    thCrit += `<th style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--border2);padding:3px 5px;font-size:10px;white-space:nowrap;text-align:center;min-width:56px">
+      ${codHtml}<br><span style="font-size:9px;color:var(--text3)">/${col.valor.toFixed(2)}</span>
+    </th>`;
+  });
+  flushInst();
+
+  // ── Filas de alumnos ──────────────────────────────────────────
+  const filas = als.map((a, rowIdx) => {
+    const bg = rowIdx % 2 === 0 ? 'var(--surface)' : 'var(--surface2)';
+    const fotoHtml = mostrarFotos
+      ? `<div style="width:30px;height:30px;border-radius:5px;overflow:hidden;flex-shrink:0;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent)">${a.foto?`<img src="${a.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(a)}</div>`
+      : '';
+    const tdAlumno = `<td style="background:${bg};border:1px solid var(--border2);padding:4px 8px;white-space:nowrap;position:sticky;left:0;z-index:2;min-width:${mostrarFotos?'155px':'125px'}">
+      <div style="display:flex;align-items:center;gap:5px;cursor:pointer" onclick="abrirFicha('${a.id}')" title="Abrir ficha">
+        ${fotoHtml}
+        <div>
+          <div style="font-size:12px;font-weight:600;line-height:1.2">${nombreAlumno(a)}</div>
+          <div style="display:flex;gap:3px;margin-top:1px">
+            ${_mostrarAtencion&&a.abs?'<span style="background:#fff7ed;color:#c2410c;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Abs</span>':''}
+            ${_getObsEtiquetasHtml(a,'sm')}
+            ${_mostrarAtencion&&((a.asigPendientes?.filter(p=>!p.recuperada).length))?`<span style="background:#f5f3ff;color:#6d28d9;border-radius:3px;padding:0 3px;font-size:9px;font-weight:700">Pend.${a.asigPendientes.filter(p=>!p.recuperada).length}</span>`:''}
+          </div>
+        </div>
+      </div>
+    </td>`;
+
+    const instrumentosAlumno = getInstrumentosConValores(a, trim);
+    const tdsNotas = columnas.map(col => {
+      const inst = instrumentosAlumno[col.iIdx];
+      const notaInst = inst ? calcNota(inst.items) : null;
+      const notaCrit = notaInst !== null ? (col.valor * notaInst / 10) : null;
+      const color = notaCrit === null ? 'var(--text3)' : (notaInst < 5 ? '#991b1b' : '#166534');
+      return `<td style="background:${bg};border:1px solid var(--border2);padding:4px 5px;text-align:center">
+        <span style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${color}">${notaCrit!==null?notaCrit.toFixed(2):'—'}</span>
+      </td>`;
+    }).join('');
+
+    return `<tr data-row-aid="${a.id}">${tdAlumno}${tdsNotas}</tr>`;
+  }).join('');
+
+  // ── Fila medias de clase ────────────────────────────────────
+  const tdsMedias = columnas.map(col => {
+    const vals = als.filter(a=>!a.abs).map(a => {
+      const inst = getInstrumentosConValores(a, trim)[col.iIdx];
+      const n = inst ? calcNota(inst.items) : null;
+      return n !== null ? col.valor * n / 10 : null;
+    }).filter(v => v !== null);
+    const media = vals.length ? (vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(2) : '—';
+    return `<td style="background:var(--surface2);border:1px solid var(--border2);padding:4px 5px;text-align:center;font-size:11px;font-weight:700;color:var(--text2);font-family:'DM Mono',monospace">${media}</td>`;
+  }).join('');
+
+  return `<div id="cuaderno-wrap-${gid}">
+    <div style="padding:6px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface)">
+      <span style="font-size:12px;font-weight:700;color:var(--text2)">${g.nombre} · Evaluación por criterios</span>
+      <span style="font-size:11px;color:var(--text3);margin-left:auto">👁 Vista de consulta — la nota se calcula a partir de las notas ya registradas en los instrumentos</span>
+    </div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;width:100%">
+      <table style="border-collapse:collapse;font-family:'Calibri',sans-serif">
+        <thead>
+          <tr>
+            <th rowspan="2" style="background:var(--accent);color:#fff;border:1px solid var(--border2);padding:6px 10px;font-size:12px;text-align:left;position:sticky;left:0;z-index:4;min-width:${mostrarFotos?'155px':'125px'}">Alumno</th>
+            ${thInst}
+          </tr>
+          <tr>${thCrit}</tr>
+        </thead>
+        <tbody>${filas}</tbody>
+        <tfoot>
+          <tr>
+            <td style="background:var(--surface2);border:1px solid var(--border2);padding:4px 8px;font-size:11px;font-weight:700;color:var(--text3);position:sticky;left:0;z-index:2">Media clase</td>
+            ${tdsMedias}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>`;
 }
 
 // ── Funciones de edición del cuaderno ───────────────────────────
@@ -9319,6 +9450,34 @@ function editarCriteriosEnProg(nivId, instNombre, valor) {
   guardarDatos();
 }
 
+// ── Popover de descripción de criterio (Programación + vista Criterios) ──
+function togglePopoverCriterio(btn, desc) {
+  const existing = document.getElementById('popover-criterio');
+  const yaEraEste = existing && existing._btn === btn;
+  if (existing) existing.remove();
+  if (yaEraEste || !desc) return;
+  const pop = document.createElement('div');
+  pop.id = 'popover-criterio';
+  pop._btn = btn;
+  pop.style.cssText = 'position:absolute;z-index:1000;max-width:300px;background:var(--surface);border:1.5px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.18);padding:10px 12px;font-size:12px;line-height:1.45;color:var(--text)';
+  pop.textContent = desc;
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  let left = window.scrollX + r.left;
+  const maxLeft = window.scrollX + window.innerWidth - 312;
+  if (left > maxLeft) left = Math.max(8, maxLeft);
+  pop.style.top = (window.scrollY + r.bottom + 4) + 'px';
+  pop.style.left = left + 'px';
+  setTimeout(() => {
+    document.addEventListener('click', function closeOnce(e) {
+      if (!pop.contains(e.target) && !btn.contains(e.target)) {
+        pop.remove();
+        document.removeEventListener('click', closeOnce);
+      }
+    });
+  }, 0);
+}
+
 function renderInstrumentosEval(niv) {
   const instr = niv._instruccionesEval;
   if (!instr || !Object.keys(instr).length) return '';
@@ -9337,8 +9496,12 @@ function renderInstrumentosEval(niv) {
         const m = cr.match(/^([\d.]+)\(([\d.]+)\)?$/);
         if (!m) return '<span style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);font-family:monospace">' + cr + '</span>';
         const cod = m[1], val = parseFloat(m[2]);
+        const desc = niv.criteriosDesc?.[cod] || '';
+        const codHtml = desc
+          ? '<span data-desc="' + encodeURIComponent(desc) + '" onclick="event.stopPropagation();togglePopoverCriterio(this,decodeURIComponent(this.dataset.desc))" style="color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline dotted" title="Ver descripción del criterio">' + cod + ' ⓘ</span>'
+          : '<span style="color:var(--accent);font-weight:700">' + cod + '</span>';
         return '<span style="background:var(--accent-bg);border:1px solid var(--accent);border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace;display:inline-flex;align-items:center;gap:4px">'
-          + '<span style="color:var(--accent);font-weight:700">' + cod + '</span>'
+          + codHtml
           + '<span style="color:var(--text3);font-size:9px">' + val.toFixed(3) + 'pt</span>'
           + '</span>';
       }
@@ -9737,6 +9900,8 @@ function anotaProcesarTexto(texto) {
     for (let ci = 1; ci < critSplit.length; ci += 2) {
       const codCrit   = critSplit[ci];
       const textoCrit = critSplit[ci+1] || '';
+      const descMatch = textoCrit.match(/^\.?\s*([\s\S]*?)\s*Eval\.?\s*Ordinaria:/i);
+      const desc = descMatch ? descMatch[1].replace(/\s+/g,' ').trim() : '';
       const valorMatch = textoCrit.match(/(\d+[,\.]\d+|\d+)\s*(?:CCL|CCEC|CC\b|CD\b|CE\b|CP\b|CPSAA|STEM)/);
       const valor = valorMatch ? parseFloat(valorMatch[1].replace(',','.')) : 0;
       const instrCrit = {};
@@ -9763,7 +9928,7 @@ function anotaProcesarTexto(texto) {
         }
       }
       if (Object.keys(instrCrit).length > 0 && codCrit) {
-        criterios.push({ codigo: codCrit, valor, instrumentos: instrCrit });
+        criterios.push({ codigo: codCrit, valor, instrumentos: instrCrit, desc });
       }
     }
 
@@ -10004,6 +10169,15 @@ function anotaConfirmarImport() {
     });
   });
 
+  // Mapa código→descripción de criterio (para el desplegable en Programación).
+  // Solo disponible para importaciones hechas a partir de esta versión.
+  const criteriosDesc = {};
+  _anotaUnidades.forEach(u => {
+    (u.criterios||[]).forEach(c => {
+      if (c.desc && !criteriosDesc[c.codigo]) criteriosDesc[c.codigo] = c.desc;
+    });
+  });
+
   const nivel = {
     id: uid(),
     nombre,
@@ -10011,7 +10185,8 @@ function anotaConfirmarImport() {
     fechaInicio: (()=>{ const f = _anotaUnidades[0]?.fechaIni || ''; return f && f >= dKey(new Date()) ? f : dKey(new Date()); })(),
     activo: true,
     bloques,
-    _instruccionesEval: instruccionesEval // para aplicar al grupo al asignarlo
+    _instruccionesEval: instruccionesEval, // para aplicar al grupo al asignarlo
+    criteriosDesc // { "1.1": "Identificar, comprender y explicar..." , ... }
   };
 
   APP.programacion.niveles.push(nivel);
