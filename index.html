@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.6</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.8</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1227,6 +1227,10 @@
               <input type="checkbox" id="inf-T3" checked style="accent-color:var(--accent)"> 3ª Evaluación
             </label>
           </div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)">
+            <input type="checkbox" id="inf-criterios" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
+            <span style="font-size:12px;font-weight:500">📐 Notas por criterio de evaluación <span style="font-size:10px;color:var(--text3);font-weight:400">(hoja aparte, para inspección/reuniones)</span></span>
+          </label>
         </div>
 
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2)">
@@ -3041,6 +3045,7 @@ function renderVistaLista(g, als) {
       <th>Alumno</th><th>Email</th>
       <th>${g.evalBloqueada?.T1?'🔒 ':''}1ª Eval.</th>
       <th>${g.evalBloqueada?.T2?'🔒 ':''}2ª Eval.</th>
+      <th>Media acum. 2ª</th>
       <th>${g.evalBloqueada?.T3?'🔒 ':''}3ª Eval.</th>
       <th>Nota final</th>
       ${cabExtra}
@@ -3077,7 +3082,10 @@ function renderVistaLista(g, als) {
           </div>
         </div></td>
         <td style="color:var(--text2)">${a.email||'—'}</td>
-        ${(()=>{const umbralA=getUmbral(a);const _sp=(n)=>{const nr2=n!==null&&umbralA!==null?redondear(n,umbralA):null;const bg=nr2!==null?(nr2<5?'#fee2e2':'#dcfce7'):'var(--surface2)';const col=nr2!==null?(nr2<5?'#991b1b':'#166534'):'var(--text3)';return`<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;background:${bg};color:${col}">${n!==null?fmtNota(n):'—'}</span>`};const nrFinal=nf!==null&&umbralA!==null?redondear(nf,umbralA):null;return`<td>${_sp(nt1)}</td><td>${_sp(nt2)}</td><td>${_sp(nt3)}</td><td><div style="display:flex;align-items:center;gap:6px">${_sp(nf)}${nf!==null&&nrFinal!==null&&nrFinal!==parseFloat(nf.toFixed(2))?`<span style="font-size:11px;color:var(--text3)">(${nrFinal})</span>`:''}</div></td>`})()}
+        ${(()=>{const umbralA=getUmbral(a);const _sp=(n)=>{const nr2=n!==null&&umbralA!==null?redondear(n,umbralA):null;const bg=nr2!==null?(nr2<5?'#fee2e2':'#dcfce7'):'var(--surface2)';const col=nr2!==null?(nr2<5?'#991b1b':'#166534'):'var(--text3)';return`<span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;background:${bg};color:${col}">${n!==null?fmtNota(n):'—'}</span>`};
+          const mediaAcum = (nt1!==null && nt2!==null) ? (nt1+nt2)/2 : null;
+          const nrFinal=nf!==null&&umbralA!==null?redondear(nf,umbralA):null;
+          return`<td>${_sp(nt1)}</td><td>${_sp(nt2)}</td><td><span style="display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;background:var(--surface2);color:var(--text2)">${mediaAcum!==null?mediaAcum.toFixed(2):'—'}</span></td><td>${_sp(nt3)}</td><td><div style="display:flex;align-items:center;gap:6px">${_sp(nf)}${nf!==null&&nrFinal!==null&&nrFinal!==parseFloat(nf.toFixed(2))?`<span style="font-size:11px;color:var(--text3)">(${nrFinal})</span>`:''}</div></td>`})()}
         <td onclick="event.stopPropagation()">
           ${cfg ? modoEdicion
             ? `<input type="number" min="0" max="10" step="0.01"
@@ -4641,6 +4649,15 @@ function renderTabNotas(a) {
       <div class="nota-pill ${notaColor(nrtrim)}" style="font-size:13px;padding:6px 14px">${notaLabel(nrtrim)}</div>
     </div>` : '';
 
+  const mediaAcumBloque = (trimestreActual === 'T2') ? (() => {
+    const nt1 = calcNotaTrimestre(a, 'T1');
+    const mediaAcum = (nt1 !== null && ntrim !== null) ? (nt1 + ntrim) / 2 : null;
+    return `<div style="text-align:center">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Media acumulada 2ª evaluación</div>
+      <div style="font-size:24px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text)">${mediaAcum!==null?mediaAcum.toFixed(2):'—'}</div>
+    </div>`;
+  })() : '';
+
   const trimHtml = `
   ${instrHtml}
   ${resumenHtml}
@@ -4650,6 +4667,7 @@ function renderTabNotas(a) {
       <div style="font-size:24px;font-weight:600;font-family:'DM Mono',monospace">${fmtNota(ntrim)}</div>
     </div>
     ${redondBloque}
+    ${mediaAcumBloque}
   </div>`;
 
   const trimLabels = { T1: '1ª Evaluación', T2: '2ª Evaluación', T3: '3ª Evaluación' };
@@ -14732,6 +14750,7 @@ function ejecutarExportarInforme() {
     centro:     document.getElementById('inf-centro')?.checked,
     datos:      document.getElementById('inf-datos')?.checked,
     notas:      document.getElementById('inf-notas')?.checked,
+    criterios:  document.getElementById('inf-criterios')?.checked,
     obs:        document.getElementById('inf-obs')?.checked,
     reuniones:  document.getElementById('inf-reuniones')?.checked,
     pendientes: document.getElementById('inf-pendientes')?.checked,
@@ -14794,6 +14813,64 @@ function generarInformeAlumno(aid, opciones) {
 
   const notaFinal = calcNotaFinal(a);
   const notaFinalRed = redOn && umbral && notaFinal !== null ? redondear(notaFinal, umbral) : null;
+
+  // Notas por criterio de evaluación (opcional, hoja aparte) — reparte la nota del
+  // instrumento entre sus criterios proporcionalmente al "valor" de cada uno (Anota).
+  let criteriosHTML = '';
+  if (opciones.criterios) {
+    const niv = APP.programacion?.niveles?.find(n => (n.grupos||[]).includes(a.grupoId));
+    const bloquesTrim = trimsSeleccionados.map(t => {
+      const insts = getInstrumentosConValores(a, t);
+      const filasInst = insts.map(inst => {
+        const lista = (inst.criterios||'').split(',').map(s=>s.trim()).filter(Boolean);
+        if (!lista.length) return '';
+        const notaInst = calcNota(inst.items);
+        const filasCrit = lista.map(cr => {
+          const m = cr.match(/^([\d.]+)\(([\d.]+)\)?$/);
+          if (!m) return '';
+          const cod = m[1], val = parseFloat(m[2]);
+          const notaCrit = notaInst !== null ? (val * notaInst / 10) : null;
+          const desc = niv?.criteriosDesc?.[cod] || '';
+          return `<tr>
+            <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;font-weight:600;white-space:nowrap">${cod}</td>
+            <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;color:#555">${desc||'<span style="color:#aaa;font-style:italic">Sin descripción (importada antes de activar esta función)</span>'}</td>
+            <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;text-align:center;color:#888">${val.toFixed(3)}</td>
+            <td style="padding:4px 10px;border:1px solid #ddd;font-size:11px;text-align:center;font-weight:700;color:${notaCrit!==null&&notaInst<5?'#c0392b':'#1a7a4a'}">${notaCrit!==null?notaCrit.toFixed(2):'—'}</td>
+          </tr>`;
+        }).join('');
+        if (!filasCrit) return '';
+        return `<tr style="background:#f5f5f5">
+          <td colspan="4" style="padding:5px 10px;border:1px solid #ddd;font-size:12px;font-weight:700">${inst.nombre} <span style="font-weight:400;color:#666">— nota del instrumento: ${notaInst!==null?notaInst.toFixed(2):'—'}</span></td>
+        </tr>${filasCrit}`;
+      }).filter(Boolean).join('');
+      if (!filasInst) return '';
+      return `<div style="margin-bottom:20px">
+        <div style="background:#2c2c2c;color:#fff;padding:8px 12px;border-radius:4px 4px 0 0">
+          <span style="font-weight:700;font-size:13px">${labTrim[t]}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:#f0f0f0">
+            <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px;text-align:left">Criterio</th>
+            <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px;text-align:left">Descripción</th>
+            <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px">Valor máx.</th>
+            <th style="padding:5px 10px;border:1px solid #ddd;font-size:11px">Nota</th>
+          </tr></thead>
+          <tbody>${filasInst}</tbody>
+        </table>
+      </div>`;
+    }).filter(Boolean).join('');
+
+    criteriosHTML = bloquesTrim
+      ? `<div style="page-break-before:always;padding:24px 16px 0">
+          <div class="seccion-titulo">Evaluación por criterios</div>
+          <p style="font-size:11px;color:#888;margin-bottom:14px">La nota de cada criterio se calcula a partir de la nota del instrumento correspondiente, repartida proporcionalmente a su valor máximo.</p>
+          ${bloquesTrim}
+        </div>`
+      : `<div style="page-break-before:always;padding:24px 16px 0">
+          <div class="seccion-titulo">Evaluación por criterios</div>
+          <p style="color:#aaa;font-size:12px;font-style:italic">No hay criterios asociados a los instrumentos de las evaluaciones seleccionadas.</p>
+        </div>`;
+  }
 
   // Observaciones — solo las no privadas
   const obsPublicas = (a.observaciones||[]).filter(o => !o.privada);
@@ -14928,6 +15005,7 @@ function generarInformeAlumno(aid, opciones) {
       ${reunHTML}
     </div>
   </div>
+  ${criteriosHTML}
 </div>
 </body></html>`;
 
