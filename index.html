@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.8</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.9</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2314,13 +2314,26 @@ function renderInicio() {
           const notas = APP.config?.notasRecuerda || [];
           const visibles = notas.map((n, i) => ({...n, _idx: i})).filter(n => !n.oculto);
           if (!visibles.length) return '';
-          return visibles.map(n => `
+          return visibles.map(n => {
+            if (n._idx === _notaEditandoIdx) {
+              return `
+              <div style="display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface2)">
+                <input id="nota-edit-input-${n._idx}" type="text" value="${n.texto.replace(/"/g,'&quot;')}"
+                  style="flex:1;padding:6px 10px;border:1.5px solid var(--accent);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
+                  onkeydown="if(event.key==='Enter')guardarEdicionNota(${n._idx});if(event.key==='Escape')cancelarEdicionNota()">
+                <button onclick="guardarEdicionNota(${n._idx})" style="padding:6px 12px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Guardar</button>
+                <button onclick="cancelarEdicionNota()" style="padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:none;color:var(--text3);font-size:13px;cursor:pointer">✕</button>
+              </div>`;
+            }
+            return `
             <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--accent-bg)">
               <span style="font-size:14px;flex-shrink:0">📌</span>
               <div style="flex:1;font-size:13px;color:var(--text);line-height:1.4">${n.texto}</div>
+              <button onclick="editarNota(${n._idx})" title="Editar" style="background:none;border:none;color:var(--text3);opacity:0.7;font-size:14px;cursor:pointer;flex-shrink:0;padding:0 2px">✏️</button>
               <button onclick="ocultarNota(${n._idx})" title="Ocultar" style="background:none;border:none;color:var(--text3);opacity:0.7;font-size:14px;cursor:pointer;flex-shrink:0;padding:0 2px">👁️‍🗨️</button>
               <button onclick="borrarNota(${n._idx})" title="Borrar" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;flex-shrink:0;padding:0 2px">✕</button>
-            </div>`).join('');
+            </div>`;
+          }).join('');
         })()}
         <!-- Sin nada que mostrar -->
         ${(() => {
@@ -2811,6 +2824,32 @@ function borrarNota(idx) {
 
 // ── Ocultar/mostrar recordatorios (automáticos y notas manuales) ──
 let _recuerdaOcultosAbierto = false;
+let _notaEditandoIdx = null;
+
+function editarNota(idx) {
+  _notaEditandoIdx = idx;
+  renderPage('inicio');
+  setTimeout(() => {
+    const inp = document.getElementById('nota-edit-input-' + idx);
+    if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }, 0);
+}
+
+function guardarEdicionNota(idx) {
+  const inp = document.getElementById('nota-edit-input-' + idx);
+  if (!inp || !APP.config.notasRecuerda?.[idx]) return;
+  const texto = inp.value.trim();
+  if (!texto) return;
+  APP.config.notasRecuerda[idx].texto = texto;
+  _notaEditandoIdx = null;
+  guardarDatos();
+  renderPage('inicio');
+}
+
+function cancelarEdicionNota() {
+  _notaEditandoIdx = null;
+  renderPage('inicio');
+}
 
 function toggleOcultosRecuerda() {
   _recuerdaOcultosAbierto = !_recuerdaOcultosAbierto;
