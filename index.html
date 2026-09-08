@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.9</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.10</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -2288,6 +2288,8 @@ function renderInicio() {
           <div style="font-weight:600;font-size:13px">🔔 Recuerda</div>
           <div style="display:flex;gap:6px;align-items:center">
             <span style="font-size:11px;color:var(--text3)">Próximos 7 días</span>
+            ${_notaBorradaUndo ? `<button onclick="deshacerBorrarNota()" title="Deshacer borrado"
+              style="padding:0 10px;height:24px;border-radius:6px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px">↩️ Deshacer</button>` : ''}
             <button onclick="abrirNuevaNota()" title="Añadir nota"
               style="width:24px;height:24px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent-bg);color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
           </div>
@@ -2810,14 +2812,28 @@ function guardarNota() {
   if (!texto) return;
   if (!APP.config.notasRecuerda) APP.config.notasRecuerda = [];
   APP.config.notasRecuerda.unshift({ id: Date.now(), texto, fecha: new Date().toISOString().slice(0,10) });
+  _notaBorradaUndo = null;
   guardarDatos();
   cerrarNuevaNota();
   renderPage('inicio');
 }
 
 function borrarNota(idx) {
-  if (!APP.config.notasRecuerda) return;
-  APP.config.notasRecuerda.splice(idx, 1);
+  if (!APP.config.notasRecuerda?.[idx]) return;
+  confirmar('Borrar nota', '¿Seguro que quieres borrar esta nota? "' + APP.config.notasRecuerda[idx].texto + '"', () => {
+    _notaBorradaUndo = { idx, nota: APP.config.notasRecuerda[idx] };
+    APP.config.notasRecuerda.splice(idx, 1);
+    guardarDatos();
+    renderPage('inicio');
+  }, 'Borrar');
+}
+
+function deshacerBorrarNota() {
+  if (!_notaBorradaUndo) return;
+  if (!APP.config.notasRecuerda) APP.config.notasRecuerda = [];
+  const pos = Math.min(_notaBorradaUndo.idx, APP.config.notasRecuerda.length);
+  APP.config.notasRecuerda.splice(pos, 0, _notaBorradaUndo.nota);
+  _notaBorradaUndo = null;
   guardarDatos();
   renderPage('inicio');
 }
@@ -2825,6 +2841,7 @@ function borrarNota(idx) {
 // ── Ocultar/mostrar recordatorios (automáticos y notas manuales) ──
 let _recuerdaOcultosAbierto = false;
 let _notaEditandoIdx = null;
+let _notaBorradaUndo = null;
 
 function editarNota(idx) {
   _notaEditandoIdx = idx;
