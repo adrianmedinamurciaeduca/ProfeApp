@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.10</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.11</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -5594,6 +5594,51 @@ function buscarDuplicado(nre, email, excludeId) {
   });
 }
 
+// Busca un alumno ya existente que coincida con los datos dados, en este orden:
+// 1) email  2) NRE  3) nombre+apellidos a la vez (solo dentro del mismo grupo).
+// Email y NRE no se repiten nunca entre alumnos, así que se buscan en toda la app;
+// nombre+apellidos sí podrían coincidir por casualidad entre alumnos distintos,
+// por eso ese match se limita al grupo indicado.
+function buscarAlumnoExistente(datos, grupoId) {
+  const email = (datos.email||'').trim().toLowerCase();
+  const nre = (datos.nre||'').trim();
+  const nombre = (datos.nombre||'').trim();
+  const apellidos = (datos.apellidos||'').trim();
+  const norm = s => (s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if (email) {
+    const m = APP.alumnos.find(a => (a.email||'').trim().toLowerCase() === email);
+    if (m) return m;
+  }
+  if (nre) {
+    const m = APP.alumnos.find(a => (a.nre||'').trim() === nre);
+    if (m) return m;
+  }
+  if (nombre && apellidos && grupoId) {
+    const m = APP.alumnos.find(a => a.grupoId === grupoId && norm(a.nombre) === norm(nombre) && norm(a.apellidos) === norm(apellidos));
+    if (m) return m;
+  }
+  return null;
+}
+
+// Rellena en `existente` solo los campos que tenga vacíos, sin tocar los que ya tuviera.
+// Devuelve true si se ha cambiado algo.
+function completarCamposAlumno(existente, datos) {
+  let cambiado = false;
+  ['nombre','apellidos','email','nre','telefono','nLista'].forEach(k => {
+    if (!existente[k] && datos[k]) { existente[k] = datos[k]; cambiado = true; }
+  });
+  if (datos.camposExtra && datos.camposExtra.length) {
+    if (!existente.camposExtra) existente.camposExtra = [];
+    datos.camposExtra.forEach(ce => {
+      if (!ce.valor) return;
+      const ex = existente.camposExtra.find(x => x.nombre === ce.nombre);
+      if (ex) { if (!ex.valor) { ex.valor = ce.valor; cambiado = true; } }
+      else { existente.camposExtra.push(ce); cambiado = true; }
+    });
+  }
+  return cambiado;
+}
+
 function crearAlumno() {
   const nombre = document.getElementById('nn-nombre')?.value?.trim();
   const apellidos = document.getElementById('nn-apellidos')?.value?.trim();
@@ -5602,11 +5647,17 @@ function crearAlumno() {
   const email = document.getElementById('nn-email')?.value?.trim() || '';
   const nre = document.getElementById('nn-nre')?.value?.trim() || '';
 
-  // Comprobar duplicado por NRE o email
-  const dup = buscarDuplicado(nre, email, null);
-  if (dup) {
-    const g = APP.grupos.find(x => x.id === dup.grupoId);
-    alert(`⚠ Ya existe un alumno con ${nre && dup.nre === nre ? 'el mismo NRE' : 'el mismo email'}:\n${dup.apellidos || ''}, ${dup.nombre || ''} (${g?.nombre || 'otro grupo'})\n\nNo se ha creado el alumno.`);
+  // Comprobar si ya existe (email → NRE → nombre+apellidos en el mismo grupo)
+  const existente = buscarAlumnoExistente({nombre, apellidos, email, nre}, grupoId);
+  if (existente) {
+    const cambiado = completarCamposAlumno(existente, {nombre, apellidos, email, nre});
+    guardarDatos();
+    cerrarModalNuevo();
+    renderPage();
+    const g = APP.grupos.find(x => x.id === existente.grupoId);
+    mostrarToast(cambiado
+      ? `✓ El alumno ya existía (${g?.nombre||'otro grupo'}) — se han completado los campos que faltaban.`
+      : `El alumno ya existía (${g?.nombre||'otro grupo'}) — no había campos nuevos que añadir.`);
     return;
   }
 
@@ -6873,9 +6924,10 @@ function ejecutarImportacion() {
     columnasMapeadas[sel.dataset.campo] = parseInt(sel.value);
   });
 
-  const camposExtra = window._camposExtraImport || [];
   let count = 0;
-  const duplicados = [];
+  let nuevos = 0;
+  let actualizados = 0;
+  const camposExtra = window._camposExtraImport || [];
   datosPreview.forEach(row => {
     const ap1 = columnasMapeadas.apellidos>=0 ? String(row[columnasMapeadas.apellidos]||'').trim() : '';
     const ap2 = columnasMapeadas.apellido2>=0  ? String(row[columnasMapeadas.apellido2]||'').trim()  : '';
@@ -6884,35 +6936,27 @@ function ejecutarImportacion() {
     if (!nombre && !apellidos) return;
     const email = columnasMapeadas.email>=0    ? String(row[columnasMapeadas.email]||'').trim()    : '';
     const nre   = columnasMapeadas.nre>=0      ? String(row[columnasMapeadas.nre]||'').trim()      : '';
-
-    // Comprobar duplicado — si existe por email, actualizar campos vacíos (Classroom+Plumier merge)
-    const dup = buscarDuplicado(nre, email, null);
-    if (dup) {
-      // Si tiene email coincidente y le faltan campos, actualizarlos
-      const alumnoExistente = email ? APP.alumnos.find(a => a.email === email && a.grupoId === grupoId) : null;
-      if (alumnoExistente) {
-        if (!alumnoExistente.nre && nre) alumnoExistente.nre = nre;
-        if (!alumnoExistente.nombre && nombre) alumnoExistente.nombre = nombre;
-        if (!alumnoExistente.apellidos && apellidos) alumnoExistente.apellidos = apellidos;
-        if (!alumnoExistente.nLista && columnasMapeadas.nLista>=0) alumnoExistente.nLista = String(row[columnasMapeadas.nLista]||'').trim();
-        if (!alumnoExistente.telefono && columnasMapeadas.telefono>=0) alumnoExistente.telefono = String(row[columnasMapeadas.telefono]||'').trim();
-        count++; // cuenta como procesado
-      } else {
-        duplicados.push(`${apellidos}, ${nombre} (${nre||email})`);
-      }
-      return;
-    }
-
+    const telefono = columnasMapeadas.telefono>=0 ? String(row[columnasMapeadas.telefono]||'').trim() : '';
+    const nLista   = columnasMapeadas.nLista>=0   ? String(row[columnasMapeadas.nLista]||'').trim()   : '';
     const extras = camposExtra
       .filter(ce => ce.col >= 0)
       .map(ce => ({nombre: ce.label, valor: String(row[ce.col]||'').trim()}));
+
+    // Emparejar por email → NRE → nombre+apellidos (mismo grupo); completar si ya existía
+    const existente = buscarAlumnoExistente({nombre, apellidos, email, nre}, grupoId);
+    if (existente) {
+      completarCamposAlumno(existente, {nombre, apellidos, email, nre, telefono, nLista, camposExtra: extras});
+      actualizados++;
+      count++;
+      return;
+    }
+
     APP.alumnos.push({
-      id: uid(), nombre, apellidos, email, nre,
-      telefono: columnasMapeadas.telefono>=0 ? String(row[columnasMapeadas.telefono]||'').trim() : '',
-      nLista: columnasMapeadas.nLista>=0 ? String(row[columnasMapeadas.nLista]||'').trim() : '',
+      id: uid(), nombre, apellidos, email, nre, telefono, nLista,
       grupoId, retrasos:0, acnee:false, foto:null,
       notas:{}, observaciones:[], reuniones:[], camposExtra: extras
     });
+    nuevos++;
     count++;
   });
   // Reordenar el grupo importado
@@ -6921,14 +6965,13 @@ function ejecutarImportacion() {
   window._camposExtraImport = [];
   document.getElementById('import-config').classList.add('hidden');
   const res = document.getElementById('import-result');
-  let msg = `✓ ${count} alumno${count!==1?'s':''} importado${count!==1?'s':''} correctamente.`;
-  if (duplicados.length) {
-    msg += `\n\n⚠ ${duplicados.length} omitido${duplicados.length!==1?'s':''} por duplicado (NRE o email ya existe):\n${duplicados.join('\n')}`;
-  }
+  let msg = `✓ ${count} alumno${count!==1?'s':''} procesado${count!==1?'s':''}: ${nuevos} nuevo${nuevos!==1?'s':''}`;
+  if (actualizados) msg += `, ${actualizados} ya existente${actualizados!==1?'s':''} (campos vacíos completados)`;
+  msg += '.';
   res.style.whiteSpace = 'pre-wrap';
   res.textContent = msg;
   res.classList.remove('hidden');
-  setTimeout(()=>{ navTo('alumnos'); }, duplicados.length ? 4000 : 1800);
+  setTimeout(()=>{ navTo('alumnos'); }, 1800);
 }
 
 // =====================
@@ -14115,7 +14158,6 @@ async function _ejecutarImportarAlumnosClassroom(gid, cursoId) {
   if (!g) return;
   if (!APP.alumnos) APP.alumnos = [];
 
-  const norm = s => (s||'').toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g,'');
   let nuevos = 0, actualizados = 0;
 
   estudiantes.forEach(est => {
@@ -14125,20 +14167,10 @@ async function _ejecutarImportarAlumnosClassroom(gid, cursoId) {
     const apellidos = prof?.name?.familyName || '';
     const userId = est.userId || '';
 
-    // Match by email first, then by name
-    let existing = email
-      ? APP.alumnos.find(a => a.grupoId === gid && (a.email||'').toLowerCase().trim() === email)
-      : null;
-    if (!existing && nombre && apellidos) {
-      existing = APP.alumnos.find(a => a.grupoId === gid
-        && norm(a.nombre) === norm(nombre)
-        && norm(a.apellidos) === norm(apellidos));
-    }
+    const existing = buscarAlumnoExistente({nombre, apellidos, email}, gid);
 
     if (existing) {
-      if (!existing.nombre && nombre) existing.nombre = nombre;
-      if (!existing.apellidos && apellidos) existing.apellidos = apellidos;
-      if (!existing.email && email) existing.email = email;
+      completarCamposAlumno(existing, {nombre, apellidos, email});
       if (!existing._classroomUserId && userId) existing._classroomUserId = userId;
       actualizados++;
     } else {
