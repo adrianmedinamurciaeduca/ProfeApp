@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.11</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.12</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -15550,9 +15550,17 @@ function _buildModalContent(sesiones, insts, titulo, trim) {
       +'<td style="padding:6px 4px;text-align:center"><input type="checkbox" id="ap-cb-'+i+'" checked></td>'
       +'<td style="padding:6px 8px;font-size:12px">'+s.tipoIcon+' <strong>'+s.titulo+'</strong>'+(s.bloque?'<br><span style="font-size:10px;color:var(--text3)">'+s.bloque+'</span>':'')+'</td>'
       +'<td style="padding:6px 4px;font-size:11px;color:var(--text3);white-space:nowrap">'+(s.fecha||'—')+'</td>'
-      +'<td style="padding:6px 4px"><select onchange="_apSelSesiones['+i+'].instIdx=parseInt(this.value)" style="font-size:11px;padding:2px 4px;border:1px solid var(--border2);border-radius:4px;background:var(--surface)">'+selOpts+'</select></td>'
+      +'<td style="padding:6px 4px"><select id="ap-sel-'+i+'" onchange="_apSelSesiones['+i+'].instIdx=parseInt(this.value)" style="font-size:11px;padding:2px 4px;border:1px solid var(--border2);border-radius:4px;background:var(--surface)">'+selOpts+'</select></td>'
       +'</tr>';
   }).join('');
+  const bulkSel = insts.length > 1 ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--accent-bg);border:1px dashed var(--accent);border-radius:8px;flex-wrap:wrap">'
+    +'<label style="font-size:12px;font-weight:700;color:var(--accent)">📋 Aplicar instrumento a todas las sesiones:</label>'
+    +'<select onchange="_aplicarInstrumentoATodos(parseInt(this.value))" style="font-size:12px;padding:4px 8px;border:1px solid var(--accent);border-radius:6px;background:var(--surface)">'
+    +'<option value="" disabled'+(_apSelInstBulk===null?' selected':'')+'>Elegir...</option>'
+    +insts.map((inst,i)=>'<option value="'+i+'"'+(_apSelInstBulk===i?' selected':'')+'>'+inst.nombre+'</option>').join('')
+    +'</select>'
+    +'<span style="font-size:10px;color:var(--text3)">Se recuerda al cambiar de evaluación</span>'
+    +'</div>' : '';
   const trimSel = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+ '<label style="font-size:13px;font-weight:600;color:var(--text2)">Evaluaci\u00f3n:</label>'+ '<select id="ap-trim-sel" onchange="_rebuildApartadosModal(this.value)" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'+ '<option value="T1"'+(trim==='T1'?' selected':'')+'>1\u00aa Evaluaci\u00f3n</option>'+ '<option value="T2"'+(trim==='T2'?' selected':'')+'>2\u00aa Evaluaci\u00f3n</option>'+ '<option value="T3"'+(trim==='T3'?' selected':'')+'>3\u00aa Evaluaci\u00f3n</option>'+ '</select></div>';
   const selectAllBtn = sesiones.length > 0
     ? '<div style="display:flex;gap:8px;margin-bottom:8px">'
@@ -15560,7 +15568,9 @@ function _buildModalContent(sesiones, insts, titulo, trim) {
       + '<button onclick="document.querySelectorAll(\'#ap-modal-body input[type=checkbox]\').forEach(cb=>cb.checked=false)" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);cursor:pointer">☐ Ninguno</button>'
       + '</div>'
     : '';
-  return '<p style="font-size:13px;color:var(--text2);margin-bottom:10px">'+titulo+'</p>'+ trimSel
+  return '<p style="font-size:13px;color:var(--text2);margin-bottom:10px">'+titulo+'</p>'
+    + bulkSel
+    + trimSel
     +'<p style="font-size:12px;background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:8px;margin-bottom:10px">'
     +'ℹ️ Los % se repartirán igualmente entre todos los apartados del instrumento (modo aritmético, suman 100%). Para ponderarlos ve a <strong>Notas de clase</strong> después.</p>'
     + selectAllBtn
@@ -15573,6 +15583,18 @@ function _buildModalContent(sesiones, insts, titulo, trim) {
     +'</tr></thead><tbody>'+filas+'</tbody></table></div>';
 }
 
+// Aplica un instrumento a todas las sesiones visibles ahora mismo, y se recuerda
+// para que al cambiar de evaluación (o reabrir desde un bloque) se siga aplicando.
+function _aplicarInstrumentoATodos(idx) {
+  if (isNaN(idx)) return;
+  _apSelInstBulk = idx;
+  (window._apSelSesiones || []).forEach((s, i) => {
+    s.instIdx = idx;
+    const sel = document.getElementById('ap-sel-' + i);
+    if (sel) sel.value = idx;
+  });
+}
+
 function _abreviarBloque(titulo) {
   // Remove leading articles
   const sinArticulo = titulo.replace(/^(el|la|los|las|un|una|unos|unas)\s+/i, '').trim();
@@ -15581,6 +15603,7 @@ function _abreviarBloque(titulo) {
   return abrev.charAt(0).toUpperCase() + abrev.slice(1).toLowerCase();
 }
 
+let _apSelInstBulk = null;
 function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
   const examInstIdx = insts.findIndex(x => /exam|prueba|escrit|test|ev[ao]lu/i.test(x.nombre));
   const defaultInstIdx = insts.findIndex(x => !/exam|prueba|escrit|test|ev[ao]lu/i.test(x.nombre));
@@ -15601,6 +15624,7 @@ function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
         const esUltima = si === bSes.length - 1;
         let instIdx = dIdx;
         if ((s.tipo==='examen' || esUltima) && examInstIdx >= 0) instIdx = examInstIdx;
+        if (_apSelInstBulk !== null && insts[_apSelInstBulk]) instIdx = _apSelInstBulk;
         sesiones.push({
           titulo: 'S' + numEnBloque + ' ' + abrev, tipo: s.tipo,
           tipoIcon: tipoIcon[s.tipo]||'📘',
@@ -15617,6 +15641,7 @@ function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
 
 function abrirModalApartadosDeSesiones(ni, gids) {
   _apSelNi = ni; _apSelGids = gids;
+  _apSelInstBulk = null;
   const niv = APP.programacion.niveles[ni];
   const insts = _getInstsParaModal(ni);
   if (!insts.length) { renderPage(); return; }
@@ -15646,6 +15671,7 @@ function abrirModalApartadosDeSesionesDesdeBloque(ni, bi) {
   const gids = niv.grupos || [];
   if (!gids.length) { alert('Asigna este nivel a al menos un grupo primero.'); return; }
   _apSelNi = ni; _apSelGids = gids;
+  _apSelInstBulk = null;
   const insts = _getInstsParaModal(ni);
   if (!insts.length) { mostrarToast('No se encontraron instrumentos de evaluación.'); return; }
   const fechas = _calcFechasSesiones(ni);
