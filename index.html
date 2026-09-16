@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.15</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.16</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -9669,7 +9669,11 @@ function renderInstrumentosEval(niv) {
         if (!m) return '<span style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);font-family:monospace">' + cr + '</span>';
         const cod = m[1], val = parseFloat(m[2]);
         const desc = niv.criteriosDesc?.[cod] || '';
-        const codHtml = '<span onclick="event.stopPropagation();togglePopoverCriterioEditable(this,\'' + niv.id + '\',\'' + cod + '\')" style="color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline dotted" title="Ver/editar descripción del criterio">' + cod + (desc ? ' ⓘ' : ' ✎') + '</span>';
+        const codHtml = t === 'T1'
+          ? '<span onclick="event.stopPropagation();togglePopoverCriterioEditable(this,\'' + niv.id + '\',\'' + cod + '\')" style="color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline dotted" title="Ver/editar descripción del criterio (se aplica a las 3 evaluaciones)">' + cod + (desc ? ' ⓘ' : ' ✎') + '</span>'
+          : (desc
+              ? '<span data-desc="' + encodeURIComponent(desc) + '" onclick="event.stopPropagation();togglePopoverCriterio(this,decodeURIComponent(this.dataset.desc))" style="color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline dotted" title="Ver descripción del criterio (se edita desde la 1ª Evaluación)">' + cod + ' ⓘ</span>'
+              : '<span style="color:var(--accent);font-weight:700" title="Sin descripción — añádela desde la 1ª Evaluación">' + cod + '</span>');
         return '<span style="background:var(--accent-bg);border:1px solid var(--accent);border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace;display:inline-flex;align-items:center;gap:4px">'
           + codHtml
           + '<span style="color:var(--text3);font-size:9px">' + val.toFixed(3) + 'pt</span>'
@@ -15599,8 +15603,9 @@ function _buildModalContent(sesiones, insts, titulo, trim) {
   const instOpts = insts.map((inst,i)=>'<option value="'+i+'">'+inst.nombre+'</option>').join('');
   const filas = sesiones.map((s,i)=>{
     const selOpts = instOpts.replace('value="'+s.instIdx+'"','value="'+s.instIdx+'" selected');
+    const chk = s.checked !== false ? 'checked' : '';
     return '<tr style="border-bottom:1px solid var(--border)">'
-      +'<td style="padding:6px 4px;text-align:center"><input type="checkbox" id="ap-cb-'+i+'" checked></td>'
+      +'<td style="padding:6px 4px;text-align:center"><input type="checkbox" id="ap-cb-'+i+'" '+chk+'></td>'
       +'<td style="padding:6px 8px;font-size:12px">'+s.tipoIcon+' <strong>'+s.titulo+'</strong>'+(s.bloque?'<br><span style="font-size:10px;color:var(--text3)">'+s.bloque+'</span>':'')+'</td>'
       +'<td style="padding:6px 4px;font-size:11px;color:var(--text3);white-space:nowrap">'+(s.fecha||'—')+'</td>'
       +'<td style="padding:6px 4px"><select id="ap-sel-'+i+'" onchange="_apSelSesiones['+i+'].instIdx=parseInt(this.value)" style="font-size:11px;padding:2px 4px;border:1px solid var(--border2);border-radius:4px;background:var(--surface)">'+selOpts+'</select></td>'
@@ -15614,7 +15619,7 @@ function _buildModalContent(sesiones, insts, titulo, trim) {
     +'</select>'
     +'<span style="font-size:10px;color:var(--text3)">Se recuerda al cambiar de evaluación</span>'
     +'</div>' : '';
-  const trimSel = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+ '<label style="font-size:13px;font-weight:600;color:var(--text2)">Evaluaci\u00f3n:</label>'+ '<select id="ap-trim-sel" onchange="_rebuildApartadosModal(this.value)" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'+ '<option value="T1"'+(trim==='T1'?' selected':'')+'>1\u00aa Evaluaci\u00f3n</option>'+ '<option value="T2"'+(trim==='T2'?' selected':'')+'>2\u00aa Evaluaci\u00f3n</option>'+ '<option value="T3"'+(trim==='T3'?' selected':'')+'>3\u00aa Evaluaci\u00f3n</option>'+ '</select></div>';
+  const trimSel = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+ '<label style="font-size:13px;font-weight:600;color:var(--text2)">Evaluaci\u00f3n:</label>'+ '<select id="ap-trim-sel" onchange="_mostrarTrimApartadosModal(this.value)" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px;background:var(--surface)">'+ '<option value="T1"'+(trim==='T1'?' selected':'')+'>1\u00aa Evaluaci\u00f3n</option>'+ '<option value="T2"'+(trim==='T2'?' selected':'')+'>2\u00aa Evaluaci\u00f3n</option>'+ '<option value="T3"'+(trim==='T3'?' selected':'')+'>3\u00aa Evaluaci\u00f3n</option>'+ '</select></div>';
   const selectAllBtn = sesiones.length > 0
     ? '<div style="display:flex;gap:8px;margin-bottom:8px">'
       + '<button onclick="document.querySelectorAll(\'#ap-modal-body input[type=checkbox]\').forEach(cb=>cb.checked=true)" style="font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);cursor:pointer">☑ Todos</button>'
@@ -15636,13 +15641,15 @@ function _buildModalContent(sesiones, insts, titulo, trim) {
     +'</tr></thead><tbody>'+filas+'</tbody></table></div>';
 }
 
-// Aplica un instrumento a todas las sesiones visibles ahora mismo, y se recuerda
-// para que al cambiar de evaluación (o reabrir desde un bloque) se siga aplicando.
+// Aplica un instrumento a todas las sesiones de las 3 evaluaciones (no solo la que
+// se ve ahora mismo), y queda recordado para sesiones que aún no se han revisado.
 function _aplicarInstrumentoATodos(idx) {
   if (isNaN(idx)) return;
   _apSelInstBulk = idx;
+  ['T1','T2','T3'].forEach(t => {
+    (window._apSelPorTrim?.[t] || []).forEach(s => { s.instIdx = idx; });
+  });
   (window._apSelSesiones || []).forEach((s, i) => {
-    s.instIdx = idx;
     const sel = document.getElementById('ap-sel-' + i);
     if (sel) sel.value = idx;
   });
@@ -15693,6 +15700,17 @@ function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
   return sesiones;
 }
 
+// Construye, de golpe, las sesiones de las 3 evaluaciones (respetando el filtro de
+// bloque si venimos de "abrirModalApartadosDeSesionesDesdeBloque"). Cada evaluación
+// queda en su propio array y conserva su estado (marcadas/instrumento) hasta el
+// "Confirmar" final, aunque el usuario navegue entre evaluaciones antes de confirmar.
+function _construirTodosTrimsApartados(niv, insts, fechas) {
+  window._apSelPorTrim = {};
+  ['T1','T2','T3'].forEach(t => {
+    window._apSelPorTrim[t] = _buildSesiones(niv, insts, fechas, _apSelBiFiltro, t);
+  });
+}
+
 function abrirModalApartadosDeSesiones(ni, gids) {
   _apSelNi = ni; _apSelGids = gids;
   _apSelInstBulk = null;
@@ -15703,16 +15721,30 @@ function abrirModalApartadosDeSesiones(ni, gids) {
   const fechas = _calcFechasSesiones(ni);
   window._apSelNivFechas = fechas;
   window._apSelInsts = insts;
+  _construirTodosTrimsApartados(niv, insts, fechas);
   const trimDef = Object.keys(niv._instruccionesEval||{T1:1}).sort()[0] || 'T1';
-  _rebuildApartadosModal(trimDef);
+  _mostrarTrimApartadosModal(trimDef);
   document.getElementById('modal-ap-sesiones').classList.remove('hidden');
 }
 
-function _rebuildApartadosModal(trim) {
+// Antes de cambiar de evaluación, vuelca el estado de las casillas (marcada/
+// desmarcada) de la evaluación visible en su array, para no perderlo.
+function _guardarEstadoTrimVisible() {
+  const trimVisible = window._apSelTrimActual;
+  const sesiones = window._apSelSesiones;
+  if (!trimVisible || !sesiones) return;
+  sesiones.forEach((s, i) => {
+    const cb = document.getElementById('ap-cb-' + i);
+    if (cb) s.checked = cb.checked;
+  });
+}
+
+function _mostrarTrimApartadosModal(trim) {
+  _guardarEstadoTrimVisible();
   const niv = APP.programacion.niveles[_apSelNi];
   const insts = window._apSelInsts;
-  const fechas = window._apSelNivFechas;
-  window._apSelSesiones = _buildSesiones(niv, insts, fechas, _apSelBiFiltro, trim);
+  window._apSelTrimActual = trim;
+  window._apSelSesiones = window._apSelPorTrim[trim] || [];
   const nombreBloque = _apSelBiFiltro !== undefined ? (niv.bloques[_apSelBiFiltro]?.titulo || '') : '';
   const ambito = nombreBloque ? 'del bloque <strong>' + nombreBloque + '</strong> en' : 'de la';
   const titulo = window._apSelSesiones.length > 0
@@ -15735,21 +15767,21 @@ function abrirModalApartadosDeSesionesDesdeBloque(ni, bi) {
   const fechas = _calcFechasSesiones(ni);
   window._apSelNivFechas = fechas;
   window._apSelInsts = insts;
+  _construirTodosTrimsApartados(niv, insts, fechas);
   const trimBloque = niv.bloques[bi]?.trim || 'T1';
-  _rebuildApartadosModal(trimBloque);
+  _mostrarTrimApartadosModal(trimBloque);
   document.getElementById('modal-ap-sesiones').classList.remove('hidden');
 }
 
 function confirmarApartadosDeSesiones() {
   if (_apSelNi === null) return;
+  _guardarEstadoTrimVisible(); // sincroniza también la evaluación que se ve ahora mismo
   const niv = APP.programacion.niveles[_apSelNi];
-  const sesiones = window._apSelSesiones || [];
   const hayPonderado = [];
-  const trimSel = document.getElementById('ap-trim-sel')?.value || 'T1';
 
-  // Use T1 instruments as base (same instruments for all trims)
   const instsBase = (niv._instruccionesEval?.T1?.length ? niv._instruccionesEval.T1 : null)
-    || (niv._instruccionesEval?.[trimSel]?.length ? niv._instruccionesEval[trimSel] : null)
+    || (niv._instruccionesEval?.T2?.length ? niv._instruccionesEval.T2 : null)
+    || (niv._instruccionesEval?.T3?.length ? niv._instruccionesEval.T3 : null)
     || null;
 
   if (!instsBase) {
@@ -15757,29 +15789,33 @@ function confirmarApartadosDeSesiones() {
     return;
   }
 
-  // Build items to add per instrument index from selected sessions
-  const porInst = {};
-  sesiones.forEach((s, i) => {
-    const cb = document.getElementById('ap-cb-' + i);
-    if (!cb?.checked) return;
-    const iIdx = s.instIdx;
-    if (!porInst[iIdx]) porInst[iIdx] = [];
-    porInst[iIdx].push({ nombre: s.titulo, peso: 0, fecha: s.fecha });
+  // Construir, para CADA evaluación, sus propios apartados a partir de SUS propias
+  // sesiones marcadas (y no las de otra evaluación).
+  const porInstPorTrim = {};
+  let totalMarcadas = 0;
+  ['T1','T2','T3'].forEach(t => {
+    const sesiones = window._apSelPorTrim?.[t] || [];
+    const porInst = {};
+    sesiones.forEach(s => {
+      if (s.checked === false) return;
+      if (!porInst[s.instIdx]) porInst[s.instIdx] = [];
+      porInst[s.instIdx].push({ nombre: s.titulo, peso: 0, fecha: s.fecha });
+      totalMarcadas++;
+    });
+    porInstPorTrim[t] = porInst;
   });
 
-  if (!Object.keys(porInst).length) {
+  if (!totalMarcadas) {
     mostrarToast('No hay sesiones seleccionadas.');
     return;
   }
 
-  const trimsAplicar = ['T1', 'T2', 'T3'];
   _apSelGids.forEach(gid => {
     const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
     if (!g.estructura) g.estructura = {};
 
-    // Asegurar que los 3 trimestres tengan los instrumentos base creados (vacíos si no
-    // existían) — esto SÍ se hace para los 3, así están listos al cambiar de evaluación.
-    trimsAplicar.forEach(trimAplicar => {
+    ['T1','T2','T3'].forEach(trimAplicar => {
+      // Asegurar que esta evaluación tenga los instrumentos base creados (vacíos si no existían)
       if (!g.estructura[trimAplicar]?.length) {
         g.estructura[trimAplicar] = instsBase.map(inst => ({
           nombre: inst.nombre, peso: inst.peso, items: [],
@@ -15787,7 +15823,6 @@ function confirmarApartadosDeSesiones() {
           ...(inst.criterios ? { criterios: inst.criterios } : {})
         }));
       } else {
-        // Add missing instruments without overwriting existing
         instsBase.forEach(instBase => {
           if (!g.estructura[trimAplicar].some(x => x.nombre === instBase.nombre)) {
             g.estructura[trimAplicar].push({
@@ -15798,42 +15833,40 @@ function confirmarApartadosDeSesiones() {
           }
         });
       }
+
+      const porInst = porInstPorTrim[trimAplicar];
+      if (!porInst || !Object.keys(porInst).length) return; // nada marcado en esta evaluación
+
+      const insts = g.estructura[trimAplicar];
+      const instNameToIdx = {};
+      insts.forEach((inst, i) => { instNameToIdx[inst.nombre] = i; });
+
+      const nombresBase = new Set(instsBase.map(x => x.nombre));
+      const tieneInstDiferentes = insts.some(inst => !nombresBase.has(inst.nombre) && inst.items.length > 0);
+      if (tieneInstDiferentes) hayPonderado.push('__ya-habia__');
+
+      Object.entries(porInst).forEach(([iIdx, newItems]) => {
+        const origInst = instsBase[parseInt(iIdx)];
+        const realIdx = origInst ? (instNameToIdx[origInst.nombre] ?? parseInt(iIdx)) : parseInt(iIdx);
+        if (realIdx >= insts.length) return;
+        const inst = insts[realIdx];
+        newItems.forEach(item => inst.items.push({ nombre: item.nombre, peso: 0, fecha: item.fecha }));
+        if (inst.mediaAritmetica !== false) {
+          const n = inst.items.length;
+          inst.items.forEach((it, j) => {
+            it.peso = Math.round(100 * (j + 1) / n) - Math.round(100 * j / n);
+          });
+        } else {
+          hayPonderado.push(inst.nombre);
+        }
+      });
     });
-
-    // Añadir los apartados generados SOLO al trimestre que se está configurando ahora
-    // mismo en el modal (trimSel) — no a los otros dos.
-    const insts = g.estructura[trimSel];
-    // Map instrument names to indices for safe lookup
-    const instNameToIdx = {};
-    insts.forEach((inst, i) => { instNameToIdx[inst.nombre] = i; });
-
-    // Aviso solo si hay instrumentos con nombres distintos a los de la programación
-    const nombresBase = new Set(instsBase.map(x => x.nombre));
-    const tieneInstDiferentes = insts.some(inst => !nombresBase.has(inst.nombre) && inst.items.length > 0);
-    if (tieneInstDiferentes) hayPonderado.push('__ya-habia__');
-
-    // Add items to each instrument (use name-based lookup for safety)
-    Object.entries(porInst).forEach(([iIdx, newItems]) => {
-      const origInst = instsBase[parseInt(iIdx)];
-      const realIdx = origInst ? (instNameToIdx[origInst.nombre] ?? parseInt(iIdx)) : parseInt(iIdx);
-      if (realIdx >= insts.length) return;
-      const inst = insts[realIdx];
-      newItems.forEach(item => inst.items.push({ nombre: item.nombre, peso: 0, fecha: item.fecha }));
-      // Recalculate equal weights using staggered rounding (no remainder pile-up)
-      if (inst.mediaAritmetica !== false) {
-        const n = inst.items.length;
-        inst.items.forEach((it, j) => {
-          it.peso = Math.round(100 * (j + 1) / n) - Math.round(100 * j / n);
-        });
-      } else {
-        hayPonderado.push(inst.nombre);
-      }
-    });
-  }); // end _apSelGids
+  });
 
   guardarDatos();
   document.getElementById('modal-ap-sesiones').classList.add('hidden');
   _apSelNi = null; _apSelGids = [];
+  window._apSelPorTrim = {};
   const avisos = [...new Set(hayPonderado)].filter(x => x !== '__ya-habia__');
   const yaHabiaGlobal = hayPonderado.includes('__ya-habia__');
   if (yaHabiaGlobal) mostrarToast('⚠ Ya había apartados en algunos instrumentos — revisa los % en Notas de clase.');
