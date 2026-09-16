@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.12</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.13</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -15721,28 +15721,32 @@ function confirmarApartadosDeSesiones() {
     const g = APP.grupos.find(x=>x.id===gid); if(!g) return;
     if (!g.estructura) g.estructura = {};
 
+    // Asegurar que los 3 trimestres tengan los instrumentos base creados (vacíos si no
+    // existían) — esto SÍ se hace para los 3, así están listos al cambiar de evaluación.
     trimsAplicar.forEach(trimAplicar => {
-    // Ensure each trim has instruments — preserve existing items
-    if (!g.estructura[trimAplicar]?.length) {
-      g.estructura[trimAplicar] = instsBase.map(inst => ({
-        nombre: inst.nombre, peso: inst.peso, items: [],
-        mediaAritmetica: true,
-        ...(inst.criterios ? { criterios: inst.criterios } : {})
-      }));
-    } else {
-      // Add missing instruments without overwriting existing
-      instsBase.forEach(instBase => {
-        if (!g.estructura[trimAplicar].some(x => x.nombre === instBase.nombre)) {
-          g.estructura[trimAplicar].push({
-            nombre: instBase.nombre, peso: instBase.peso, items: [],
-            mediaAritmetica: true,
-            ...(instBase.criterios ? { criterios: instBase.criterios } : {})
-          });
-        }
-      });
-    }
+      if (!g.estructura[trimAplicar]?.length) {
+        g.estructura[trimAplicar] = instsBase.map(inst => ({
+          nombre: inst.nombre, peso: inst.peso, items: [],
+          mediaAritmetica: true,
+          ...(inst.criterios ? { criterios: inst.criterios } : {})
+        }));
+      } else {
+        // Add missing instruments without overwriting existing
+        instsBase.forEach(instBase => {
+          if (!g.estructura[trimAplicar].some(x => x.nombre === instBase.nombre)) {
+            g.estructura[trimAplicar].push({
+              nombre: instBase.nombre, peso: instBase.peso, items: [],
+              mediaAritmetica: true,
+              ...(instBase.criterios ? { criterios: instBase.criterios } : {})
+            });
+          }
+        });
+      }
+    });
 
-    const insts = g.estructura[trimAplicar];
+    // Añadir los apartados generados SOLO al trimestre que se está configurando ahora
+    // mismo en el modal (trimSel) — no a los otros dos.
+    const insts = g.estructura[trimSel];
     // Map instrument names to indices for safe lookup
     const instNameToIdx = {};
     insts.forEach((inst, i) => { instNameToIdx[inst.nombre] = i; });
@@ -15769,7 +15773,6 @@ function confirmarApartadosDeSesiones() {
         hayPonderado.push(inst.nombre);
       }
     });
-    }); // end trimsAplicar
   }); // end _apSelGids
 
   guardarDatos();
