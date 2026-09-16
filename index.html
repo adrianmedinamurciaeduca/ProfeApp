@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.13</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.15</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -9595,6 +9595,61 @@ function togglePopoverCriterio(btn, desc) {
   }, 0);
 }
 
+// Variante EDITABLE, solo para la pestaña Programación (no usar en la vista de clase
+// "Evaluación por criterios", que debe quedarse de solo lectura).
+function togglePopoverCriterioEditable(btn, nivId, cod) {
+  const existing = document.getElementById('popover-criterio');
+  const yaEraEste = existing && existing._btn === btn;
+  if (existing) existing.remove();
+  if (yaEraEste) return;
+
+  const niv = APP.programacion?.niveles?.find(n => n.id === nivId);
+  const desc = niv?.criteriosDesc?.[cod] || '';
+
+  const pop = document.createElement('div');
+  pop.id = 'popover-criterio';
+  pop._btn = btn;
+  pop.style.cssText = 'position:absolute;z-index:1000;width:300px;background:var(--surface);border:1.5px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.18);padding:10px 12px;font-size:12px;color:var(--text)';
+  pop.innerHTML =
+    '<div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:6px">✏ Criterio ' + cod + '</div>'
+    + '<textarea id="popover-crit-textarea" style="width:100%;min-height:80px;font-family:inherit;font-size:12px;line-height:1.4;padding:6px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--text);resize:vertical;box-sizing:border-box">' + desc.replace(/</g,'&lt;') + '</textarea>'
+    + '<div style="font-size:10px;color:var(--text3);margin-top:4px">Al guardar se recortan espacios y saltos de línea sobrantes (típico al copiar de un PDF).</div>'
+    + '<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">'
+    + '<button onclick="document.getElementById(\'popover-criterio\')?.remove()" style="padding:4px 10px;border:1px solid var(--border2);border-radius:6px;background:none;color:var(--text3);font-size:11px;cursor:pointer">Cancelar</button>'
+    + '<button onclick="guardarDescCriterio(\'' + nivId + '\',\'' + cod + '\')" style="padding:4px 12px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer">Guardar</button>'
+    + '</div>';
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  let left = window.scrollX + r.left;
+  const maxLeft = window.scrollX + window.innerWidth - 312;
+  if (left > maxLeft) left = Math.max(8, maxLeft);
+  pop.style.top = (window.scrollY + r.bottom + 4) + 'px';
+  pop.style.left = left + 'px';
+  document.getElementById('popover-crit-textarea')?.focus();
+  setTimeout(() => {
+    document.addEventListener('click', function closeOnce(e) {
+      if (!pop.contains(e.target) && !btn.contains(e.target)) {
+        pop.remove();
+        document.removeEventListener('click', closeOnce);
+      }
+    });
+  }, 0);
+}
+
+function guardarDescCriterio(nivId, cod) {
+  const niv = APP.programacion?.niveles?.find(n => n.id === nivId);
+  const ta = document.getElementById('popover-crit-textarea');
+  if (!niv || !ta) return;
+  // Limpia espacios/saltos de línea sobrantes típicos de un copia-pega desde PDF
+  const limpio = ta.value.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, ' ').trim();
+  if (!niv.criteriosDesc) niv.criteriosDesc = {};
+  if (limpio) niv.criteriosDesc[cod] = limpio;
+  else delete niv.criteriosDesc[cod];
+  guardarDatos();
+  document.getElementById('popover-criterio')?.remove();
+  renderPage();
+}
+
 function renderInstrumentosEval(niv) {
   const instr = niv._instruccionesEval;
   if (!instr || !Object.keys(instr).length) return '';
@@ -9614,9 +9669,7 @@ function renderInstrumentosEval(niv) {
         if (!m) return '<span style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);font-family:monospace">' + cr + '</span>';
         const cod = m[1], val = parseFloat(m[2]);
         const desc = niv.criteriosDesc?.[cod] || '';
-        const codHtml = desc
-          ? '<span data-desc="' + encodeURIComponent(desc) + '" onclick="event.stopPropagation();togglePopoverCriterio(this,decodeURIComponent(this.dataset.desc))" style="color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline dotted" title="Ver descripción del criterio">' + cod + ' ⓘ</span>'
-          : '<span style="color:var(--accent);font-weight:700">' + cod + '</span>';
+        const codHtml = '<span onclick="event.stopPropagation();togglePopoverCriterioEditable(this,\'' + niv.id + '\',\'' + cod + '\')" style="color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline dotted" title="Ver/editar descripción del criterio">' + cod + (desc ? ' ⓘ' : ' ✎') + '</span>';
         return '<span style="background:var(--accent-bg);border:1px solid var(--accent);border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace;display:inline-flex;align-items:center;gap:4px">'
           + codHtml
           + '<span style="color:var(--text3);font-size:9px">' + val.toFixed(3) + 'pt</span>'
@@ -15604,6 +15657,7 @@ function _abreviarBloque(titulo) {
 }
 
 let _apSelInstBulk = null;
+let _apSelBiFiltro = undefined;
 function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
   const examInstIdx = insts.findIndex(x => /exam|prueba|escrit|test|ev[ao]lu/i.test(x.nombre));
   const defaultInstIdx = insts.findIndex(x => !/exam|prueba|escrit|test|ev[ao]lu/i.test(x.nombre));
@@ -15618,7 +15672,7 @@ function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
     bSes.forEach((s, si) => {
       const sTrim = s.trim || bTrim;
       const incluir = (biFiltro === undefined || biFiltro === bi)
-        && (trimFiltro === undefined || !sTrim || sTrim === trimFiltro);
+        && (trimFiltro === undefined || sTrim === trimFiltro);
       numEnBloque++; // always count within bloque for consistent numbering
       if (incluir) {
         const esUltima = si === bSes.length - 1;
@@ -15642,6 +15696,7 @@ function _buildSesiones(niv, insts, fechas, biFiltro, trimFiltro) {
 function abrirModalApartadosDeSesiones(ni, gids) {
   _apSelNi = ni; _apSelGids = gids;
   _apSelInstBulk = null;
+  _apSelBiFiltro = undefined;
   const niv = APP.programacion.niveles[ni];
   const insts = _getInstsParaModal(ni);
   if (!insts.length) { renderPage(); return; }
@@ -15657,10 +15712,12 @@ function _rebuildApartadosModal(trim) {
   const niv = APP.programacion.niveles[_apSelNi];
   const insts = window._apSelInsts;
   const fechas = window._apSelNivFechas;
-  window._apSelSesiones = _buildSesiones(niv, insts, fechas, undefined, trim);
+  window._apSelSesiones = _buildSesiones(niv, insts, fechas, _apSelBiFiltro, trim);
+  const nombreBloque = _apSelBiFiltro !== undefined ? (niv.bloques[_apSelBiFiltro]?.titulo || '') : '';
+  const ambito = nombreBloque ? 'del bloque <strong>' + nombreBloque + '</strong> en' : 'de la';
   const titulo = window._apSelSesiones.length > 0
-    ? 'Sesiones de la <strong>' + {T1:'1ª',T2:'2ª',T3:'3ª'}[trim] + ' Evaluación</strong>. Desmarca las que no quieras o cambia el instrumento.'
-    : 'No hay sesiones asignadas a esta evaluación en la programación.';
+    ? 'Sesiones ' + ambito + ' <strong>' + {T1:'1ª',T2:'2ª',T3:'3ª'}[trim] + ' Evaluación</strong>. Desmarca las que no quieras o cambia el instrumento.'
+    : 'No hay sesiones ' + (nombreBloque ? 'de este bloque ' : '') + 'asignadas a esta evaluación en la programación.';
   document.getElementById('ap-modal-body').innerHTML = _buildModalContent(
     window._apSelSesiones, insts, titulo, trim
   );
@@ -15672,15 +15729,14 @@ function abrirModalApartadosDeSesionesDesdeBloque(ni, bi) {
   if (!gids.length) { alert('Asigna este nivel a al menos un grupo primero.'); return; }
   _apSelNi = ni; _apSelGids = gids;
   _apSelInstBulk = null;
+  _apSelBiFiltro = bi;
   const insts = _getInstsParaModal(ni);
   if (!insts.length) { mostrarToast('No se encontraron instrumentos de evaluación.'); return; }
   const fechas = _calcFechasSesiones(ni);
-  window._apSelSesiones = _buildSesiones(niv, insts, fechas, bi);
-  document.getElementById('ap-modal-body').innerHTML = _buildModalContent(
-    window._apSelSesiones, insts,
-    'Sesiones del bloque <strong>'+(niv.bloques[bi]?.titulo||'')+'</strong>. Desmarca las que no quieras o cambia el instrumento.',
-    'T1'
-  );
+  window._apSelNivFechas = fechas;
+  window._apSelInsts = insts;
+  const trimBloque = niv.bloques[bi]?.trim || 'T1';
+  _rebuildApartadosModal(trimBloque);
   document.getElementById('modal-ap-sesiones').classList.remove('hidden');
 }
 
