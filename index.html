@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.18</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.19</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1545,6 +1545,26 @@
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" onclick="cuadernoVistaPrev()">👁 Vista previa</button>
         <button class="btn btn-primary" onclick="cuadernoExportar()">⬇ Exportar HTML</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LISTADO DE ALUMNOS (PDF de consulta) -->
+<div class="modal-overlay hidden" id="modal-listado" onclick="event.target===this&&cerrarListadoAlumnos()">
+  <div class="modal" style="max-width:900px;width:98vw" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="listado-titulo">📋 Listado de alumnos</h3>
+      <button class="btn btn-ghost btn-icon" onclick="cerrarListadoAlumnos()">✕</button>
+    </div>
+    <div class="modal-body" id="listado-body"></div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="cerrarListadoAlumnos()">Cancelar</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="listadoVistaPrev()">👁 Vista previa</button>
+        <button class="btn btn-primary" onclick="listadoExportar()">⬇ Exportar HTML</button>
       </div>
     </div>
   </div>
@@ -2546,6 +2566,8 @@ function renderAlumnos() {
                   <span style="width:8px;height:8px;border-radius:50%;background:#2a7a2a;display:inline-block"></span> ↕ Reordenar lista</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirCuaderno('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#7a2ab0;display:inline-block"></span> 📓 Cuaderno</button>
+                <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirListadoAlumnos('${g.id}')">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#0891b2;display:inline-block"></span> 📋 Listado de alumnos (PDF)</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();abrirEditarColorGrupo('${g.id}')">
                   <span style="width:8px;height:8px;border-radius:50%;background:#c07800;display:inline-block"></span> 🎨 Color</button>
                 <button class="grupo-menu-item" onclick="cerrarGrupoMenus();toggleTutor('${g.id}')">
@@ -13421,6 +13443,236 @@ function cuadernoExportar() {
   const link = document.createElement('a');
   link.href = url;
   link.download = `cuaderno_${(g?.nombre||'clase').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'_')}_${new Date().getFullYear()}.html`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+// =====================
+// MÓDULO: LISTADO DE ALUMNOS (tabla PDF de consulta)
+// =====================
+let _listadoGid = null;
+let _listadoConfig = {
+  campos: { foto: false, nLista: true, apellidos: true, nombre: true, curso: false, email: true, telefono: false, nre: false },
+  camposExtraSel: {},
+  porPagina: 25,
+};
+
+function abrirListadoAlumnos(gid) {
+  _listadoGid = gid;
+  const g = APP.grupos.find(x => x.id === gid);
+  document.getElementById('listado-titulo').textContent = `📋 Listado de alumnos — ${g?.nombre || ''}`;
+  // Detectar todos los campos extra presentes en este grupo (de imports Excel/CSV, etc.)
+  const als = APP.alumnos.filter(a => a.grupoId === gid);
+  const nombresExtra = new Set();
+  als.forEach(a => (a.camposExtra || []).forEach(ce => { if (ce.nombre) nombresExtra.add(ce.nombre); }));
+  nombresExtra.forEach(n => { if (!(n in _listadoConfig.camposExtraSel)) _listadoConfig.camposExtraSel[n] = false; });
+  renderListadoConfig();
+  document.getElementById('modal-listado').classList.remove('hidden');
+}
+
+function cerrarListadoAlumnos() {
+  document.getElementById('modal-listado').classList.add('hidden');
+  _listadoGid = null;
+}
+
+function renderListadoConfig() {
+  const cfg = _listadoConfig;
+  const g = APP.grupos.find(x => x.id === _listadoGid);
+  const als = APP.alumnos.filter(a => a.grupoId === _listadoGid);
+  const camposDisp = [
+    { key: 'foto',      label: 'Foto' },
+    { key: 'nLista',    label: 'Nº lista' },
+    { key: 'apellidos', label: 'Apellidos' },
+    { key: 'nombre',    label: 'Nombre' },
+    { key: 'curso',     label: 'Clase / Curso' },
+    { key: 'email',     label: 'Email' },
+    { key: 'telefono',  label: 'Teléfono' },
+    { key: 'nre',       label: 'NRE' },
+  ];
+  const nombresExtra = Object.keys(cfg.camposExtraSel);
+
+  document.getElementById('listado-body').innerHTML = `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:4px 0">
+
+    <!-- Columna izquierda: opciones -->
+    <div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Campos a incluir</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:${nombresExtra.length?'14px':'20px'}">
+        ${camposDisp.map(c => `
+        <label onclick="listadoToggleCampo('${c.key}')" style="cursor:pointer">
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:${cfg.campos[c.key]?'var(--accent-bg)':'var(--bg)'};color:${cfg.campos[c.key]?'var(--accent)':'var(--text3)'};border:1.5px solid ${cfg.campos[c.key]?'var(--accent)':'var(--border2)'}">
+            <span>${cfg.campos[c.key]?'●':'○'}</span> ${c.label}
+          </span>
+        </label>`).join('')}
+      </div>
+
+      ${nombresExtra.length ? `
+      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Campos extra (de importación)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">
+        ${nombresExtra.map(n => `
+        <label onclick="listadoToggleCampoExtra('${n.replace(/'/g,"\\'")}')" style="cursor:pointer">
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:${cfg.camposExtraSel[n]?'var(--accent-bg)':'var(--bg)'};color:${cfg.camposExtraSel[n]?'var(--accent)':'var(--text3)'};border:1.5px solid ${cfg.camposExtraSel[n]?'var(--accent)':'var(--border2)'}">
+            <span>${cfg.camposExtraSel[n]?'●':'○'}</span> ${n}
+          </span>
+        </label>`).join('')}
+      </div>` : ''}
+
+      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Alumnos por página</div>
+      <input type="number" min="1" max="100" value="${cfg.porPagina}"
+        onchange="listadoSetPorPagina(this.value)"
+        style="width:90px;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:13px;outline:none">
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">${als.length} alumno${als.length!==1?'s':''} en total → ${Math.ceil(als.length/(cfg.porPagina||1))||0} página${Math.ceil(als.length/(cfg.porPagina||1))!==1?'s':''}</div>
+    </div>
+
+    <!-- Columna derecha: miniprevia -->
+    <div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:12px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Vista previa (primera página)</div>
+      <div id="listado-miniprev" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;transform-origin:top left">
+        ${listadoMiniPrev()}
+      </div>
+    </div>
+  </div>`;
+}
+
+function listadoToggleCampo(key) {
+  _listadoConfig.campos[key] = !_listadoConfig.campos[key];
+  renderListadoConfig();
+}
+
+function listadoToggleCampoExtra(nombre) {
+  _listadoConfig.camposExtraSel[nombre] = !_listadoConfig.camposExtraSel[nombre];
+  renderListadoConfig();
+}
+
+function listadoSetPorPagina(val) {
+  const n = parseInt(val);
+  _listadoConfig.porPagina = (n && n > 0) ? n : 1;
+  renderListadoConfig();
+}
+
+function _listadoColumnas() {
+  const cfg = _listadoConfig;
+  const todas = [
+    { key: 'foto',      label: '' },
+    { key: 'nLista',    label: 'Nº' },
+    { key: 'apellidos', label: 'Apellidos' },
+    { key: 'nombre',    label: 'Nombre' },
+    { key: 'curso',     label: 'Clase' },
+    { key: 'email',     label: 'Email' },
+    { key: 'telefono',  label: 'Teléfono' },
+    { key: 'nre',       label: 'NRE' },
+  ].filter(c => cfg.campos[c.key]);
+  const extra = Object.keys(cfg.camposExtraSel).filter(n => cfg.camposExtraSel[n]).map(n => ({ key: '__extra__' + n, label: n, extra: n }));
+  return todas.concat(extra);
+}
+
+function _listadoValorCelda(a, col, g) {
+  if (col.key === 'foto') {
+    return a.foto
+      ? `<img src="${a.foto}" style="width:26px;height:26px;border-radius:5px;object-fit:cover;display:block">`
+      : `<div style="width:26px;height:26px;border-radius:5px;background:#eee;color:#888;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">${(a.nombre?.[0]||'?')}${(a.apellidos?.[0]||'')}</div>`;
+  }
+  if (col.key === 'curso') return g?.nombre || '';
+  if (col.extra) {
+    const ce = (a.camposExtra || []).find(x => x.nombre === col.extra);
+    return ce?.valor || '';
+  }
+  return a[col.key] || '';
+}
+
+function listadoMiniPrev() {
+  const g = APP.grupos.find(x => x.id === _listadoGid);
+  const als = APP.alumnos.filter(a => a.grupoId === _listadoGid);
+  if (!als.length) return '<div style="padding:20px;text-align:center;color:#999;font-size:12px">Sin alumnos</div>';
+  const primeraPagina = als.slice(0, _listadoConfig.porPagina);
+  return `<div style="transform:scale(0.55);transform-origin:top left;width:182%;pointer-events:none">${_listadoTablaHTML(primeraPagina, g)}</div>`;
+}
+
+function _listadoTablaHTML(als, g) {
+  const cols = _listadoColumnas();
+  const filas = als.map((a, i) => `<tr style="background:${i%2===0?'#fff':'#f7f7f7'}">
+    ${cols.map(col => `<td style="padding:6px 8px;border:1px solid #ddd;font-size:11px;vertical-align:middle;white-space:${col.key==='foto'?'nowrap':'normal'}">${_listadoValorCelda(a, col, g)}</td>`).join('')}
+  </tr>`).join('');
+  return `<table style="width:100%;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif">
+    <thead><tr style="background:#2d5be3;color:#fff">
+      ${cols.map(col => `<th style="padding:7px 8px;border:1px solid #ddd;font-size:11px;text-align:left;white-space:nowrap">${col.label}</th>`).join('')}
+    </tr></thead>
+    <tbody>${filas}</tbody>
+  </table>`;
+}
+
+function listadoHTMLCompleto() {
+  const g = APP.grupos.find(x => x.id === _listadoGid);
+  const als = APP.alumnos.filter(a => a.grupoId === _listadoGid);
+  const porPagina = _listadoConfig.porPagina || als.length || 1;
+  const fecha = new Date().toLocaleDateString('es-ES', {day:'2-digit',month:'long',year:'numeric'});
+
+  let paginasHTML = '';
+  for (let i = 0; i < als.length; i += porPagina) {
+    const trozo = als.slice(i, i + porPagina);
+    paginasHTML += `<div class="pagina">
+      <div class="cab-pagina">
+        <h1>📋 Listado de alumnos — ${g?.nombre||''}</h1>
+        <div class="cab-sub">${fecha} · ${als.length} alumno${als.length!==1?'s':''} · página ${Math.floor(i/porPagina)+1} de ${Math.ceil(als.length/porPagina)}</div>
+      </div>
+      ${_listadoTablaHTML(trozo, g)}
+    </div>`;
+  }
+  if (!als.length) paginasHTML = '<div class="pagina"><p style="padding:20px;color:#999">Sin alumnos en este grupo.</p></div>';
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Listado — ${g?.nombre||''}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,Helvetica,sans-serif; background:#e8e8e8; }
+  @page { size: A4 landscape; margin: 10mm 12mm; }
+  .pagina { width:100%; min-height:190mm; page-break-after:always; background:#fff; padding:14px 18px; }
+  .pagina:last-child { page-break-after:avoid; }
+  .cab-pagina { margin-bottom:10px; }
+  .cab-pagina h1 { font-size:16px; font-weight:700; color:#1a1917; }
+  .cab-sub { font-size:11px; color:#666; margin-top:2px; }
+  .toolbar { position:fixed; top:0; left:0; right:0; background:#2d5be3; color:#fff; padding:10px 20px; display:flex; align-items:center; gap:12px; z-index:100; font-family:Arial,sans-serif; box-shadow:0 2px 8px rgba(0,0,0,0.3); }
+  .toolbar h1 { font-size:14px; font-weight:700; flex:1; }
+  .toolbar button { padding:6px 16px; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn-imprimir { background:#fff; color:#2d5be3; }
+  .btn-cerrar   { background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.4); }
+  .contenido { padding:58px 16px 16px; display:flex; flex-direction:column; gap:16px; align-items:center; }
+  @media print {
+    .toolbar   { display:none; }
+    .contenido { padding:0; gap:0; }
+    body       { background:#fff; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <h1>📋 Listado — ${g?.nombre||''} · ${als.length} alumno${als.length!==1?'s':''}</h1>
+  <button class="btn-imprimir" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+  <button class="btn-cerrar" onclick="window.close()">✕ Cerrar</button>
+</div>
+<div class="contenido">${paginasHTML}</div>
+</body></html>`;
+}
+
+function listadoVistaPrev() {
+  const html = listadoHTMLCompleto();
+  const w = window.open('', '_blank');
+  if (!w) { alert('El navegador bloqueó la ventana emergente. Permite ventanas emergentes para esta página.'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
+function listadoExportar() {
+  const g = APP.grupos.find(x => x.id === _listadoGid);
+  const html = listadoHTMLCompleto();
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `listado_${(g?.nombre||'clase').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'_')}_${new Date().getFullYear()}.html`;
   link.click();
   URL.revokeObjectURL(url);
 }
