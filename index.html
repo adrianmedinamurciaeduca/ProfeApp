@@ -899,7 +899,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.19</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.20</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -13457,6 +13457,11 @@ let _listadoConfig = {
   porPagina: 25,
 };
 
+function _alumnosOrdenadosGrupo(gid) {
+  return APP.alumnos.filter(a => a.grupoId === gid)
+    .sort((a,b) => (parseInt(a.nLista)||999) - (parseInt(b.nLista)||999) || (a.apellidos||'').localeCompare(b.apellidos||''));
+}
+
 function abrirListadoAlumnos(gid) {
   _listadoGid = gid;
   const g = APP.grupos.find(x => x.id === gid);
@@ -13478,7 +13483,7 @@ function cerrarListadoAlumnos() {
 function renderListadoConfig() {
   const cfg = _listadoConfig;
   const g = APP.grupos.find(x => x.id === _listadoGid);
-  const als = APP.alumnos.filter(a => a.grupoId === _listadoGid);
+  const als = _alumnosOrdenadosGrupo(_listadoGid);
   const camposDisp = [
     { key: 'foto',      label: 'Foto' },
     { key: 'nLista',    label: 'Nº lista' },
@@ -13582,7 +13587,7 @@ function _listadoValorCelda(a, col, g) {
 
 function listadoMiniPrev() {
   const g = APP.grupos.find(x => x.id === _listadoGid);
-  const als = APP.alumnos.filter(a => a.grupoId === _listadoGid);
+  const als = _alumnosOrdenadosGrupo(_listadoGid);
   if (!als.length) return '<div style="padding:20px;text-align:center;color:#999;font-size:12px">Sin alumnos</div>';
   const primeraPagina = als.slice(0, _listadoConfig.porPagina);
   return `<div style="transform:scale(0.55);transform-origin:top left;width:182%;pointer-events:none">${_listadoTablaHTML(primeraPagina, g)}</div>`;
@@ -13603,7 +13608,7 @@ function _listadoTablaHTML(als, g) {
 
 function listadoHTMLCompleto() {
   const g = APP.grupos.find(x => x.id === _listadoGid);
-  const als = APP.alumnos.filter(a => a.grupoId === _listadoGid);
+  const als = _alumnosOrdenadosGrupo(_listadoGid);
   const porPagina = _listadoConfig.porPagina || als.length || 1;
   const fecha = new Date().toLocaleDateString('es-ES', {day:'2-digit',month:'long',year:'numeric'});
 
