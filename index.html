@@ -883,7 +883,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.21</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.22</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -16816,32 +16816,6 @@ function _exportarRubricasHtml(rubricas) {
   if (w) setTimeout(()=>{w.print();URL.revokeObjectURL(url);},800);
 }
 
-function registrarServiceWorker() {
-  if (!('serviceWorker' in navigator)) return;
-  const swCode = `
-const CACHE = 'profeapp-v1';
-const URLS  = [location.href];
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(URLS)));
-  self.skipWaiting();
-});
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
-  self.clients.claim();
-});
-self.addEventListener('fetch', e => {
-  e.respondWith(caches.match(e.request).then(cached => {
-    const net = fetch(e.request).then(res => {
-      if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
-      return res;
-    }).catch(() => cached);
-    return cached || net;
-  }));
-});`;
-  const blob = new Blob([swCode], {type:'application/javascript'});
-  const url  = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(url).catch(()=>{});
-}
 
 
 // =====================
@@ -16854,7 +16828,6 @@ renderPage('inicio');
 window.addEventListener('resize', _ajustarBarraCuadernoSticky);
 applyBottomNav();
 driveSetStatus('off');
-registrarServiceWorker();
 // Set initial active nav item
 document.getElementById('nav-inicio')?.classList.add('active');
 // Inject programacion modals into body so they're accessible from any page
@@ -16900,32 +16873,13 @@ document.addEventListener('keydown', e => {
   });
 })();
 
-// ── PWA: Registrar Service Worker inline ─────────────────
+// ── PWA: Registrar Service Worker (archivo real, mismo origen) ─────────────
+// Un Service Worker registrado desde blob: no es válido para Chrome (lo rechaza
+// en silencio), así que la app nunca se consideraba "instalable de verdad" y
+// Chrome la trataba como un simple acceso directo (icono con la insignia de
+// Chrome encima). sw.js debe subirse como archivo real junto a index.html.
 if ('serviceWorker' in navigator) {
-  const swCode = `
-    const CACHE = 'profeapp-v1';
-    self.addEventListener('install', e => {
-      self.skipWaiting();
-    });
-    self.addEventListener('fetch', e => {
-      // Solo cachear recursos de la propia app (no externos)
-      if (e.request.url.startsWith(self.location.origin)) {
-        e.respondWith(
-          caches.open(CACHE).then(cache =>
-            cache.match(e.request).then(cached => {
-              const fresh = fetch(e.request).then(resp => {
-                cache.put(e.request, resp.clone()); return resp;
-              }).catch(() => cached);
-              return cached || fresh;
-            })
-          )
-        );
-      }
-    });
-  `;
-  const blob = new Blob([swCode], {type: 'application/javascript'});
-  const swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).catch(() => {});
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 </script>
 </body>
