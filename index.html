@@ -883,7 +883,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.24</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.25</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -3315,9 +3315,9 @@ function renderVistaCuaderno(g, als) {
         const tieneRubrica = inst.items?.[jIdx]?.rubrica;
 
         const inputNota = edicion
-          ? `<input type="number" min="0" max="10" step="0.01" value="${val!==undefined&&val!==''?val:''}" placeholder="—"
+          ? `<input type="number" min="0" max="10" step="0.01" value="${val!==undefined&&val!==''?val:''}" placeholder="—" id="cnota-${iIdx}-${jIdx}-${rowIdx}"
               style="width:46px;text-align:center;border:1px solid var(--border2);border-radius:4px;padding:2px 3px;font-size:12px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--text);${tieneRec?'text-decoration:line-through;opacity:0.5':''}"
-              onblur="cuadernoGuardarNota('${a.id}',${iIdx},${jIdx},this.value,this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">`
+              onblur="cuadernoGuardarNota('${a.id}',${iIdx},${jIdx},this.value,this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();const sig=document.getElementById('cnota-${iIdx}-${jIdx}-${rowIdx+1}');if(sig){sig.focus();sig.select();}}">`
           : `<span data-nota="1" style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m===null?'var(--text3)':m<5?'#991b1b':'#166534'})()}">${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m!==null?m.toFixed(2):'—'})()}</span>`;
 
         const undoBtn = edicion && hist?.length
@@ -4219,6 +4219,14 @@ function renderFicha(a) {
           </span>
         </label>
         ${a.abs?'<div style="font-size:11px;color:#c2410c;background:#fff7ed;border-radius:6px;padding:4px 10px;margin-top:4px">⚠ Este alumno no se tendrá en cuenta en las estadísticas del grupo</div>':''}
+      </div>
+
+      <!-- Chupipuntos -->
+      <div style="margin-top:10px;padding:6px 8px;background:#fef3c7;border-radius:8px;display:flex;align-items:center;gap:6px">
+        <span style="flex:1;font-size:10px;font-weight:600;color:#b45309;text-transform:uppercase;letter-spacing:0.4px">🍭 Chupipuntos</span>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 7px;min-height:unset" onclick="cambiarIncidencia('chupipuntos',-1)">−</button>
+        <span style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#b45309;min-width:20px;text-align:center" id="inc-chupipuntos">${a.chupipuntos||0}</span>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 7px;min-height:unset" onclick="cambiarIncidencia('chupipuntos',1)">+</button>
       </div>
 
       <!-- Retrasos -->
@@ -5669,7 +5677,7 @@ function crearAlumno() {
     id: uid(), nombre, apellidos, email, nre,
     grupoId,
     nLista: '',
-    retrasos: 0, acnee: false, foto: null,
+    retrasos: 0, chupipuntos: 0, acnee: false, foto: null,
     notas: {}, observaciones: [], reuniones: [], camposExtra: []
   };
   if (match && !match.mismoGrupo) {
@@ -6968,7 +6976,7 @@ function ejecutarImportacion() {
 
     const nuevo = {
       id: uid(), nombre, apellidos, email, nre, telefono, nLista,
-      grupoId, retrasos:0, acnee:false, foto:null,
+      grupoId, retrasos:0, chupipuntos:0, acnee:false, foto:null,
       notas:{}, observaciones:[], reuniones:[], camposExtra: extras
     };
     if (match && !match.mismoGrupo) {
