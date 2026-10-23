@@ -876,6 +876,30 @@
   <span id="drive-status-float">☁️</span>
 </div>
 
+<!-- Botón flotante asistente IA -->
+<div id="ia-float-btn" onclick="abrirAsistenteIA()"
+  style="position:fixed;bottom:20px;right:16px;z-index:600;width:52px;height:52px;border-radius:50%;background:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:24px;transition:transform 0.15s"
+  onmouseenter="this.style.transform='scale(1.08)'" onmouseleave="this.style.transform=''"
+  title="Asistente IA">🤖</div>
+
+<!-- MODAL ASISTENTE IA -->
+<div class="modal-overlay hidden" id="modal-ia" onclick="event.target===this&&cerrarAsistenteIA()">
+  <div class="modal" style="max-width:520px;width:95vw;display:flex;flex-direction:column;max-height:85vh" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>🤖 Asistente IA <span style="font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-bg);padding:1px 7px;border-radius:9px;margin-left:4px">V1.IA</span></h3>
+      <button class="btn btn-ghost btn-icon" onclick="cerrarAsistenteIA()">✕</button>
+    </div>
+    <div id="ia-chat-log" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-height:260px"></div>
+    <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center">
+      <button type="button" onclick="dictarTexto('ia-input',this)"
+        style="padding:7px 10px;font-size:13px;border:1.5px solid var(--accent);background:var(--accent-bg);color:var(--accent);border-radius:20px;cursor:pointer;flex-shrink:0">🎤</button>
+      <input type="text" id="ia-input" placeholder="Pregúntame algo…" style="flex:1;padding:8px 12px;border:1px solid var(--border2);border-radius:20px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:none"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();iaEnviarMensaje()}">
+      <button class="btn btn-primary btn-sm" style="border-radius:20px" onclick="iaEnviarMensaje()">➤</button>
+    </div>
+  </div>
+</div>
+
 <div class="app-shell" id="app-shell">
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
@@ -883,7 +907,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.25</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.26 · V1.IA</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -7344,7 +7368,20 @@ function renderAjustes() {
       <p style="font-size:12px;color:var(--text2);margin-top:12px">Los datos se guardan automáticamente en este navegador. Exporta un backup JSON regularmente.</p>
       ${estadoBloque}
     </div>
-    
+
+    <div class="card" style="padding:20px;margin-bottom:16px">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:6px">🤖 Asistente IA <span style="font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-bg);padding:2px 8px;border-radius:10px;margin-left:4px">V1.IA</span></h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Usa tu propia clave gratuita de Gemini. Sin tarjeta vinculada, Google nunca puede cobrarte — si se agota el límite diario gratuito, el asistente simplemente deja de responder hasta el día siguiente.</p>
+      <div class="form-group">
+        <label>Clave de API de Gemini</label>
+        <input type="password" id="ia-apikey-input" value="${APP.config.geminiApiKey||''}" placeholder="Pega aquí tu clave (empieza por AIza...)" style="font-family:'DM Mono',monospace">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+        <button class="btn btn-primary btn-sm" onclick="guardarGeminiApiKey()">💾 Guardar clave</button>
+        ${APP.config.geminiApiKey ? '<span style="font-size:12px;color:var(--green);font-weight:600">✅ Clave guardada</span>' : '<span style="font-size:12px;color:var(--text3)">Sin configurar — el asistente no funcionará hasta que la añadas</span>'}
+      </div>
+    </div>
+
   </div>`;
 }
 function renderBottomNavSettings() {
@@ -13672,6 +13709,321 @@ function listadoExportar() {
   link.download = `listado_${(g?.nombre||'clase').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'_')}_${new Date().getFullYear()}.html`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+// =====================
+// MÓDULO: ASISTENTE IA (V1.IA — consultas de solo lectura)
+// =====================
+
+function guardarGeminiApiKey() {
+  const input = document.getElementById('ia-apikey-input');
+  const key = input?.value?.trim() || '';
+  APP.config.geminiApiKey = key;
+  guardarDatos();
+  renderPage();
+  mostrarToast(key ? '✓ Clave de Gemini guardada.' : 'Clave eliminada.');
+}
+
+function abrirAsistenteIA() {
+  document.getElementById('modal-ia').classList.remove('hidden');
+  const log = document.getElementById('ia-chat-log');
+  if (log && !log.dataset.iniciado) {
+    log.dataset.iniciado = '1';
+    iaAgregarMensaje('ia', '¡Hola! De momento solo puedo responder preguntas (notas, medias, pendientes, tu horario de hoy). Prueba, por ejemplo: "¿qué clases tengo hoy?" o "¿cuál es la media de 2ºD en la 1ª evaluación?"');
+  }
+  setTimeout(() => document.getElementById('ia-input')?.focus(), 50);
+}
+
+function cerrarAsistenteIA() {
+  document.getElementById('modal-ia').classList.add('hidden');
+}
+
+function iaAgregarMensaje(quien, texto, cargando) {
+  const log = document.getElementById('ia-chat-log');
+  if (!log) return null;
+  const div = document.createElement('div');
+  if (cargando) div.id = 'ia-cargando';
+  div.style.cssText = `align-self:${quien==='user'?'flex-end':'flex-start'};max-width:85%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.4;white-space:pre-wrap;background:${quien==='user'?'var(--accent)':'var(--surface2)'};color:${quien==='user'?'#fff':'var(--text)'}`;
+  div.textContent = texto;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return div;
+}
+
+function iaQuitarCargando() {
+  document.getElementById('ia-cargando')?.remove();
+}
+
+function iaEnviarMensaje() {
+  const input = document.getElementById('ia-input');
+  const texto = input?.value?.trim();
+  if (!texto) return;
+  input.value = '';
+  iaAgregarMensaje('user', texto);
+  iaAgregarMensaje('ia', '…', true);
+  iaProcesarMensaje(texto);
+}
+
+// ── Normalización y búsqueda difusa de alumnos/grupos ──────────
+function _iaNorm(s) {
+  return (s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[º°]/g,'').replace(/\s+/g,'');
+}
+
+function _iaBuscarGrupo(nombreGrupo) {
+  if (!nombreGrupo) return null;
+  const n = _iaNorm(nombreGrupo);
+  return APP.grupos.find(g => _iaNorm(g.nombre).includes(n) || n.includes(_iaNorm(g.nombre)));
+}
+
+function _iaBuscarAlumnos(nombre, apellidos, grupoNombre) {
+  const n = _iaNorm(nombre);
+  const ap = _iaNorm(apellidos);
+  const g = grupoNombre ? _iaBuscarGrupo(grupoNombre) : null;
+  return APP.alumnos.filter(a => {
+    if (g && a.grupoId !== g.id) return false;
+    const an = _iaNorm(a.nombre), aap = _iaNorm(a.apellidos);
+    const matchNombre = n ? (an.includes(n) || n.includes(an)) : true;
+    const matchApellidos = ap ? (aap.includes(ap) || ap.includes(aap)) : true;
+    return matchNombre && matchApellidos;
+  });
+}
+
+function _iaTrimValido(trimestre) {
+  return /^T[123]$/.test(trimestre||'') ? trimestre : evalTrimPorDefecto();
+}
+
+// ── Funciones de consulta (solo lectura) ────────────────────────
+function iaConsultarMediaAlumno(args) {
+  const { nombre, apellidos, grupo, trimestre } = args || {};
+  if (!nombre && !apellidos) return { error: 'Falta el nombre del alumno.' };
+  const candidatos = _iaBuscarAlumnos(nombre, apellidos, grupo);
+  if (!candidatos.length) return { error: `No he encontrado ningún alumno llamado "${[nombre,apellidos].filter(Boolean).join(' ')}".` };
+  if (candidatos.length > 1) {
+    return {
+      error: 'Hay varios alumnos que coinciden, especifica la clase.',
+      opciones: candidatos.map(a => `${a.nombre} ${a.apellidos} (${APP.grupos.find(g=>g.id===a.grupoId)?.nombre||'?'})`)
+    };
+  }
+  const a = candidatos[0];
+  const trim = _iaTrimValido(trimestre);
+  const nota = calcNotaTrimestre(a, trim);
+  const g = APP.grupos.find(x=>x.id===a.grupoId);
+  return {
+    alumno: `${a.nombre} ${a.apellidos}`, grupo: g?.nombre||'', trimestre: trim,
+    nota: nota!==null ? nota.toFixed(2) : null,
+    mensaje: nota!==null
+      ? `Nota media de ${a.nombre} ${a.apellidos} en ${trim}: ${nota.toFixed(2)}.`
+      : `${a.nombre} ${a.apellidos} no tiene notas registradas todavía en ${trim}.`
+  };
+}
+
+function iaConsultarPendientesNota(args) {
+  const { grupo, instrumento, apartado, trimestre } = args || {};
+  if (!grupo) return { error: 'Falta el nombre de la clase/grupo.' };
+  const g = _iaBuscarGrupo(grupo);
+  if (!g) return { error: `No he encontrado ninguna clase llamada "${grupo}".` };
+  const trim = _iaTrimValido(trimestre);
+  const insts = g.estructura?.[trim] || [];
+  if (!insts.length) return { error: `${g.nombre} no tiene instrumentos de evaluación configurados en ${trim}.` };
+
+  let instsFiltrados = insts.map((inst,iIdx) => ({inst,iIdx}));
+  if (instrumento) {
+    const ni = _iaNorm(instrumento);
+    instsFiltrados = instsFiltrados.filter(x => _iaNorm(x.inst.nombre).includes(ni));
+  }
+  if (!instsFiltrados.length) return { error: `No encuentro ningún instrumento que coincida con "${instrumento}" en ${g.nombre}.` };
+
+  const als = APP.alumnos.filter(a => a.grupoId === g.id);
+  const detalle = [];
+
+  instsFiltrados.forEach(({inst, iIdx}) => {
+    let itemsFiltrados = (inst.items||[]).map((it,jIdx) => ({it,jIdx}));
+    if (apartado) {
+      const na = _iaNorm(apartado);
+      itemsFiltrados = itemsFiltrados.filter(x => _iaNorm(x.it.nombre).includes(na));
+    }
+    itemsFiltrados.forEach(({it,jIdx}) => {
+      als.forEach(a => {
+        const val = a.notas?.[trim]?.[iIdx]?.[jIdx];
+        if (val===undefined || val===null || val==='') {
+          detalle.push(`${a.nombre} ${a.apellidos} (${inst.nombre} — ${it.nombre})`);
+        }
+      });
+    });
+  });
+
+  return {
+    grupo: g.nombre, trimestre: trim, totalAlumnos: als.length,
+    pendientes: detalle,
+    mensaje: detalle.length
+      ? `Alumnos con notas pendientes: ${detalle.join('; ')}.`
+      : 'No hay ningún alumno con notas pendientes en lo que has pedido.'
+  };
+}
+
+function iaConsultarMediaGrupo(args) {
+  const { grupo, trimestre } = args || {};
+  if (!grupo) return { error: 'Falta el nombre de la clase/grupo.' };
+  const g = _iaBuscarGrupo(grupo);
+  if (!g) return { error: `No he encontrado ninguna clase llamada "${grupo}".` };
+  const trim = _iaTrimValido(trimestre);
+  const als = APP.alumnos.filter(a => a.grupoId === g.id && !a.abs);
+  const notas = als.map(a => calcNotaTrimestre(a, trim)).filter(n => n!==null);
+  if (!notas.length) return { error: `No hay notas registradas todavía en ${g.nombre} para ${trim}.` };
+  const media = notas.reduce((s,n)=>s+n,0) / notas.length;
+  const aprobados = notas.filter(n=>n>=5).length;
+  return {
+    grupo: g.nombre, trimestre: trim, media: media.toFixed(2),
+    aprobados, suspensos: notas.length-aprobados, totalConNota: notas.length, totalAlumnos: als.length,
+    mensaje: `Media de ${g.nombre} en ${trim}: ${media.toFixed(2)}. Aprobados: ${aprobados} de ${notas.length} alumnos con nota (de ${als.length} en total).`
+  };
+}
+
+function iaConsultarClasesHoy() {
+  const idx = new Date().getDay() - 1; // 0=Lunes...4=Viernes
+  if (idx < 0 || idx > 4) return { mensaje: 'Hoy es fin de semana, no tienes clases en el horario.' };
+  const franjas = APP.horario?.franjas || [];
+  const clases = franjas
+    .map(f => ({ hora: `${f.inicio||''}-${f.fin||''}`, celda: (f.celdas||[])[idx] }))
+    .filter(x => x.celda?.tipo === 'clase')
+    .map(x => ({
+      hora: x.hora, materia: x.celda.materia||'',
+      grupo: APP.grupos.find(g=>g.id===x.celda.grupoId)?.nombre||'',
+      ubicacion: x.celda.ubicacion||''
+    }));
+  return {
+    dia: DIAS_NOMBRE[idx], clases,
+    mensaje: clases.length
+      ? `Hoy (${DIAS_NOMBRE[idx]}) tienes: ` + clases.map(c => `${c.hora} ${c.materia} con ${c.grupo}${c.ubicacion?' en '+c.ubicacion:''}`).join('; ') + '.'
+      : `Hoy (${DIAS_NOMBRE[idx]}) no tienes ninguna clase en el horario.`
+  };
+}
+
+function iaEjecutarFuncion(nombre, args) {
+  try {
+    switch (nombre) {
+      case 'consultarMediaAlumno':    return iaConsultarMediaAlumno(args);
+      case 'consultarPendientesNota': return iaConsultarPendientesNota(args);
+      case 'consultarMediaGrupo':     return iaConsultarMediaGrupo(args);
+      case 'consultarClasesHoy':      return iaConsultarClasesHoy(args);
+      default: return { error: 'Función no reconocida.' };
+    }
+  } catch (e) {
+    return { error: 'Error interno al ejecutar la consulta: ' + (e.message||'') };
+  }
+}
+
+// ── Declaración de funciones para Gemini (function calling) ────
+const IA_FUNCIONES_DECLARADAS = [
+  {
+    name: 'consultarMediaAlumno',
+    description: 'Consulta la nota media de UN alumno concreto en una evaluación. Para preguntas como "qué nota lleva Juan" o "cuál es la media de Marta en la 2ª evaluación".',
+    parameters: { type: 'OBJECT', properties: {
+      nombre: { type: 'STRING', description: 'Nombre de pila del alumno' },
+      apellidos: { type: 'STRING', description: 'Apellidos del alumno, si se conocen' },
+      grupo: { type: 'STRING', description: 'Nombre de la clase/grupo, para desambiguar si hay varios alumnos con el mismo nombre' },
+      trimestre: { type: 'STRING', enum: ['T1','T2','T3'], description: 'T1=1ª evaluación, T2=2ª, T3=3ª. Si no se indica, se usa la evaluación activa actual.' }
+    }, required: ['nombre'] }
+  },
+  {
+    name: 'consultarPendientesNota',
+    description: 'Averigua qué alumnos de una clase no tienen todavía nota puesta en un instrumento o apartado concreto (ej. "quién no tiene nota en el examen de disoluciones de 2ºD").',
+    parameters: { type: 'OBJECT', properties: {
+      grupo: { type: 'STRING', description: 'Nombre de la clase/grupo' },
+      instrumento: { type: 'STRING', description: 'Nombre del instrumento de evaluación (ej. "Prueba escrita"), opcional' },
+      apartado: { type: 'STRING', description: 'Nombre del apartado/examen/tarea concreto dentro del instrumento, opcional' },
+      trimestre: { type: 'STRING', enum: ['T1','T2','T3'] }
+    }, required: ['grupo'] }
+  },
+  {
+    name: 'consultarMediaGrupo',
+    description: 'Consulta la nota media de TODA una clase en una evaluación, con el número de aprobados y suspensos.',
+    parameters: { type: 'OBJECT', properties: {
+      grupo: { type: 'STRING', description: 'Nombre de la clase/grupo' },
+      trimestre: { type: 'STRING', enum: ['T1','T2','T3'] }
+    }, required: ['grupo'] }
+  },
+  {
+    name: 'consultarClasesHoy',
+    description: 'Consulta qué clases tiene el profesor HOY según su horario semanal, con horas y grupos.',
+    parameters: { type: 'OBJECT', properties: {} }
+  }
+];
+
+function _iaSystemPrompt() {
+  const hoy = new Date().toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  return `Eres el asistente de EvaLuPa, una app de gestión docente para profesores de secundaria en España. Hoy es ${hoy}.
+Solo puedes responder usando las funciones disponibles (consultas de solo lectura: notas, medias, pendientes y horario de hoy). No inventes datos que no te devuelvan las funciones.
+Si el usuario pide algo que no puedes hacer con las funciones disponibles (por ejemplo, poner una nota, abrir una ficha, crear o modificar algo), dile amablemente que de momento el asistente solo puede consultar información, y que esa función llegará en una próxima versión.
+Responde siempre en español, de forma breve y natural, como si hablaras con un profesor con prisa entre clases. No repitas literalmente los datos técnicos (como "T1"), di "1ª evaluación" en su lugar.`;
+}
+
+async function iaLlamarGemini(historial) {
+  const apiKey = APP.config.geminiApiKey;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const body = {
+    contents: historial,
+    systemInstruction: { parts: [{ text: _iaSystemPrompt() }] },
+    tools: [{ functionDeclarations: IA_FUNCIONES_DECLARADAS }]
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = new Error('HTTP ' + res.status);
+    err.status = res.status;
+    throw err;
+  }
+  return await res.json();
+}
+
+async function iaProcesarMensaje(texto) {
+  const apiKey = APP.config.geminiApiKey;
+  if (!apiKey) {
+    iaQuitarCargando();
+    iaAgregarMensaje('ia', '⚠️ Primero tienes que configurar tu clave de API de Gemini en Ajustes → 🤖 Asistente IA.');
+    return;
+  }
+  if (!window._iaHistorial) window._iaHistorial = [];
+  window._iaHistorial.push({ role: 'user', parts: [{ text: texto }] });
+
+  try {
+    const resp1 = await iaLlamarGemini(window._iaHistorial);
+    const cand1 = resp1?.candidates?.[0];
+    const parts1 = cand1?.content?.parts || [];
+    const fnCall = parts1.find(p => p.functionCall);
+
+    if (fnCall) {
+      window._iaHistorial.push({ role: 'model', parts: parts1 });
+      const resultado = iaEjecutarFuncion(fnCall.functionCall.name, fnCall.functionCall.args || {});
+      window._iaHistorial.push({ role: 'function', parts: [{ functionResponse: { name: fnCall.functionCall.name, response: resultado } }] });
+
+      const resp2 = await iaLlamarGemini(window._iaHistorial);
+      const parts2 = resp2?.candidates?.[0]?.content?.parts || [];
+      const textoFinal = parts2.map(p => p.text).filter(Boolean).join(' ') || 'No he podido generar una respuesta.';
+      window._iaHistorial.push({ role: 'model', parts: parts2 });
+
+      iaQuitarCargando();
+      iaAgregarMensaje('ia', textoFinal);
+    } else {
+      const textoResp = parts1.map(p => p.text).filter(Boolean).join(' ') || 'No he entendido tu petición, ¿puedes reformularla?';
+      window._iaHistorial.push({ role: 'model', parts: parts1 });
+      iaQuitarCargando();
+      iaAgregarMensaje('ia', textoResp);
+    }
+  } catch (e) {
+    iaQuitarCargando();
+    if (e.status === 429) {
+      iaAgregarMensaje('ia', '⏳ Has alcanzado el límite diario gratuito de la IA. Vuelve a estar disponible a partir de medianoche (hora de EE.UU.). No te ha costado ni te costará nada — simplemente hay que esperar al reinicio del contador.');
+    } else if (e.status === 400 || e.status === 403) {
+      iaAgregarMensaje('ia', '❌ La clave de API parece no ser válida. Revísala en Ajustes → 🤖 Asistente IA.');
+    } else {
+      iaAgregarMensaje('ia', '❌ Error al conectar con la IA: ' + (e.message||'desconocido') + '.');
+    }
+  }
 }
 
 // =====================
