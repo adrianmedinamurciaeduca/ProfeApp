@@ -883,7 +883,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.25</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.26</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -7344,7 +7344,7 @@ function renderAjustes() {
       <p style="font-size:12px;color:var(--text2);margin-top:12px">Los datos se guardan automáticamente en este navegador. Exporta un backup JSON regularmente.</p>
       ${estadoBloque}
     </div>
-    
+
   </div>`;
 }
 function renderBottomNavSettings() {
@@ -13674,6 +13674,7 @@ function listadoExportar() {
   URL.revokeObjectURL(url);
 }
 
+
 // =====================
 // MÓDULO DE VOZ
 // =====================
@@ -15284,7 +15285,6 @@ function generarInformeAlumno(aid, opciones) {
     criteriosHTML = bloquesTrim
       ? `<div style="page-break-before:always;padding:24px 16px 0">
           <div class="seccion-titulo">Evaluación por criterios</div>
-          <p style="font-size:11px;color:#888;margin-bottom:14px">La nota de cada criterio se calcula a partir de la nota del instrumento correspondiente, repartida proporcionalmente a su valor máximo.</p>
           ${bloquesTrim}
         </div>`
       : `<div style="page-break-before:always;padding:24px 16px 0">
@@ -15389,12 +15389,12 @@ function generarInformeAlumno(aid, opciones) {
     <div class="datos-basicos">
       <h2>${a.apellidos||''}, ${a.nombre||''}</h2>
       <div class="sub">${g?.nombre||''} ${g?.asignatura?'· '+g.asignatura:''}</div>
-      <div class="meta">
+      ${opciones.datos?`<div class="meta">
         ${a.email?`📧 ${a.email} &nbsp;`:''}
         ${a.telefono?`📞 ${a.telefono} &nbsp;`:''}
         ${a.nre?`NRE: ${a.nre} &nbsp;`:''}
         ${a.retrasos?`⏰ ${a.retrasos} retraso${a.retrasos!==1?'s':''} &nbsp;`:''}
-      </div>
+      </div>`:''}
       <div style="margin-top:6px">
         ${tags.map(t=>`<span class="tag">${t}</span>`).join('')}
         ${(a.asigPendientes||[]).map(p=>`<span class="tag" style="background:#fff8e0;color:#b45309;border-color:#fbbf24">Pend: ${p.nivel?p.nivel+' – ':''}${p.asig}</span>`).join('')}
@@ -15416,15 +15416,11 @@ function generarInformeAlumno(aid, opciones) {
   <div style="padding:0 16px">
     ${notasHTML?`<div class="seccion"><div class="seccion-titulo">Calificaciones</div>${notasHTML}</div>`:''}
 
-    <div class="seccion">
-      <div class="seccion-titulo">Observaciones</div>
-      ${obsHTML}
-    </div>
+    ${obsHTML?`<div class="seccion"><div class="seccion-titulo">Observaciones</div>${obsHTML}</div>`:''}
 
-    <div class="seccion">
-      <div class="seccion-titulo">Reuniones con familia</div>
-      ${reunHTML}
-    </div>
+    ${reunHTML?`<div class="seccion"><div class="seccion-titulo">Reuniones con familia</div>${reunHTML}</div>`:''}
+
+    ${pendHTML?`<div class="seccion"><div class="seccion-titulo">Materias pendientes</div>${pendHTML}</div>`:''}
   </div>
   ${criteriosHTML}
 </div>
