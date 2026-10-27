@@ -883,7 +883,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.26</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.27</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -3315,9 +3315,9 @@ function renderVistaCuaderno(g, als) {
         const tieneRubrica = inst.items?.[jIdx]?.rubrica;
 
         const inputNota = edicion
-          ? `<input type="number" min="0" max="10" step="0.01" value="${val!==undefined&&val!==''?val:''}" placeholder="—" id="cnota-${iIdx}-${jIdx}-${rowIdx}"
+          ? `<input type="number" min="0" max="10" step="0.01" value="${val!==undefined&&val!==''?val:''}" placeholder="—" id="cnota-${g.id}-${iIdx}-${jIdx}-${rowIdx}"
               style="width:46px;text-align:center;border:1px solid var(--border2);border-radius:4px;padding:2px 3px;font-size:12px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--text);${tieneRec?'text-decoration:line-through;opacity:0.5':''}"
-              onblur="cuadernoGuardarNota('${a.id}',${iIdx},${jIdx},this.value,this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();const sig=document.getElementById('cnota-${iIdx}-${jIdx}-${rowIdx+1}');if(sig){sig.focus();sig.select();}}">`
+              onblur="cuadernoGuardarNota('${a.id}',${iIdx},${jIdx},this.value,this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();const sig=document.getElementById('cnota-${g.id}-${iIdx}-${jIdx}-${rowIdx+1}');if(sig){sig.focus();sig.select();}}">`
           : `<span data-nota="1" style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m===null?'var(--text3)':m<5?'#991b1b':'#166534'})()}">${(()=>{const n=val!==undefined&&val!==''?parseFloat(val):null;const r=valRec!==undefined&&valRec!==''?parseFloat(valRec):null;const m=n!==null&&r!==null?Math.max(n,r):n;return m!==null?m.toFixed(2):'—'})()}</span>`;
 
         const undoBtn = edicion && hist?.length
@@ -4835,6 +4835,10 @@ function renderTabObs(a) {
             </div>
             <div id="obs-edit-${idx}" style="display:none;margin-top:6px">
               <textarea id="obs-textarea-${idx}" style="width:100%;padding:8px;border:1px solid var(--accent);border-radius:8px;font-family:inherit;font-size:13px;outline:none;resize:vertical" rows="3">${o.texto}</textarea>
+              <div style="margin-top:6px">
+                <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:2px">Fecha de la observación</label>
+                <input type="date" id="obs-fecha-${idx}" value="${new Date(o.fecha).toISOString().slice(0,10)}" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;font-size:13px">
+              </div>
               <div style="display:flex;gap:6px;margin-top:6px">
                 <button onclick="guardarEdicionObservacion(${idx})" class="btn btn-primary btn-sm">Guardar</button>
                 <button onclick="cancelarEdicionObservacion(${idx})" class="btn btn-secondary btn-sm">Cancelar</button>
@@ -5247,6 +5251,14 @@ function guardarEdicionObservacion(idx) {
   const nuevoTexto = document.getElementById('obs-textarea-' + idx).value.trim();
   if (!nuevoTexto) return;
   a.observaciones[idx].texto = nuevoTexto;
+  const fechaInput = document.getElementById('obs-fecha-' + idx);
+  if (fechaInput && fechaInput.value) {
+    // Cambia solo el día/mes/año, conservando la hora original de la observación
+    const orig = new Date(a.observaciones[idx].fecha);
+    const [y, m, d] = fechaInput.value.split('-').map(Number);
+    orig.setFullYear(y, m - 1, d);
+    a.observaciones[idx].fecha = orig.toISOString();
+  }
   guardarDatos();
   cambiarTabFicha('observaciones');
 }
