@@ -883,7 +883,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.29</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.30</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -1914,6 +1914,48 @@ function getEstructuraGrupo(grupoId, trim) {
 
 // Para calcular: fusiona estructura del grupo con valores del alumno
 // Si existe nota de recuperación, la usa en lugar de la original
+function _normNombreInst(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Los instrumentos de un grupo pueden haberse creado antes (o a mano) y no tener los
+// criterios de la programación asignada. Si no tienen el campo `criterios`, se rellena con
+// el del instrumento de la programación del mismo trimestre y nombre equivalente (sin
+// mayúsculas/acentos; o parecido si solo hay un candidato). Un campo vacío puesto a
+// propósito ('') no se toca. Devuelve true si cambió algo (el llamador guarda).
+function _repararCriteriosGrupo(gid) {
+  const g = APP.grupos.find(x => x.id === gid);
+  if (!g?.estructura) return false;
+  const nivs = (APP.programacion?.niveles || []).filter(n => (n.grupos || []).includes(gid) && n._instruccionesEval);
+  if (!nivs.length) return false;
+  let cambiado = false;
+  ['T1', 'T2', 'T3'].forEach(t => {
+    const cands = [];
+    nivs.forEach(n => (n._instruccionesEval[t] || []).forEach(x => { if (x.criterios) cands.push(x); }));
+    if (!cands.length) return;
+    (g.estructura[t] || []).forEach(inst => {
+      if (inst.criterios != null) return;
+      const nom = _normNombreInst(inst.nombre);
+      let m = cands.find(x => _normNombreInst(x.nombre) === nom);
+      if (!m) {
+        const parecidos = cands.filter(x => {
+          const xn = _normNombreInst(x.nombre);
+          return xn && nom && (xn.includes(nom) || nom.includes(xn));
+        });
+        if (parecidos.length === 1) m = parecidos[0];
+      }
+      if (m) { inst.criterios = m.criterios; cambiado = true; }
+    });
+  });
+  return cambiado;
+}
+
+function _repararCriteriosTodos() {
+  let ch = false;
+  APP.grupos.forEach(g => { if (_repararCriteriosGrupo(g.id)) ch = true; });
+  return ch;
+}
+
 function getInstrumentosConValores(alumno, trim) {
   const personal = alumno.estructuraPersonal?.[trim];
   const baseGrupo = personal ? getEstructuraGrupo(alumno.grupoId, trim) : null;
@@ -3461,6 +3503,7 @@ function renderVistaCuaderno(g, als) {
 // ── Vista "Evaluación por criterios" (solo consulta) ───────────
 function renderVistaCriterios(g, als) {
   const gid = g.id;
+  if (_repararCriteriosGrupo(gid)) guardarDatos();
   const trim = _cuadernoTrim[gid] || _cuadernoTrimGlobal || evalTrimPorDefecto();
   const mostrarFotos = _cuadernoFotos[gid] !== false;
   const insts = g.estructura?.[trim] || [];
@@ -3469,11 +3512,13 @@ function renderVistaCriterios(g, als) {
   // Columnas: una por cada criterio asociado a cada instrumento (agrupadas por instrumento)
   const columnas = [];
   insts.forEach((inst, iIdx) => {
-    const lista = (inst.criterios||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const lista = (inst.criterios||'').split(/,(?![^(]*\))/).map(s=>s.trim()).filter(Boolean);
     lista.forEach(cr => {
-      const m = cr.match(/^([\d.]+)\(([\d.]+)\)?$/);
+      // Admite "1.1(1.250)" y también criterios escritos a mano sin valor ("1.1")
+      const m = cr.match(/^\s*([^()\s]+)\s*(?:\(\s*([\d.,]+)\s*\)?)?\s*$/);
       if (!m) return;
-      columnas.push({ iIdx, instNombre: inst.nombre, codigo: m[1], valor: parseFloat(m[2]) });
+      const v = m[2] !== undefined ? parseFloat(m[2].replace(',', '.')) : null;
+      columnas.push({ iIdx, instNombre: inst.nombre, codigo: m[1], valor: (v === null || isNaN(v)) ? null : v });
     });
   });
 
@@ -3511,7 +3556,7 @@ function renderVistaCriterios(g, als) {
       ? `<span data-desc="${encodeURIComponent(desc)}" onclick="event.stopPropagation();togglePopoverCriterio(this,decodeURIComponent(this.dataset.desc))" style="cursor:pointer;text-decoration:underline dotted" title="Ver descripción del criterio">${col.codigo} ⓘ</span>`
       : col.codigo;
     thCrit += `<th style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--border2);padding:3px 5px;font-size:10px;white-space:nowrap;text-align:center;min-width:56px">
-      ${codHtml}<br><span style="font-size:9px;color:var(--text3)">/${col.valor.toFixed(2)}</span>
+      ${codHtml}<br><span style="font-size:9px;color:var(--text3)">/${col.valor!==null?col.valor.toFixed(2):'—'}</span>
     </th>`;
   });
   flushInst();
@@ -3540,7 +3585,7 @@ function renderVistaCriterios(g, als) {
     const tdsNotas = columnas.map(col => {
       const inst = instrumentosAlumno[col.iIdx];
       const notaInst = inst ? calcNota(inst.items) : null;
-      const notaCrit = notaInst !== null ? (col.valor * notaInst / 10) : null;
+      const notaCrit = (notaInst !== null && col.valor !== null) ? (col.valor * notaInst / 10) : null;
       const color = notaCrit === null ? 'var(--text3)' : (notaInst < 5 ? '#991b1b' : '#166534');
       return `<td style="background:${bg};border:1px solid var(--border2);padding:4px 5px;text-align:center">
         <span style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:${color}">${notaCrit!==null?notaCrit.toFixed(2):'—'}</span>
@@ -3555,17 +3600,22 @@ function renderVistaCriterios(g, als) {
     const vals = als.filter(a=>!a.abs).map(a => {
       const inst = getInstrumentosConValores(a, trim)[col.iIdx];
       const n = inst ? calcNota(inst.items) : null;
-      return n !== null ? col.valor * n / 10 : null;
+      return (n !== null && col.valor !== null) ? col.valor * n / 10 : null;
     }).filter(v => v !== null);
     const media = vals.length ? (vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(2) : '—';
     return `<td style="background:var(--surface2);border:1px solid var(--border2);padding:4px 5px;text-align:center;font-size:11px;font-weight:700;color:var(--text2);font-family:'DM Mono',monospace">${media}</td>`;
   }).join('');
 
+  const sinCrit = insts.filter(i => !(i.criterios||'').trim() && (i.items||[]).length).map(i => i.nombre);
+  const avisoSinCrit = sinCrit.length
+    ? `<div style="padding:6px 14px;font-size:11px;color:#92400e;background:#fffbeb;border-bottom:1px solid #fde68a">ℹ️ Sin criterios asociados en esta evaluación: <strong>${sinCrit.join(', ')}</strong>. Asócialos en Programación → "✏ Editar criterios" del instrumento.</div>`
+    : '';
   return `<div id="cuaderno-wrap-${gid}">
     <div style="padding:6px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface)">
       <span style="font-size:12px;font-weight:700;color:var(--text2)">${g.nombre} · Evaluación por criterios</span>
       <span style="font-size:11px;color:var(--text3);margin-left:auto">👁 Vista de consulta — la nota se calcula a partir de las notas ya registradas en los instrumentos</span>
     </div>
+    ${avisoSinCrit}
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;width:100%">
       <table style="border-collapse:collapse;font-family:'Calibri',sans-serif">
         <thead>
@@ -15318,6 +15368,7 @@ function generarInformeAlumno(aid, opciones) {
   // instrumento entre sus criterios proporcionalmente al "valor" de cada uno (Anota).
   let criteriosHTML = '';
   if (opciones.criterios) {
+    if (_repararCriteriosGrupo(a.grupoId)) guardarDatos();
     const niv = APP.programacion?.niveles?.find(n => (n.grupos||[]).includes(a.grupoId));
     const bloquesTrim = trimsSeleccionados.map(t => {
       const insts = getInstrumentosConValores(a, t);
@@ -16904,6 +16955,7 @@ function _exportarRubricasHtml(rubricas) {
 
 // =====================
 cargarDatos();
+if (_repararCriteriosTodos()) guardarDatos();
 inicializarTema();
 // Inicializar trim global del cuaderno con la evaluación activa por fecha
 _cuadernoTrimGlobal = evalTrimPorDefecto();
