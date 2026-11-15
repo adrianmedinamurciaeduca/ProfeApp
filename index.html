@@ -883,7 +883,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.30</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.31</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -7744,7 +7744,7 @@ function planoGrupoClickCelda(gid, fi, ci) {
     return `<div onclick="${ocu ? '' : "planoGrupoAsignar('" + al.id + "')"}"
       style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:${ocu ? 'not-allowed' : 'pointer'};opacity:${ocu ? 0.45 : 1}"
       onmouseenter="if(!${ocu})this.style.background='var(--accent-bg)'" onmouseleave="this.style.background=''">
-      <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${iniciales(al)}</div>
+      <div style="width:40px;height:40px;border-radius:50%;overflow:hidden;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">${al.foto?`<img src="${al.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(al)}</div>
       <span style="font-size:13px">${al.apellidos || ''}, ${al.nombre || ''}</span>
       ${ocu ? '<span style="font-size:10px;color:var(--text3);margin-left:auto">ocupado</span>' : ''}
     </div>`;
@@ -11274,7 +11274,7 @@ function planoClickCelda(gid, fi, ci) {
     return `<div onclick="${yaAsig ? '' : 'planoAsignarAlumno(\''+al.id+'\')'}"
       style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:${yaAsig?'not-allowed':'pointer'};background:${yaAsig?'var(--surface2)':''};opacity:${yaAsig?'0.5':'1'}"
       onmouseenter="if(!${yaAsig})this.style.background='var(--accent-bg)'" onmouseleave="this.style.background='${yaAsig?'var(--surface2)':''}'">
-      <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${iniciales(al)}</div>
+      <div style="width:40px;height:40px;border-radius:50%;overflow:hidden;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">${al.foto?`<img src="${al.foto}" style="width:100%;height:100%;object-fit:cover">`:iniciales(al)}</div>
       <span style="font-size:13px">${al.apellidos||''}, ${al.nombre||''}</span>
       ${yaAsig?'<span style="font-size:10px;color:var(--text3);margin-left:auto">ocupado</span>':''}
     </div>`;
