@@ -883,7 +883,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <h1>ProfeApp</h1>
-          <span>Gestión docente · <strong style="color:var(--accent)">v7.31</strong></span>
+          <span>Gestión docente · <strong style="color:var(--accent)">v7.32</strong></span>
         </div>
         <div id="drive-status" onclick="driveStatusClick()" title="Estado de sincronización con Google Drive"
           style="cursor:pointer;text-align:center;font-size:18px;line-height:1;padding:4px"></div>
@@ -15347,7 +15347,7 @@ function generarInformeAlumno(aid, opciones) {
     return `<div style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;background:#2c2c2c;color:#fff;padding:8px 12px;border-radius:4px 4px 0 0">
         <span style="font-weight:700;font-size:13px">${labTrim[t]}${bloq?' 🔒':''}</span>
-        <span style="font-size:13px;font-weight:700">${notaTrim!==null?notaTrim.toFixed(2):'—'}${notaRed!==null?' → '+notaRed:''}</span>
+        <span style="font-size:13px;font-weight:700">${notaTrim!==null?notaTrim.toFixed(2):'—'}</span>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:#f0f0f0">
@@ -15428,9 +15428,9 @@ function generarInformeAlumno(aid, opciones) {
   const obsPublicas = (a.observaciones||[]).filter(o => !o.privada);
   const obsHTML = opciones.obs ? (obsPublicas.length
     ? `<ul style="margin:0;padding-left:18px">${obsPublicas.map(o=>
-        `<li style="font-size:12px;margin-bottom:4px;color:#333">${o.texto||o} ${o.fecha?`<span style="color:#888;font-size:11px">(${o.fecha})</span>`:''}</li>`
+        `<li style="font-size:15px;line-height:1.45;margin-bottom:6px;color:#333">${o.texto||o} ${o.fecha?`<span style="color:#888;font-size:12px">(${o.fecha})</span>`:''}</li>`
       ).join('')}</ul>`
-    : '<p style="color:#aaa;font-size:12px;font-style:italic">Sin observaciones registradas.</p>') : '';
+    : '<p style="color:#aaa;font-size:14px;font-style:italic">Sin observaciones registradas.</p>') : '';
 
   // Reuniones
   const reunHTML = opciones.reuniones ? ((a.reuniones||[]).length
@@ -15534,13 +15534,9 @@ function generarInformeAlumno(aid, opciones) {
     </div>
     ${notaFinal!==null?`<div class="nota-final-box" style="margin-left:auto;flex-shrink:0;text-align:center">
       <div>
-        <div class="lbl">Nota final</div>
+        <div class="lbl">Nota provisional</div>
         <div class="val">${notaFinal.toFixed(2)}</div>
       </div>
-      ${notaFinalRed!==null?`<div>
-        <div class="lbl">Redondeada</div>
-        <div class="val" style="color:${notaFinalRed>=5?'#1a7a4a':'#c0392b'}">${notaFinalRed}</div>
-      </div>`:''}
     </div>`:''}
   </div>
 
